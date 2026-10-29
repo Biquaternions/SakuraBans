@@ -1,0 +1,10 @@
+name: paper
+version: '${version}'
+
+main: net.serlith.sakurabans.paper.SakuraBansPaper
+bootstrapper: net.serlith.sakurabans.paper.SakuraBansPaperBootstrap
+loader: net.serlith.sakurabans.paper.SakuraBansPaperLoader
+api-version: '26.3'
+load: STARTUP
+
+authors: [Biquaternions]
