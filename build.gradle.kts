@@ -20,6 +20,11 @@ allprojects {
             name = "papermc"
         }
     }
+
+    dependencies {
+        compileOnly("org.jspecify:jspecify:1.0.1")
+    }
+
 }
 
 dependencies {

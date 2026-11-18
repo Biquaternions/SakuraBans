@@ -9,4 +9,5 @@ repositories {
 
 dependencies {
     implementation(project(":api"))
+    implementation("org.jooq:jooq:3.21.9")
 }
