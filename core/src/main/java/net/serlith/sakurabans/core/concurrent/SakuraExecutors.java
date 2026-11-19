@@ -70,6 +70,10 @@ public final class SakuraExecutors implements AutoCloseable {
         return false;
     }
 
+    public boolean terminated() {
+        return this.worker.isTerminated() && this.timer.isTerminated();
+    }
+
     @Override
     public void close() {
         this.shutdown(Duration.ofSeconds(10));

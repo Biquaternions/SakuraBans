@@ -1,5 +1,6 @@
 plugins {
     id("sakurabans.library-conventions")
+    `java-test-fixtures`
 }
 
 dependencies {
@@ -24,6 +25,10 @@ dependencies {
     compileOnly(libs.adventure.text.serializer.plain)
     compileOnly(libs.adventure.text.logger.slf4j)
     compileOnly(libs.slf4j.api)
+
+    testFixturesCompileOnly(libs.jspecify)
+    testFixturesCompileOnly(platform(libs.adventure.bom))
+    testFixturesCompileOnly(libs.adventure.api)
 
     testImplementation(platform(libs.adventure.bom))
     testImplementation(libs.adventure.api)

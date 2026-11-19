@@ -13,7 +13,7 @@ public final class SakuraBansPaper extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        this.core.start();
+        this.core.start(new PaperPlatform(this));
     }
 
     @Override
