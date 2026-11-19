@@ -5,6 +5,19 @@ plugins {
 dependencies {
     api(project(":api"))
     implementation(libs.jooq)
+    implementation(libs.hikari)
+    implementation(libs.caffeine)
+    implementation(libs.jshepherd.core)
+    implementation(libs.jshepherd.yaml)
+    implementation(libs.cloud.core)
+    implementation(libs.cloud.minecraft.extras) {
+        // Declares Adventure 4.15; Paper 26.3 and Velocity 4.3 provide Adventure 5.2 (D18).
+        exclude(group = "net.kyori")
+    }
+    implementation(libs.h2)
+    implementation(libs.mariadb)
+    implementation(libs.mysql)
+    implementation(libs.postgresql)
 
     compileOnly(platform(libs.adventure.bom))
     compileOnly(libs.adventure.api)
