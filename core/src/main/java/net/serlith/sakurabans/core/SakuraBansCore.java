@@ -34,7 +34,6 @@ public final class SakuraBansCore {
         this.messages = messages;
     }
 
-    /** Phase 2. On failure everything started so far is stopped again and the error rethrown. */
     public void start(final Platform platform) {
         this.lifecycle.advance(LifecycleState.CREATED, LifecycleState.STARTING);
         try {
@@ -48,7 +47,6 @@ public final class SakuraBansCore {
                 BuildConstants.GIT_COMMIT, platform.platformVersion());
     }
 
-    /** Only while running; settings are read per use, so services see the new values at once. */
     public ReloadResult reload() {
         if (!this.lifecycle.running()) {
             throw new IllegalStateException("can't reload while " + this.lifecycle.state());
@@ -60,7 +58,6 @@ public final class SakuraBansCore {
         return result;
     }
 
-    /** Safe in every state and idempotent; waits up to 10 s for background tasks. */
     public void stop() {
         if (!this.lifecycle.advanceTo(LifecycleState.STOPPING)) {
             return;
