@@ -35,6 +35,6 @@ public final class CoreBootstrap {
         components.lifecycle().advance(LifecycleState.NEW, LifecycleState.CREATED);
         return new SakuraBansCore(components.environment().logger(), components.lifecycle(),
                 components.platform(), components.executors(), components.config(),
-                components.messages());
+                components.messages(), components.storage());
     }
 }

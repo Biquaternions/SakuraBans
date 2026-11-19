@@ -10,6 +10,7 @@ import net.serlith.sakurabans.core.configuration.ReloadResult;
 import net.serlith.sakurabans.core.message.MessageService;
 import net.serlith.sakurabans.core.platform.LatePlatform;
 import net.serlith.sakurabans.core.platform.Platform;
+import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.util.BuildConstants;
 
 public final class SakuraBansCore {
@@ -22,22 +23,26 @@ public final class SakuraBansCore {
     private final SakuraExecutors executors;
     private final ConfigService config;
     private final MessageService messages;
+    private final StorageService storage;
 
     public SakuraBansCore(final ComponentLogger logger, final Lifecycle lifecycle,
             final LatePlatform platform, final SakuraExecutors executors,
-            final ConfigService config, final MessageService messages) {
+            final ConfigService config, final MessageService messages,
+            final StorageService storage) {
         this.logger = logger;
         this.lifecycle = lifecycle;
         this.platform = platform;
         this.executors = executors;
         this.config = config;
         this.messages = messages;
+        this.storage = storage;
     }
 
     public void start(final Platform platform) {
         this.lifecycle.advance(LifecycleState.CREATED, LifecycleState.STARTING);
         try {
             this.platform.bind(platform);
+            this.storage.start();
         } catch (final RuntimeException | Error e) {
             this.stop();
             throw e;
@@ -66,6 +71,8 @@ public final class SakuraBansCore {
             this.logger.warn("Background tasks didn't finish within {} s and were interrupted",
                     SHUTDOWN_TIMEOUT.toSeconds());
         }
+        // After the worker: queued writes still had their connections.
+        this.storage.stop();
         this.lifecycle.advance(LifecycleState.STOPPING, LifecycleState.STOPPED);
         this.logger.info("SakuraBans {} disabled", BuildConstants.VERSION);
     }

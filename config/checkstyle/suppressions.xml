@@ -5,7 +5,7 @@
 
 <suppressions>
     <!-- jOOQ column fields are UPPER_SNAKE (decision D2). -->
-    <suppress checks="GoogleNonConstantFieldName|MemberName"
+    <suppress checks="GoogleNonConstantFieldName|MemberName|StaticVariableName|AbbreviationAsWordInName"
             files="[\\/]core[\\/]src[\\/]main[\\/]java[\\/].*[\\/]storage[\\/]dbo[\\/]"/>
 
     <!-- Platform modules may import platform APIs. -->
