@@ -5,14 +5,21 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 import java.util.UUID;
+import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
+import net.serlith.sakurabans.api.model.GlobalScope;
 import net.serlith.sakurabans.api.model.Lengths;
+import net.serlith.sakurabans.api.model.PlayerOperator;
 import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Visibility;
+import net.serlith.sakurabans.api.validation.FieldError;
+import net.serlith.sakurabans.api.validation.ValidationException;
 import org.junit.jupiter.api.Test;
 
 class RevocationAndEditTest {
+
+    private static final Actor CONSOLE = Actor.of(ConsoleOperator.INSTANCE, "console");
 
     @Test
     void idTargetsArePositive() {
@@ -39,7 +46,7 @@ class RevocationAndEditTest {
     @Test
     void requestsHaveDefaultsAndCopy() {
         final RevocationRequest request = RevocationRequest.builder(
-                RevocationTarget.ById.of(3), ConsoleOperator.INSTANCE).reason("appeal").build();
+                RevocationTarget.ById.of(3), CONSOLE).reason("appeal").build();
 
         assertThat(request.visibility()).isEqualTo(Visibility.NORMAL);
         assertThat(request.ownOnly()).isFalse();
@@ -56,6 +63,30 @@ class RevocationAndEditTest {
         assertThat(PunishmentEdit.NewExpiry.of(later).expiresAt()).contains(later);
         assertThat(PunishmentEdit.NewExpiry.of(null).expiresAt()).isEmpty();
         assertThatThrownBy(() -> PunishmentEdit.NewReason.of("x".repeat(Lengths.MAX_REASON + 1)))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(ValidationException.class);
+        assertThat(PunishmentEdit.NewScope.of(GlobalScope.INSTANCE).scope())
+                .isEqualTo(GlobalScope.INSTANCE);
+    }
+
+    @Test
+    void editRequestsCarryAnExpectedVersion() {
+        final EditRequest request = EditRequest.builder(5, PunishmentEdit.NewReason.of("x"),
+                CONSOLE).expectedVersion(3).build();
+
+        assertThat(request.expectedVersion()).hasValue(3);
+        assertThat(request.toBuilder().build()).isEqualTo(request);
+        assertThat(EditRequest.builder(0, PunishmentEdit.NewReason.of("x"), CONSOLE)
+                .expectedVersion(0).validate()).extracting(FieldError::path)
+                .containsExactlyInAnyOrder("id", "expectedVersion");
+    }
+
+    @Test
+    void rollbacksHaveDefaults() {
+        final RollbackRequest request = RollbackRequest.builder(
+                PlayerOperator.of(UUID.randomUUID(), "Mod"), Instant.EPOCH, CONSOLE).build();
+
+        assertThat(request.visibility()).isEqualTo(Visibility.NORMAL);
+        assertThat(request.reason()).isEmpty();
+        assertThat(request.toBuilder().build()).isEqualTo(request);
     }
 }

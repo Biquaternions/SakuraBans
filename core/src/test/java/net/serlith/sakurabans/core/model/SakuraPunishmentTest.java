@@ -5,8 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
 import net.serlith.sakurabans.api.model.EndKind;
 import net.serlith.sakurabans.api.model.GlobalScope;
@@ -24,6 +26,7 @@ class SakuraPunishmentTest {
     private static final Instant CREATED = Instant.parse("2026-11-18T12:00:00Z");
     private static final Victim VICTIM = PlayerVictim.of(UUID.randomUUID());
     private static final Operator CONSOLE = ConsoleOperator.INSTANCE;
+    private static final Actor ACTOR = Actor.of(CONSOLE, "console");
 
     private static SakuraPunishment punishment(final PunishmentType type,
             final Optional<Instant> expiresAt, final Optional<PunishmentEnd> end) {
@@ -33,14 +36,15 @@ class SakuraPunishmentTest {
     private static SakuraPunishment punishment(final long id, final String displayId,
             final PunishmentType type, final String reason, final Optional<Instant> expiresAt,
             final Optional<PunishmentEnd> end) {
-        return new SakuraPunishment(id, displayId, type, VICTIM, CONSOLE, GlobalScope.INSTANCE,
-                reason, CREATED, expiresAt, Optional.empty(), Visibility.NORMAL, Optional.empty(),
-                end);
+        return new SakuraPunishment(id, displayId, type, type.name(), false, Optional.empty(),
+                VICTIM, CONSOLE, "console", GlobalScope.INSTANCE, reason, CREATED, expiresAt,
+                Optional.empty(), Visibility.NORMAL, Optional.empty(), end, Optional.empty(),
+                List.of(), 1);
     }
 
     private static Optional<PunishmentEnd> revokedAt(final Instant at) {
         return Optional.of(new SakuraPunishmentEnd(
-                EndKind.REVOKED, at, Optional.of(CONSOLE), Optional.empty()));
+                EndKind.REVOKED, at, Optional.of(ACTOR), Optional.empty()));
     }
 
     @Test
@@ -117,10 +121,39 @@ class SakuraPunishmentTest {
                 EndKind.REVOKED, CREATED, Optional.empty(), Optional.empty()))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThat(new SakuraPunishmentEnd(
-                EndKind.EXPIRED, CREATED, Optional.empty(), Optional.empty()).operator())
+                EndKind.EXPIRED, CREATED, Optional.empty(), Optional.empty()).actor())
                 .isEmpty();
         assertThatThrownBy(() -> new SakuraPunishmentEnd(EndKind.REVOKED, CREATED,
-                Optional.of(CONSOLE), Optional.of("x".repeat(Lengths.MAX_REASON + 1))))
+                Optional.of(ACTOR), Optional.of("x".repeat(Lengths.MAX_REASON + 1))))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void kindsAreNormalisedAndOnlyMutesAreShadow() {
+        assertThat(punishment(PunishmentType.BAN, Optional.empty(), Optional.empty()).kind())
+                .isEqualTo("ban");
+        assertThatThrownBy(() -> new SakuraPunishment(1, "X", PunishmentType.BAN, "ban", true,
+                Optional.empty(), VICTIM, CONSOLE, "console", GlobalScope.INSTANCE, "", CREATED,
+                Optional.empty(), Optional.empty(), Visibility.NORMAL, Optional.empty(),
+                Optional.empty(), Optional.empty(), List.of(), 1))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void anEndByVoidingNeedsTheVoiding() {
+        final Optional<PunishmentEnd> voided = Optional.of(new SakuraPunishmentEnd(
+                EndKind.VOIDED, CREATED, Optional.of(ACTOR), Optional.empty()));
+
+        assertThatThrownBy(() -> punishment(PunishmentType.BAN, Optional.empty(), voided))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void endsOtherThanExpiryNeedAnActor() {
+        assertThatThrownBy(() -> new SakuraPunishmentEnd(
+                EndKind.ROLLED_BACK, CREATED, Optional.empty(), Optional.empty()))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(new SakuraPunishmentEnd(
+                EndKind.SUPERSEDED, CREATED, Optional.empty(), Optional.empty()).actor()).isEmpty();
     }
 }

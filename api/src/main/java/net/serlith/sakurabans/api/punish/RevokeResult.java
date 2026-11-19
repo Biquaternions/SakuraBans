@@ -53,7 +53,10 @@ public sealed interface RevokeResult permits RevokeResult.Success, RevokeResult.
             CANCELLED,
 
             /** No reason was given, and the configuration requires one. */
-            REASON_REQUIRED
+            REASON_REQUIRED,
+
+            /** The actor isn't allowed to do this (permissions or an integration's guard). */
+            FORBIDDEN
         }
     }
 }

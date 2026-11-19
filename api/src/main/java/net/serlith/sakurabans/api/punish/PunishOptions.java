@@ -1,7 +1,9 @@
 package net.serlith.sakurabans.api.punish;
 
+import java.util.List;
 import java.util.Objects;
 import net.serlith.sakurabans.api.model.Visibility;
+import net.serlith.sakurabans.api.validation.FieldError;
 
 /**
  * How {@link PunishmentService#punish(DraftPunishment, PunishOptions)} behaves.
@@ -122,6 +124,16 @@ public interface PunishOptions {
         public Builder bypassLimits(final boolean bypassLimits) {
             this.bypassLimits = bypassLimits;
             return this;
+        }
+
+        /**
+         * Checks the values without building. Options can't be invalid, so this is always
+         * empty; it exists so every builder can be validated the same way.
+         *
+         * @return no errors
+         */
+        public List<FieldError> validate() {
+            return List.of();
         }
 
         /**

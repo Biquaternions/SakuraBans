@@ -12,6 +12,7 @@ import net.serlith.sakurabans.api.model.Lengths;
 final class ModelChecks {
 
     private static final Pattern IDENTIFIER = Pattern.compile("[a-z0-9_-]+");
+    private static final Pattern SOURCE = Pattern.compile("[a-z0-9_.:-]+");
 
     private ModelChecks() {
     }
@@ -46,6 +47,16 @@ final class ModelChecks {
         if (lower.length() > Lengths.MAX_IDENTIFIER || !IDENTIFIER.matcher(lower).matches()) {
             throw new IllegalArgumentException(what + " must be 1-" + Lengths.MAX_IDENTIFIER
                     + " characters of a-z, 0-9, '_' or '-': '" + value + "'");
+        }
+        return lower;
+    }
+
+    static String source(final String value, final String what) {
+        Objects.requireNonNull(value, what);
+        final String lower = value.toLowerCase(Locale.ROOT);
+        if (lower.length() > Lengths.MAX_SOURCE || !SOURCE.matcher(lower).matches()) {
+            throw new IllegalArgumentException(what + " must be 1-" + Lengths.MAX_SOURCE
+                    + " characters of a-z, 0-9, '_', '.', ':' or '-': '" + value + "'");
         }
         return lower;
     }

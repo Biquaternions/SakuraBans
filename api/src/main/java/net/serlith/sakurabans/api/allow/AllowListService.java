@@ -4,7 +4,7 @@ import java.net.InetAddress;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import net.serlith.sakurabans.api.model.Operator;
+import net.serlith.sakurabans.api.model.Actor;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -41,37 +41,38 @@ public interface AllowListService {
      * Allow-lists an account.
      *
      * @param uuid the account's UUID
-     * @param operator who adds it
+     * @param actor who adds it
      * @param note why, at most 256 characters, or {@code null}
      * @return {@code true} if it was added, {@code false} if it already was allow-listed
      */
-    CompletableFuture<Boolean> allow(UUID uuid, Operator operator, @Nullable String note);
+    CompletableFuture<Boolean> allow(UUID uuid, Actor actor, @Nullable String note);
 
     /**
      * Allow-lists an address.
      *
      * @param address the address
-     * @param operator who adds it
+     * @param actor who adds it
      * @param note why, at most 256 characters, or {@code null}
      * @return {@code true} if it was added, {@code false} if it already was allow-listed
      */
-    CompletableFuture<Boolean> allow(InetAddress address, Operator operator, @Nullable String note);
+    CompletableFuture<Boolean> allow(
+            InetAddress address, Actor actor, @Nullable String note);
 
     /**
      * Removes an account from the allow list.
      *
      * @param uuid the account's UUID
-     * @param operator who removes it
+     * @param actor who removes it
      * @return {@code true} if it was allow-listed and is now removed
      */
-    CompletableFuture<Boolean> disallow(UUID uuid, Operator operator);
+    CompletableFuture<Boolean> disallow(UUID uuid, Actor actor);
 
     /**
      * Removes an address from the allow list.
      *
      * @param address the address
-     * @param operator who removes it
+     * @param actor who removes it
      * @return {@code true} if it was allow-listed and is now removed
      */
-    CompletableFuture<Boolean> disallow(InetAddress address, Operator operator);
+    CompletableFuture<Boolean> disallow(InetAddress address, Actor actor);
 }

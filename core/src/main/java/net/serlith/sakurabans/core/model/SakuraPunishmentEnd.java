@@ -3,21 +3,24 @@ package net.serlith.sakurabans.core.model;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.EndKind;
 import net.serlith.sakurabans.api.model.Lengths;
-import net.serlith.sakurabans.api.model.Operator;
 import net.serlith.sakurabans.api.model.PunishmentEnd;
 
 public record SakuraPunishmentEnd(
-        EndKind kind, Instant at, Optional<Operator> operator, Optional<String> reason)
+        EndKind kind, Instant at, Optional<Actor> actor, Optional<String> reason)
         implements PunishmentEnd {
+
+    private static final Set<EndKind> BY_NOBODY = Set.of(EndKind.EXPIRED, EndKind.SUPERSEDED);
 
     public SakuraPunishmentEnd {
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(at, "at");
-        Objects.requireNonNull(operator, "operator");
-        if (kind == EndKind.REVOKED && operator.isEmpty()) {
-            throw new IllegalArgumentException("a revocation needs an operator");
+        Objects.requireNonNull(actor, "actor");
+        if (actor.isEmpty() && !BY_NOBODY.contains(kind)) {
+            throw new IllegalArgumentException(kind + " needs an actor");
         }
         ModelChecks.text(reason, Lengths.MAX_REASON, "reason");
     }

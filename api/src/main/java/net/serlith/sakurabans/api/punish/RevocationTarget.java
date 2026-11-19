@@ -5,6 +5,8 @@ import java.util.Optional;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Scope;
 import net.serlith.sakurabans.api.model.Victim;
+import net.serlith.sakurabans.api.validation.FieldError.Code;
+import net.serlith.sakurabans.api.validation.Validator;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -29,13 +31,15 @@ public sealed interface RevocationTarget permits RevocationTarget.ById, Revocati
          *
          * @param id the database id, at least 1
          * @return the target
+         * @throws net.serlith.sakurabans.api.validation.ValidationException if {@code id} is
+         *         less than 1
          */
         static ById of(final long id) {
             record Impl(long id) implements ById {
                 Impl {
-                    if (id < 1) {
-                        throw new IllegalArgumentException("id must be positive: " + id);
-                    }
+                    final Validator errors = Validator.create();
+                    errors.check(id >= 1, "id", Code.OUT_OF_RANGE, "must be at least 1: " + id);
+                    errors.throwIfAny();
                 }
             }
 
@@ -84,9 +88,10 @@ public sealed interface RevocationTarget permits RevocationTarget.ById, Revocati
                 Impl {
                     Objects.requireNonNull(type, "type");
                     Objects.requireNonNull(victim, "victim");
-                    if (type.instant()) {
-                        throw new IllegalArgumentException(type + " can't be revoked");
-                    }
+                    final Validator errors = Validator.create();
+                    errors.check(!type.instant(), "type", Code.NOT_ALLOWED,
+                            type + " can't be revoked");
+                    errors.throwIfAny();
                 }
             }
 

@@ -3,20 +3,31 @@ package net.serlith.sakurabans.api.punish;
 import java.net.InetAddress;
 import java.time.Instant;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.Operator;
+import net.serlith.sakurabans.api.model.Page;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Scope;
 import net.serlith.sakurabans.api.model.Victim;
-import net.serlith.sakurabans.api.player.AddressStrictness;
+import net.serlith.sakurabans.api.validation.FieldError;
+import net.serlith.sakurabans.api.validation.FieldError.Code;
+import net.serlith.sakurabans.api.validation.ValidationException;
+import net.serlith.sakurabans.api.validation.Validator;
 import org.jspecify.annotations.Nullable;
 
 /**
- * A selection of punishments for {@link PunishmentService#query(PunishmentQuery)}. Build one with
- * {@link #builder()}; every filter is optional, and results are newest first.
+ * A selection of punishments for {@link PunishmentService#query(PunishmentQuery)} and
+ * {@link PunishmentService#count(PunishmentQuery)}. Build one with {@link #builder()}; every
+ * filter is optional.
+ *
+ * <p>Operators are matched by identity: a player or custom operator by UUID (name snapshots are
+ * ignored), a custom operator without UUID by name, and the console as the console.
  */
 public interface PunishmentQuery {
 
@@ -29,6 +40,13 @@ public interface PunishmentQuery {
      * @return the types, never empty; all types by default
      */
     Set<PunishmentType> types();
+
+    /**
+     * Only punishments of these kinds.
+     *
+     * @return the kind ids, lower case; empty for every kind
+     */
+    Set<String> kinds();
 
     /**
      * Only punishments of exactly this victim.
@@ -50,6 +68,13 @@ public interface PunishmentQuery {
      * @return the operator, or empty
      */
     Optional<Operator> operator();
+
+    /**
+     * Only punishments that this operator revoked.
+     *
+     * @return the operator, or empty
+     */
+    Optional<Operator> revokedBy();
 
     /**
      * Only punishments in exactly this scope.
@@ -74,6 +99,13 @@ public interface PunishmentQuery {
     boolean includeHidden();
 
     /**
+     * Whether voided punishments are included.
+     *
+     * @return {@code false} by default
+     */
+    boolean includeVoided();
+
+    /**
      * Only punishments created at or after this instant.
      *
      * @return the lower bound, or empty
@@ -88,11 +120,26 @@ public interface PunishmentQuery {
     Optional<Instant> createdBefore();
 
     /**
-     * The page to return.
+     * The order of the results.
+     *
+     * @return the order; {@link Order#NEWEST_FIRST} by default
+     */
+    Order order();
+
+    /**
+     * The page to return, when paging by number.
      *
      * @return the page, counted from 1
      */
     int page();
+
+    /**
+     * Where to continue, when paging by cursor: the {@link Page#nextCursor()} of the previous
+     * page. Can't be combined with a page number other than 1.
+     *
+     * @return the cursor, or empty to start from the beginning
+     */
+    Optional<String> after();
 
     /**
      * The number of punishments per page.
@@ -111,10 +158,15 @@ public interface PunishmentQuery {
                 .types(this.types())
                 .victim(this.victim().orElse(null))
                 .applicableTo(this.applicableTo().orElse(null))
+                .kinds(this.kinds())
                 .operator(this.operator().orElse(null))
+                .revokedBy(this.revokedBy().orElse(null))
                 .scope(this.scope().orElse(null))
                 .activeOnly(this.activeOnly())
                 .includeHidden(this.includeHidden())
+                .includeVoided(this.includeVoided())
+                .order(this.order())
+                .after(this.after().orElse(null))
                 .createdAfter(this.createdAfter().orElse(null))
                 .createdBefore(this.createdBefore().orElse(null));
         return builder.page(this.page()).pageSize(this.pageSize());
@@ -130,17 +182,32 @@ public interface PunishmentQuery {
     }
 
     /**
-     * A player's connection: the account, the address it uses, and how far address punishments
-     * reach (see {@link AddressStrictness}).
+     * The order of query results.
+     */
+    enum Order {
+
+        /** The most recently created first. */
+        NEWEST_FIRST,
+
+        /** The oldest first. */
+        OLDEST_FIRST,
+
+        /** The soonest to expire first; permanent ones last. */
+        EXPIRING_FIRST
+    }
+
+    /**
+     * A connection, matched the way enforcement matches it: an account, an address, or both, and
+     * how far address punishments reach (see {@link AddressStrictness}).
      */
     interface Applicability {
 
         /**
          * The account.
          *
-         * @return the account's UUID
+         * @return the account's UUID, or empty to match by address only
          */
-        UUID uuid();
+        Optional<UUID> uuid();
 
         /**
          * The address of the connection.
@@ -157,24 +224,31 @@ public interface PunishmentQuery {
         AddressStrictness strictness();
 
         /**
-         * Creates the applicability.
+         * Creates the applicability. With an address only, it matches the punishments that would
+         * stop a connection from that address: address and range punishments, and (from
+         * {@link AddressStrictness#NORMAL}) those of accounts that joined from it.
          *
-         * @param uuid the account's UUID
+         * @param uuid the account's UUID, or {@code null}
          * @param address the connection's address, or {@code null}
          * @param strictness how far address punishments reach
          * @return the applicability
+         * @throws net.serlith.sakurabans.api.validation.ValidationException if both
+         *         {@code uuid} and {@code address} are {@code null}
          */
-        static Applicability of(final UUID uuid, final @Nullable InetAddress address,
+        static Applicability of(final @Nullable UUID uuid, final @Nullable InetAddress address,
                 final AddressStrictness strictness) {
-            record Impl(UUID uuid, Optional<InetAddress> address, AddressStrictness strictness)
-                    implements Applicability {
+            record Impl(Optional<UUID> uuid, Optional<InetAddress> address,
+                    AddressStrictness strictness) implements Applicability {
                 Impl {
-                    Objects.requireNonNull(uuid, "uuid");
                     Objects.requireNonNull(strictness, "strictness");
+                    final Validator errors = Validator.create();
+                    errors.check(uuid.isPresent() || address.isPresent(), "uuid",
+                            Code.INVALID, "set a uuid, an address or both");
+                    errors.throwIfAny();
                 }
             }
 
-            return new Impl(uuid, Optional.ofNullable(address), strictness);
+            return new Impl(Optional.ofNullable(uuid), Optional.ofNullable(address), strictness);
         }
     }
 
@@ -184,15 +258,20 @@ public interface PunishmentQuery {
     final class Builder {
 
         private Set<PunishmentType> types = EnumSet.allOf(PunishmentType.class);
+        private Set<String> kinds = Set.of();
         private @Nullable Victim victim;
         private @Nullable Applicability applicableTo;
         private @Nullable Operator operator;
+        private @Nullable Operator revokedBy;
         private @Nullable Scope scope;
         private boolean activeOnly;
         private boolean includeHidden = true;
+        private boolean includeVoided;
         private @Nullable Instant createdAfter;
         private @Nullable Instant createdBefore;
+        private Order order = Order.NEWEST_FIRST;
         private int page = 1;
+        private @Nullable String after;
         private int pageSize = 10;
 
         private Builder() {
@@ -218,6 +297,17 @@ public interface PunishmentQuery {
          */
         public Builder types(final PunishmentType first, final PunishmentType... more) {
             return this.types(EnumSet.of(first, more));
+        }
+
+        /**
+         * Restricts to some kinds.
+         *
+         * @param kinds the kind ids, or an empty set for every kind
+         * @return this builder
+         */
+        public Builder kinds(final Set<String> kinds) {
+            this.kinds = Set.copyOf(kinds);
+            return this;
         }
 
         /**
@@ -255,6 +345,17 @@ public interface PunishmentQuery {
         }
 
         /**
+         * Restricts to punishments one operator revoked.
+         *
+         * @param revokedBy the operator, or {@code null} for any
+         * @return this builder
+         */
+        public Builder revokedBy(final @Nullable Operator revokedBy) {
+            this.revokedBy = revokedBy;
+            return this;
+        }
+
+        /**
          * Restricts to one scope.
          *
          * @param scope the scope, or {@code null} for any
@@ -284,6 +385,39 @@ public interface PunishmentQuery {
          */
         public Builder includeHidden(final boolean includeHidden) {
             this.includeHidden = includeHidden;
+            return this;
+        }
+
+        /**
+         * Sets whether voided punishments are included.
+         *
+         * @param includeVoided {@code true} to include them
+         * @return this builder
+         */
+        public Builder includeVoided(final boolean includeVoided) {
+            this.includeVoided = includeVoided;
+            return this;
+        }
+
+        /**
+         * Sets the order.
+         *
+         * @param order the order
+         * @return this builder
+         */
+        public Builder order(final Order order) {
+            this.order = Objects.requireNonNull(order, "order");
+            return this;
+        }
+
+        /**
+         * Continues after a cursor.
+         *
+         * @param after a {@link Page#nextCursor()}, or {@code null} to start from the beginning
+         * @return this builder
+         */
+        public Builder after(final @Nullable String after) {
+            this.after = after;
             return this;
         }
 
@@ -332,48 +466,60 @@ public interface PunishmentQuery {
         }
 
         /**
+         * Checks the values without building.
+         *
+         * @return every problem: no {@code types}, a {@code kinds} entry that isn't an
+         *         identifier, both {@code victim} and {@code applicableTo}, creation bounds in the
+         *         wrong order, {@code page} or {@code pageSize} out of range, or a page number
+         *         with a cursor
+         */
+        public List<FieldError> validate() {
+            final Validator errors = Validator.create();
+            errors.check(!this.types.isEmpty(), "types", Code.OUT_OF_RANGE,
+                    "select at least one type");
+            this.kinds.forEach(kind -> errors.identifier("kinds", kind));
+            errors.check(this.victim == null || this.applicableTo == null, "applicableTo",
+                    Code.EXCLUSIVE, "choose either a victim or an applicability, not both");
+            errors.check(this.createdAfter == null || this.createdBefore == null
+                    || this.createdAfter.isBefore(this.createdBefore), "createdAfter",
+                    Code.WRONG_ORDER, "must be before createdBefore");
+            errors.check(this.page >= 1, "page", Code.OUT_OF_RANGE,
+                    "must be at least 1: " + this.page);
+            errors.check(this.pageSize >= 1 && this.pageSize <= MAX_PAGE_SIZE, "pageSize",
+                    Code.OUT_OF_RANGE, "must be 1-" + MAX_PAGE_SIZE + ": " + this.pageSize);
+            errors.check(this.after == null || this.page == 1, "after", Code.EXCLUSIVE,
+                    "page by number or by cursor, not both");
+            errors.check(this.after == null || !this.after.isBlank(), "after", Code.BLANK,
+                    "must not be blank");
+            return errors.errors();
+        }
+
+        /**
          * Builds the query.
          *
          * @return the query
-         * @throws IllegalArgumentException if no type is selected, both a victim and an
-         *         applicability are set, the creation bounds are reversed, or the page or page
-         *         size is out of range
+         * @throws ValidationException with every problem {@link #validate()} reports
          */
         public PunishmentQuery build() {
-            record Impl(Set<PunishmentType> types, Optional<Victim> victim,
+            record Impl(Set<PunishmentType> types, Set<String> kinds, Optional<Victim> victim,
                     Optional<Applicability> applicableTo, Optional<Operator> operator,
-                    Optional<Scope> scope, boolean activeOnly, boolean includeHidden,
-                    Optional<Instant> createdAfter, Optional<Instant> createdBefore, int page,
+                    Optional<Operator> revokedBy, Optional<Scope> scope, boolean activeOnly,
+                    boolean includeHidden, boolean includeVoided, Optional<Instant> createdAfter,
+                    Optional<Instant> createdBefore, Order order, int page, Optional<String> after,
                     int pageSize) implements PunishmentQuery {
-                Impl {
-                    types = Set.copyOf(types);
-                    if (types.isEmpty()) {
-                        throw new IllegalArgumentException("select at least one type");
-                    }
-                    if (victim.isPresent() && applicableTo.isPresent()) {
-                        throw new IllegalArgumentException(
-                                "choose either a victim or an applicability, not both");
-                    }
-                    if (createdAfter.isPresent() && createdBefore.isPresent()
-                            && !createdAfter.get().isBefore(createdBefore.get())) {
-                        throw new IllegalArgumentException(
-                                "createdAfter must be before createdBefore");
-                    }
-                    if (page < 1) {
-                        throw new IllegalArgumentException("page must be at least 1: " + page);
-                    }
-                    if (pageSize < 1 || pageSize > MAX_PAGE_SIZE) {
-                        throw new IllegalArgumentException(
-                                "pageSize must be 1-" + MAX_PAGE_SIZE + ": " + pageSize);
-                    }
-                }
             }
 
-            return new Impl(this.types, Optional.ofNullable(this.victim),
-                    Optional.ofNullable(this.applicableTo), Optional.ofNullable(this.operator),
+            ValidationException.throwIfAny(this.validate());
+            final Set<String> kinds = this.kinds.stream()
+                    .map(name -> Validator.normalizeIdentifier(name).orElseThrow())
+                    .collect(Collectors.toUnmodifiableSet());
+            return new Impl(Set.copyOf(this.types), kinds,
+                    Optional.ofNullable(this.victim), Optional.ofNullable(this.applicableTo),
+                    Optional.ofNullable(this.operator), Optional.ofNullable(this.revokedBy),
                     Optional.ofNullable(this.scope), this.activeOnly, this.includeHidden,
-                    Optional.ofNullable(this.createdAfter), Optional.ofNullable(this.createdBefore),
-                    this.page, this.pageSize);
+                    this.includeVoided, Optional.ofNullable(this.createdAfter),
+                    Optional.ofNullable(this.createdBefore), this.order, this.page,
+                    Optional.ofNullable(this.after), this.pageSize);
         }
     }
 }

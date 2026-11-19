@@ -18,5 +18,8 @@ public enum EndKind {
     ROLLED_BACK,
 
     /** Ended by {@code /prunehistory}. */
-    PRUNED
+    PRUNED,
+
+    /** Voided: it was a mistake (see {@link Punishment#voiding()}). */
+    VOIDED
 }

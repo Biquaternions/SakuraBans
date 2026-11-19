@@ -2,24 +2,31 @@ package net.serlith.sakurabans.api.punish;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
+import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
+import net.serlith.sakurabans.api.model.EvidenceRef;
 import net.serlith.sakurabans.api.model.Lengths;
 import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.api.model.Visibility;
+import net.serlith.sakurabans.api.validation.FieldError;
+import net.serlith.sakurabans.api.validation.FieldError.Code;
 import org.junit.jupiter.api.Test;
 
 class DraftPunishmentTest {
 
     private static final Victim VICTIM = PlayerVictim.of(UUID.randomUUID());
+    private static final Actor CONSOLE = Actor.of(ConsoleOperator.INSTANCE, "console");
 
     private static DraftPunishment.Builder ban() {
-        return DraftPunishment.builder(PunishmentType.BAN, VICTIM, ConsoleOperator.INSTANCE);
+        return DraftPunishment.builder(PunishmentType.BAN, VICTIM, CONSOLE);
     }
 
     @Test
@@ -30,12 +37,15 @@ class DraftPunishmentTest {
         assertThat(draft.reason()).isEmpty();
         assertThat(draft.duration()).isEmpty();
         assertThat(draft.template()).isEmpty();
+        assertThat(draft.kind()).isEmpty();
+        assertThat(draft.evidence()).isEmpty();
     }
 
     @Test
     void toBuilderCopiesEveryValue() {
         final DraftPunishment draft = ban().scope(ServerScope.of("lobby")).reason("spam")
-                .duration(Duration.ofDays(1)).build();
+                .duration(Duration.ofDays(1)).kind("ip-ban")
+                .evidence(List.of(EvidenceRef.of("hydra:report:7"))).build();
 
         assertThat(draft.toBuilder().build()).isEqualTo(draft);
         assertThat(draft.toBuilder().permanent().build().duration()).isEmpty();
@@ -62,6 +72,31 @@ class DraftPunishmentTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> ban().template("two words").build())
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void validateReportsEveryProblem() {
+        final List<FieldError> errors = ban().type(PunishmentType.KICK)
+                .reason("x".repeat(Lengths.MAX_REASON + 1))
+                .kind("Not A Kind")
+                .duration(Duration.ofHours(1))
+                .validate();
+
+        assertThat(errors).extracting(FieldError::path, FieldError::code).containsExactlyInAnyOrder(
+                tuple("reason", Code.TOO_LONG),
+                tuple("kind", Code.INVALID_IDENTIFIER),
+                tuple("duration", Code.NOT_ALLOWED));
+        assertThat(ban().validate()).isEmpty();
+    }
+
+    @Test
+    void kindsAreNormalisedAndEvidenceDeduplicated() {
+        final EvidenceRef report = EvidenceRef.of("hydra:report:7");
+        final DraftPunishment draft = ban().kind("Blacklist")
+                .evidence(List.of(report, EvidenceRef.of("hydra:report:7"))).build();
+
+        assertThat(draft.kind()).contains("blacklist");
+        assertThat(draft.evidence()).containsExactly(report);
     }
 
     @Test

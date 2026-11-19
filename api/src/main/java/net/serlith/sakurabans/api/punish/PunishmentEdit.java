@@ -1,15 +1,19 @@
 package net.serlith.sakurabans.api.punish;
 
 import java.time.Instant;
+import java.util.Objects;
 import java.util.Optional;
+import net.serlith.sakurabans.api.model.Lengths;
+import net.serlith.sakurabans.api.model.Scope;
+import net.serlith.sakurabans.api.validation.Validator;
 import org.jspecify.annotations.Nullable;
 
 /**
- * One change to an existing punishment, for
- * {@link PunishmentService#edit(long, PunishmentEdit, net.serlith.sakurabans.api.model.Operator)}.
- * Every edit is recorded in the audit log.
+ * One change to an existing punishment, sent through an {@link EditRequest}. Every edit is
+ * recorded in the audit log and raises the punishment's version.
  */
-public sealed interface PunishmentEdit permits PunishmentEdit.NewReason, PunishmentEdit.NewExpiry {
+public sealed interface PunishmentEdit permits PunishmentEdit.NewReason, PunishmentEdit.NewExpiry,
+        PunishmentEdit.NewScope {
 
     /**
      * Replaces the reason. Allowed on active and ended punishments.
@@ -29,11 +33,16 @@ public sealed interface PunishmentEdit permits PunishmentEdit.NewReason, Punishm
          * @param reason the new reason, at most
          *         {@link net.serlith.sakurabans.api.model.Lengths#MAX_REASON} characters
          * @return the edit
+         * @throws net.serlith.sakurabans.api.validation.ValidationException if the reason is too
+         *         long
          */
         static NewReason of(final String reason) {
             record Impl(String reason) implements NewReason {
                 Impl {
-                    Validation.reason(reason);
+                    Objects.requireNonNull(reason, "reason");
+                    final Validator errors = Validator.create();
+                    errors.maxLength("reason", reason, Lengths.MAX_REASON);
+                    errors.throwIfAny();
                 }
             }
 
@@ -66,6 +75,36 @@ public sealed interface PunishmentEdit permits PunishmentEdit.NewReason, Punishm
             }
 
             return new Impl(Optional.ofNullable(expiresAt));
+        }
+    }
+
+    /**
+     * Moves the punishment to another scope. Allowed on active punishments only; it fails with
+     * {@code CONFLICT} if the victim already has an active punishment of the same type there.
+     */
+    non-sealed interface NewScope extends PunishmentEdit {
+
+        /**
+         * The new scope.
+         *
+         * @return the scope
+         */
+        Scope scope();
+
+        /**
+         * Creates the edit.
+         *
+         * @param scope the new scope
+         * @return the edit
+         */
+        static NewScope of(final Scope scope) {
+            record Impl(Scope scope) implements NewScope {
+                Impl {
+                    Objects.requireNonNull(scope, "scope");
+                }
+            }
+
+            return new Impl(scope);
         }
     }
 }

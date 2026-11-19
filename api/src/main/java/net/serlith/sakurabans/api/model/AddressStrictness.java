@@ -1,4 +1,4 @@
-package net.serlith.sakurabans.api.player;
+package net.serlith.sakurabans.api.model;
 
 /**
  * How far address punishments reach to other accounts, and which accounts count as alts. Each

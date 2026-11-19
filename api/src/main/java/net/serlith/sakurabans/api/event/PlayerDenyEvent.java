@@ -87,6 +87,13 @@ public interface PlayerDenyEvent extends Cancellable {
         /** Chatting, because of a mute. */
         CHAT_MUTED,
 
+        /**
+         * Chatting under a shadow mute: the message is shown to the sender only, and
+         * {@link PlayerDenyEvent#message()} is {@code Component.empty()}. Cancelling delivers it
+         * normally.
+         */
+        CHAT_SHADOW_MUTED,
+
         /** Running a blacklisted command, because of a mute. */
         COMMAND_MUTED
     }

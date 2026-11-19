@@ -432,10 +432,11 @@
                                  or self::RECORD_DEF or self::ENUM_DEF]
                                  [not(./MODIFIERS/LITERAL_PUBLIC)]]"/>
     </module>
-    <!-- SakuraBans: the local record Impl inside an API "of" factory (plan 4.3) is private. -->
+    <!-- SakuraBans: the local Impl inside an API factory (plan 4.3) is private. -->
     <module name="SuppressionXpathSingleFilter">
-      <property name="checks" value="MissingJavadocType"/>
-      <property name="query" value="//METHOD_DEF//RECORD_DEF"/>
+      <property name="checks" value="MissingJavadocType|MissingJavadocMethod"/>
+      <property name="query" value="//METHOD_DEF//RECORD_DEF | //METHOD_DEF//CLASS_DEF
+          | //METHOD_DEF//CLASS_DEF//METHOD_DEF"/>
     </module>
     <module name="MissingJavadocType">
       <property name="scope" value="protected"/>

@@ -5,7 +5,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.AddressRecord;
+import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.NameRecord;
 import net.serlith.sakurabans.api.model.PlayerProfileView;
 
@@ -75,7 +77,8 @@ public interface PlayerService {
      *
      * @param uuid the account's UUID
      * @param address the address to forget
+     * @param actor who removes it; the removal is audited
      * @return {@code true} if the address was recorded and is now removed
      */
-    CompletableFuture<Boolean> forgetAddress(UUID uuid, InetAddress address);
+    CompletableFuture<Boolean> forgetAddress(UUID uuid, InetAddress address, Actor actor);
 }

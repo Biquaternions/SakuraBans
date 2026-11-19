@@ -3,6 +3,7 @@ package net.serlith.sakurabans.api.model;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.util.Objects;
+import net.serlith.sakurabans.api.validation.FieldError;
 
 /**
  * A range of IP addresses in CIDR form as a victim.
@@ -68,14 +69,14 @@ public non-sealed interface AddressRangeVictim extends Victim {
                 final byte[] bytes = network.getAddress();
                 final int bits = bytes.length * Byte.SIZE;
                 if (prefixLength < 1 || prefixLength > bits) {
-                    throw new IllegalArgumentException("prefix length " + prefixLength
-                            + " doesn't fit an " + (bits == 32 ? "IPv4" : "IPv6")
-                            + " address (1-" + bits + ")");
+                    throw Checks.error("prefixLength", FieldError.Code.OUT_OF_RANGE,
+                            "prefix length " + prefixLength + " doesn't fit an "
+                            + (bits == 32 ? "IPv4" : "IPv6") + " address (1-" + bits + ")");
                 }
                 for (int bit = prefixLength; bit < bits; bit++) {
                     bytes[bit / Byte.SIZE] &= (byte) ~(0x80 >>> (bit % Byte.SIZE));
                 }
-                network = Checks.fromBytes(bytes);
+                network = Checks.fromBytes(bytes, "network");
             }
         }
 

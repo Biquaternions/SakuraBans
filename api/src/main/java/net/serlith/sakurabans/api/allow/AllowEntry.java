@@ -2,7 +2,7 @@ package net.serlith.sakurabans.api.allow;
 
 import java.time.Instant;
 import java.util.Optional;
-import net.serlith.sakurabans.api.model.Operator;
+import net.serlith.sakurabans.api.model.Actor;
 
 /**
  * An allow-list entry: an {@link AllowedPlayer account} or an {@link AllowedAddress address}.
@@ -11,11 +11,11 @@ import net.serlith.sakurabans.api.model.Operator;
 public sealed interface AllowEntry permits AllowedPlayer, AllowedAddress {
 
     /**
-     * Who added it.
+     * Who added it, and through which surface.
      *
-     * @return the operator
+     * @return the actor
      */
-    Operator addedBy();
+    Actor addedBy();
 
     /**
      * When it was added.

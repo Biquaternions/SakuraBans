@@ -1,14 +1,19 @@
 package net.serlith.sakurabans.api.punish;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import net.serlith.sakurabans.api.model.Operator;
+import net.serlith.sakurabans.api.model.Actor;
+import net.serlith.sakurabans.api.model.Lengths;
 import net.serlith.sakurabans.api.model.Visibility;
+import net.serlith.sakurabans.api.validation.FieldError;
+import net.serlith.sakurabans.api.validation.ValidationException;
+import net.serlith.sakurabans.api.validation.Validator;
 import org.jspecify.annotations.Nullable;
 
 /**
  * A request to end punishments early (unban, unmute, unwarn). Build one with
- * {@link #builder(RevocationTarget, Operator)}.
+ * {@link #builder(RevocationTarget, Actor)}.
  */
 public interface RevocationRequest {
 
@@ -20,11 +25,11 @@ public interface RevocationRequest {
     RevocationTarget target();
 
     /**
-     * Who ends them.
+     * Who ends them, and through which surface.
      *
-     * @return the operator
+     * @return the actor
      */
-    Operator operator();
+    Actor actor();
 
     /**
      * The reason, as plain text.
@@ -41,7 +46,7 @@ public interface RevocationRequest {
     Visibility visibility();
 
     /**
-     * Whether only punishments issued by {@link #operator()} may be ended (the {@code .own}
+     * Whether only punishments issued by the actor's operator may be ended (the {@code .own}
      * permissions). Others fail with {@code NOT_OWN}.
      *
      * @return {@code false} by default
@@ -54,7 +59,7 @@ public interface RevocationRequest {
      * @return a new builder
      */
     default Builder toBuilder() {
-        return builder(this.target(), this.operator())
+        return builder(this.target(), this.actor())
                 .reason(this.reason().orElse(null))
                 .visibility(this.visibility())
                 .ownOnly(this.ownOnly());
@@ -64,11 +69,11 @@ public interface RevocationRequest {
      * Starts a request.
      *
      * @param target which punishments to end
-     * @param operator who ends them
+     * @param actor who ends them
      * @return a new builder
      */
-    static Builder builder(final RevocationTarget target, final Operator operator) {
-        return new Builder(target, operator);
+    static Builder builder(final RevocationTarget target, final Actor actor) {
+        return new Builder(target, actor);
     }
 
     /**
@@ -77,14 +82,14 @@ public interface RevocationRequest {
     final class Builder {
 
         private final RevocationTarget target;
-        private final Operator operator;
+        private final Actor actor;
         private @Nullable String reason;
         private Visibility visibility = Visibility.NORMAL;
         private boolean ownOnly;
 
-        private Builder(final RevocationTarget target, final Operator operator) {
+        private Builder(final RevocationTarget target, final Actor actor) {
             this.target = Objects.requireNonNull(target, "target");
-            this.operator = Objects.requireNonNull(operator, "operator");
+            this.actor = Objects.requireNonNull(actor, "actor");
         }
 
         /**
@@ -121,23 +126,29 @@ public interface RevocationRequest {
         }
 
         /**
+         * Checks the values without building.
+         *
+         * @return every problem: {@code reason} too long
+         */
+        public List<FieldError> validate() {
+            final Validator errors = Validator.create();
+            errors.maxLength("reason", this.reason, Lengths.MAX_REASON);
+            return errors.errors();
+        }
+
+        /**
          * Builds the request.
          *
          * @return the request
-         * @throws IllegalArgumentException if the reason is too long
+         * @throws ValidationException with every problem {@link #validate()} reports
          */
         public RevocationRequest build() {
-            record Impl(RevocationTarget target, Operator operator, Optional<String> reason,
+            record Impl(RevocationTarget target, Actor actor, Optional<String> reason,
                     Visibility visibility, boolean ownOnly) implements RevocationRequest {
-                Impl {
-                    Objects.requireNonNull(target, "target");
-                    Objects.requireNonNull(operator, "operator");
-                    reason.ifPresent(Validation::reason);
-                    Objects.requireNonNull(visibility, "visibility");
-                }
             }
 
-            return new Impl(this.target, this.operator, Optional.ofNullable(this.reason),
+            ValidationException.throwIfAny(this.validate());
+            return new Impl(this.target, this.actor, Optional.ofNullable(this.reason),
                     this.visibility, this.ownOnly);
         }
     }

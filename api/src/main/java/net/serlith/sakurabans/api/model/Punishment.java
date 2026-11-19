@@ -1,6 +1,7 @@
 package net.serlith.sakurabans.api.model;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -25,11 +26,36 @@ public interface Punishment {
     String displayId();
 
     /**
-     * The kind of punishment.
+     * The kind of punishment, which decides how it is enforced.
      *
      * @return the type
      */
     PunishmentType type();
+
+    /**
+     * The punishment kind it was created as ({@code ban}, {@code shadow-mute},
+     * {@code blacklist}, ...). Its modifiers were copied into this punishment when it was
+     * created, so later changes to the kind don't affect it.
+     *
+     * @return the kind id, lower case
+     */
+    String kind();
+
+    /**
+     * Whether this is a shadow mute: the muted player's messages are shown to themselves only.
+     * Always {@code false} for other types.
+     *
+     * @return {@code true} for a shadow mute
+     */
+    boolean shadow();
+
+    /**
+     * How far it reaches through shared addresses, when its kind sets one (a blacklist is
+     * {@link AddressStrictness#STRICT}).
+     *
+     * @return the strictness, or empty for the configured one
+     */
+    Optional<AddressStrictness> strictness();
 
     /**
      * Who it applies to.
@@ -44,6 +70,13 @@ public interface Punishment {
      * @return the operator
      */
     Operator operator();
+
+    /**
+     * Through which surface it was issued (see {@link Actor#source()}).
+     *
+     * @return the source
+     */
+    String source();
 
     /**
      * Where it applies.
@@ -100,6 +133,30 @@ public interface Punishment {
      * @return the end, or empty if it hasn't ended
      */
     Optional<PunishmentEnd> end();
+
+    /**
+     * Whether, when and by whom it was voided. A voided punishment stays in the history but
+     * doesn't count for ladders, warning thresholds or statistics; an active one ends with
+     * {@link EndKind#VOIDED}.
+     *
+     * @return the voiding, or empty
+     */
+    Optional<PunishmentVoid> voiding();
+
+    /**
+     * The evidence attached to it.
+     *
+     * @return the evidence, oldest first
+     */
+    List<Evidence> evidence();
+
+    /**
+     * The version, which goes up by one with every change (edit, end, void, evidence). Send it
+     * back as the expected version to make sure you change what you saw.
+     *
+     * @return the version, at least 1
+     */
+    long version();
 
     /**
      * Whether it never expires on its own. A kick counts as permanent.

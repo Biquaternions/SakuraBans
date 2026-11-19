@@ -23,12 +23,13 @@ public interface PunishmentEnd {
     Instant at();
 
     /**
-     * Who ended it. Always present for {@link EndKind#REVOKED}; empty when nobody did, as for
+     * Who ended it. Present for {@link EndKind#REVOKED}, {@link EndKind#ROLLED_BACK},
+     * {@link EndKind#PRUNED} and {@link EndKind#VOIDED}; empty when nobody did, as for
      * {@link EndKind#EXPIRED} and {@link EndKind#SUPERSEDED}.
      *
-     * @return the operator, or empty
+     * @return the actor, or empty
      */
-    Optional<Operator> operator();
+    Optional<Actor> actor();
 
     /**
      * The reason given.
