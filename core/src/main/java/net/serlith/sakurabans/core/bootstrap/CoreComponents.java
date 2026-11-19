@@ -10,7 +10,13 @@ import net.serlith.sakurabans.core.platform.LatePlatform;
 import net.serlith.sakurabans.core.storage.Lease;
 import net.serlith.sakurabans.core.storage.SchemaManager;
 import net.serlith.sakurabans.core.storage.StorageService;
+import net.serlith.sakurabans.core.storage.repository.AuditRepository;
 import net.serlith.sakurabans.core.storage.repository.MetaRepository;
+import net.serlith.sakurabans.core.storage.repository.PlayerRepository;
+import net.serlith.sakurabans.core.storage.repository.PunishmentMapper;
+import net.serlith.sakurabans.core.storage.repository.PunishmentRepository;
+import net.serlith.sakurabans.core.storage.repository.ScopeRepository;
+import net.serlith.sakurabans.core.storage.repository.VictimRepository;
 
 final class CoreComponents {
 
@@ -28,11 +34,15 @@ final class CoreComponents {
     private final StorageService storage;
     private final Lease lease;
     private final MetaRepository meta;
+    private final PlayerRepository players;
+    private final ScopeRepository scopes;
+    private final VictimRepository victims;
+    private final PunishmentRepository punishments;
+    private final AuditRepository audit;
 
     CoreComponents(final CoreEnvironment environment, final InstantSource clock) {
         this.environment = environment;
         this.clock = clock;
-        // Random per boot: identifies this instance in leases, sync and the instances table.
         this.instanceId = UUID.randomUUID();
         this.lifecycle = new Lifecycle();
         this.platform = new LatePlatform();
@@ -46,6 +56,12 @@ final class CoreComponents {
                 new SchemaManager(environment.logger()), this.executors, environment.logger());
         this.lease = new Lease(this.storage, this.instanceId, clock);
         this.meta = new MetaRepository(this.storage);
+        this.players = new PlayerRepository(this.storage);
+        this.scopes = new ScopeRepository(this.storage);
+        this.victims = new VictimRepository(this.storage);
+        this.punishments = new PunishmentRepository(this.storage,
+                new PunishmentMapper(Long::toString));
+        this.audit = new AuditRepository(this.storage);
     }
 
     CoreEnvironment environment() {
@@ -90,5 +106,25 @@ final class CoreComponents {
 
     MetaRepository meta() {
         return this.meta;
+    }
+
+    PlayerRepository players() {
+        return this.players;
+    }
+
+    ScopeRepository scopes() {
+        return this.scopes;
+    }
+
+    VictimRepository victims() {
+        return this.victims;
+    }
+
+    PunishmentRepository punishments() {
+        return this.punishments;
+    }
+
+    AuditRepository audit() {
+        return this.audit;
     }
 }

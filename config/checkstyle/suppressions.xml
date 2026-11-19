@@ -8,6 +8,9 @@
     <suppress checks="GoogleNonConstantFieldName|MemberName|StaticVariableName|AbbreviationAsWordInName"
             files="[\\/]core[\\/]src[\\/]main[\\/]java[\\/].*[\\/]storage[\\/]dbo[\\/]"/>
 
+    <!-- Integration tests are named *IT (plan 12). -->
+    <suppress checks="AbbreviationAsWordInName" files="[\\/]src[\\/]integrationTest[\\/]"/>
+
     <!-- Platform modules may import platform APIs. -->
     <suppress id="neutralImports" files="[\\/]platforms[\\/]"/>
 

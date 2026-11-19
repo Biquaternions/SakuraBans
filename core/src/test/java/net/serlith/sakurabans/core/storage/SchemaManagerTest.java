@@ -1,10 +1,10 @@
 package net.serlith.sakurabans.core.storage;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 import java.net.InetAddress;
 import java.time.Instant;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Visibility;
@@ -14,96 +14,108 @@ import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import net.serlith.sakurabans.core.storage.dbo.SbTable;
 import net.serlith.sakurabans.core.storage.dbo.ScopeKind;
 import net.serlith.sakurabans.core.storage.dbo.VictimKind;
+import net.serlith.sakurabans.core.storage.dbo.records.SbPunishmentsRecord;
 import net.serlith.sakurabans.core.util.InetAddresses;
 import net.serlith.sakurabans.core.util.Uuids;
+import org.assertj.core.api.Assertions;
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.junit.jupiter.api.Test;
 
-class SchemaManagerTest {
+/** The storage service already prepared the schema once when each test starts. */
+class SchemaManagerTest extends DatabaseTest {
 
-    private final RecordingLogger log = new RecordingLogger();
     private final SchemaManager manager = new SchemaManager(this.log.logger());
 
     @Test
     void createsEveryTableIndexAndTheGlobalScope() {
-        final DSLContext dsl = H2Database.create();
-
-        this.manager.prepare(dsl, null);
-
         for (final SbTable<?> table : SakuraTables.all()) {
-            assertThat(dsl.fetchCount(table)).as(table.getName()).isNotNegative();
+            Assertions.assertThat(this.count(table)).as(table.getName())
+                    .isNotNegative();
         }
-        assertThat(this.manager.version(dsl)).contains(SakuraTables.SCHEMA_VERSION);
-        assertThat(dsl.fetchCount(SakuraTables.SCOPES,
+        final Optional<Integer> version = this.read(this.manager::version);
+        Assertions.assertThat(version).contains(SakuraTables.SCHEMA_VERSION);
+        Assertions.assertThat(this.count(SakuraTables.SCOPES,
                 SakuraTables.SCOPES.KIND.eq(ScopeKind.GLOBAL))).isOne();
-        assertThat(dsl.meta().getIndexes().stream().map(index -> index.getName()))
-                .contains("sb_punishments_victim_ix", "sb_active_punishments_expiry_ix");
     }
 
     @Test
-    void preparingTwiceChangesNothing() {
-        final DSLContext dsl = H2Database.create();
+    void preparingAgainChangesNothing() {
+        this.read(dsl -> {
+            this.manager.prepare(dsl, this.schema().orElse(null));
+            return null;
+        });
 
-        this.manager.prepare(dsl, null);
-        this.manager.prepare(dsl, null);
-
-        assertThat(dsl.fetchCount(SakuraTables.SCOPES)).isOne();
-        assertThat(dsl.fetchCount(SakuraTables.META)).isEqualTo(2);
-        assertThat(this.log.entries("info").stream().map(RecordingLogger.Entry::format)
+        Assertions.assertThat(this.count(SakuraTables.SCOPES)).isOne();
+        Assertions.assertThat(this.count(SakuraTables.META)).isEqualTo(2);
+        Assertions.assertThat(this.log.entries("info").stream().map(RecordingLogger.Entry::format)
                 .filter(line -> line.startsWith("Created the database schema"))).hasSize(1);
     }
 
     @Test
-    void refusesDatabasesOfNewerVersions() {
-        final DSLContext dsl = H2Database.create();
-        this.manager.prepare(dsl, null);
-        dsl.update(SakuraTables.META).set(SakuraTables.META.V, "2")
-                .where(SakuraTables.META.K.eq(SchemaManager.VERSION_KEY)).execute();
+    void createsTheIndexes() {
+        final List<String> indexes = this.read(dsl -> dsl.meta().getIndexes().stream()
+                .map(index -> index.getName().toLowerCase(Locale.ROOT)).toList());
+        Assertions.assertThat(indexes).contains("sb_punishments_victim_ix",
+                "sb_active_punishments_expiry_ix");
+    }
 
-        assertThatThrownBy(() -> this.manager.prepare(dsl, null))
-                .isInstanceOf(StorageException.class)
+    @Test
+    void refusesDatabasesOfNewerVersions() {
+        this.read(dsl -> dsl.update(SakuraTables.META).set(SakuraTables.META.V, "2")
+                .where(SakuraTables.META.K.eq(SchemaManager.VERSION_KEY)).execute());
+
+        Assertions.assertThatThrownBy(() -> this.read(dsl -> {
+            this.manager.prepare(dsl, this.schema().orElse(null));
+            return null;
+        })).hasCauseInstanceOf(StorageException.class)
                 .hasMessageContaining("schema version 2");
-        assertThat(this.manager.version(dsl)).as("left as it was").contains(2);
+        final Optional<Integer> version = this.read(this.manager::version);
+        Assertions.assertThat(version).as("left as it was").contains(2);
     }
 
     @Test
     void theDatabaseEnforcesVictimShapes() throws Exception {
-        final DSLContext dsl = H2Database.create();
-        this.manager.prepare(dsl, null);
         final byte[] v4 = InetAddresses.toBytes(InetAddress.getByName("203.0.113.7"));
 
-        insertVictim(dsl, VictimKind.PLAYER, UUID.randomUUID(), new byte[0], 0);
-        insertVictim(dsl, VictimKind.ADDRESS, Uuids.ZERO, v4, 32);
-        insertVictim(dsl, VictimKind.ADDRESS_RANGE, Uuids.ZERO, v4, 24);
+        this.read(dsl -> insertVictim(dsl, VictimKind.PLAYER, UUID.randomUUID(), new byte[0], 0));
+        this.read(dsl -> insertVictim(dsl, VictimKind.ADDRESS, Uuids.ZERO, v4, 32));
+        this.read(dsl -> insertVictim(dsl, VictimKind.ADDRESS_RANGE, Uuids.ZERO, v4, 24));
 
-        assertThatThrownBy(() -> insertVictim(dsl, VictimKind.PLAYER, UUID.randomUUID(), v4, 0))
-                .isInstanceOf(DataAccessException.class);
-        assertThatThrownBy(() -> insertVictim(dsl, VictimKind.ADDRESS_RANGE, Uuids.ZERO, v4, 33))
-                .isInstanceOf(DataAccessException.class);
-        assertThatThrownBy(() -> insertVictim(dsl, VictimKind.ADDRESS, Uuids.ZERO, v4, 32))
-                .as("victims are unique").isInstanceOf(DataAccessException.class);
+        Assertions.assertThatThrownBy(() -> this.read(dsl -> insertVictim(dsl, VictimKind.PLAYER,
+                UUID.randomUUID(), v4, 0))).hasCauseInstanceOf(DataAccessException.class);
+        Assertions.assertThatThrownBy(() -> this.read(dsl -> insertVictim(dsl,
+                VictimKind.ADDRESS_RANGE,
+                Uuids.ZERO, v4, 33))).hasCauseInstanceOf(DataAccessException.class);
+        Assertions.assertThatThrownBy(() -> this.read(dsl -> insertVictim(dsl, VictimKind.ADDRESS,
+                Uuids.ZERO, v4, 32))).as("victims are unique")
+                .hasCauseInstanceOf(DataAccessException.class);
     }
 
     @Test
     void oneActiveBanPerVictimAndScopeButWarnsStack() {
-        final DSLContext dsl = H2Database.create();
-        this.manager.prepare(dsl, null);
-        final long victim = insertVictim(dsl, VictimKind.PLAYER, UUID.randomUUID(), new byte[0], 0);
-        final int global = dsl.select(SakuraTables.SCOPES.ID).from(SakuraTables.SCOPES)
-                .fetchSingle(SakuraTables.SCOPES.ID);
+        final long victim = this.read(dsl -> insertVictim(dsl, VictimKind.PLAYER,
+                UUID.randomUUID(), new byte[0], 0));
+        final int global = this.read(dsl -> dsl.select(SakuraTables.SCOPES.ID)
+                .from(SakuraTables.SCOPES).fetchSingle(SakuraTables.SCOPES.ID));
 
-        activate(dsl, insertPunishment(dsl, PunishmentType.WARN, victim, global), true);
-        activate(dsl, insertPunishment(dsl, PunishmentType.WARN, victim, global), true);
-        activate(dsl, insertPunishment(dsl, PunishmentType.BAN, victim, global), false);
-        final long secondBan = insertPunishment(dsl, PunishmentType.BAN, victim, global);
+        this.read(dsl -> activate(dsl,
+                insertPunishment(dsl, PunishmentType.WARN, victim, global), true));
+        this.read(dsl -> activate(dsl,
+                insertPunishment(dsl, PunishmentType.WARN, victim, global), true));
+        this.read(dsl -> activate(dsl,
+                insertPunishment(dsl, PunishmentType.BAN, victim, global), false));
+        final long secondBan =
+                this.read(dsl -> insertPunishment(dsl, PunishmentType.BAN, victim, global));
 
-        assertThatThrownBy(() -> activate(dsl, secondBan, false))
-                .isInstanceOf(DataAccessException.class);
-        assertThat(dsl.fetchCount(SakuraTables.ACTIVE_PUNISHMENTS)).isEqualTo(3);
+        Assertions.assertThatThrownBy(() -> this.read(dsl -> activate(dsl, secondBan, false)))
+                .hasCauseInstanceOf(DataAccessException.class);
+        Assertions.assertThat(this.count(SakuraTables.ACTIVE_PUNISHMENTS))
+                .isEqualTo(3);
 
-        dsl.deleteFrom(SakuraTables.PUNISHMENTS).execute();
-        assertThat(dsl.fetchCount(SakuraTables.ACTIVE_PUNISHMENTS)).as("cascade").isZero();
+        this.read(dsl -> dsl.deleteFrom(SakuraTables.PUNISHMENTS).execute());
+        Assertions.assertThat(this.count(SakuraTables.ACTIVE_PUNISHMENTS))
+                .as("cascade").isZero();
     }
 
     private static long insertVictim(final DSLContext dsl, final VictimKind kind,
@@ -122,7 +134,7 @@ class SchemaManagerTest {
             final long victim, final int scope) {
         return dsl.insertInto(SakuraTables.PUNISHMENTS)
                 .set(SakuraTables.PUNISHMENTS.TYPE, type)
-                .set(SakuraTables.PUNISHMENTS.KIND, type.name().toLowerCase())
+                .set(SakuraTables.PUNISHMENTS.KIND, type.name().toLowerCase(Locale.ROOT))
                 .set(SakuraTables.PUNISHMENTS.SHADOW, false)
                 .set(SakuraTables.PUNISHMENTS.VICTIM_ID, victim)
                 .set(SakuraTables.PUNISHMENTS.SCOPE_ID, scope)
@@ -138,11 +150,11 @@ class SchemaManagerTest {
                 .value1();
     }
 
-    private static void activate(final DSLContext dsl, final long punishment,
+    private static int activate(final DSLContext dsl, final long punishment,
             final boolean stacks) {
-        final var row = dsl.selectFrom(SakuraTables.PUNISHMENTS)
+        final SbPunishmentsRecord row = dsl.selectFrom(SakuraTables.PUNISHMENTS)
                 .where(SakuraTables.PUNISHMENTS.ID.eq(punishment)).fetchSingle();
-        dsl.insertInto(SakuraTables.ACTIVE_PUNISHMENTS)
+        return dsl.insertInto(SakuraTables.ACTIVE_PUNISHMENTS)
                 .set(SakuraTables.ACTIVE_PUNISHMENTS.PUNISHMENT_ID, punishment)
                 .set(SakuraTables.ACTIVE_PUNISHMENTS.TYPE, row.type())
                 .set(SakuraTables.ACTIVE_PUNISHMENTS.VICTIM_ID, row.victimId())

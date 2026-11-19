@@ -19,6 +19,9 @@ dependencies {
     implementation(libs.mysql)
     implementation(libs.postgresql)
 
+    // Provided by Paper and Velocity (plan 3.2), so never shaded or downloaded.
+    implementation(libs.guava)
+
     compileOnly(platform(libs.adventure.bom))
     compileOnly(libs.adventure.api)
     compileOnly(libs.adventure.text.minimessage)
@@ -36,6 +39,35 @@ dependencies {
     testImplementation(libs.adventure.text.minimessage)
     testImplementation(libs.adventure.text.serializer.plain)
     testImplementation(libs.slf4j.api)
+}
+
+val integrationTest: SourceSet by sourceSets.creating {
+    compileClasspath += sourceSets.main.get().output + sourceSets.test.get().output
+    runtimeClasspath += sourceSets.main.get().output + sourceSets.test.get().output
+}
+
+configurations[integrationTest.implementationConfigurationName]
+    .extendsFrom(configurations.testImplementation.get())
+configurations[integrationTest.compileOnlyConfigurationName]
+    .extendsFrom(configurations.testCompileOnly.get())
+configurations[integrationTest.runtimeOnlyConfigurationName]
+    .extendsFrom(configurations.testRuntimeOnly.get())
+
+dependencies {
+    "integrationTestImplementation"(testFixtures(project))
+    "integrationTestImplementation"(platform(libs.testcontainers.bom))
+    "integrationTestImplementation"(libs.testcontainers.junit.jupiter)
+    "integrationTestImplementation"(libs.testcontainers.mariadb)
+    "integrationTestImplementation"(libs.testcontainers.mysql)
+    "integrationTestImplementation"(libs.testcontainers.postgresql)
+}
+
+val integrationTestTask = tasks.register<Test>("integrationTest") {
+    description = "Runs the storage tests on MariaDB, MySQL and PostgreSQL (needs Docker)."
+    group = LifecycleBasePlugin.VERIFICATION_GROUP
+    testClassesDirs = integrationTest.output.classesDirs
+    classpath = integrationTest.runtimeClasspath
+    shouldRunAfter(tasks.test)
 }
 
 val gitCommit = providers.exec {

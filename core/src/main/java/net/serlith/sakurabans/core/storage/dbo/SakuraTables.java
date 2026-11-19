@@ -77,7 +77,8 @@ public final class SakuraTables {
             if (!prefix.equals(tablePrefix) || !Objects.requireNonNull(database).getName()
                     .equals(schemaName)) {
                 throw new IllegalStateException("the table prefix or schema changed from '"
-                        + prefix + "' to '" + tablePrefix + "'; restart to apply it");
+                        + prefix + "' (schema '" + database.getName() + "') to '" + tablePrefix
+                        + "' (schema '" + schemaName + "'); restart to apply it");
             }
             return;
         }

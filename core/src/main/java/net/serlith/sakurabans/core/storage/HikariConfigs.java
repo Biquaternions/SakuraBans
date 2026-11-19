@@ -16,6 +16,7 @@ final class HikariConfigs {
     static HikariConfig create(final StorageSettings settings, final Path dataDirectory) {
         final HikariConfig config = new HikariConfig();
         config.setPoolName("SakuraBans");
+        config.setTransactionIsolation("TRANSACTION_READ_COMMITTED");
         config.setDriverClassName(switch (settings.type()) {
             case H2 -> org.h2.Driver.class.getName();
             case MARIADB -> org.mariadb.jdbc.Driver.class.getName();

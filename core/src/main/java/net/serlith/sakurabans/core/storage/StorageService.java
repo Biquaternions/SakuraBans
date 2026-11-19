@@ -12,14 +12,18 @@ import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.configuration.settings.StorageSettings;
 import net.serlith.sakurabans.core.configuration.settings.StorageType;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
+import net.serlith.sakurabans.core.util.Futures;
 import org.jooq.DSLContext;
 import org.jooq.SQLDialect;
 import org.jooq.TransactionalCallable;
 import org.jooq.conf.Settings;
+import org.jooq.exception.IntegrityConstraintViolationException;
 import org.jooq.impl.DSL;
 import org.jspecify.annotations.Nullable;
 
 public final class StorageService {
+
+    static final int CONFLICT_RETRIES = 2;
 
     private final Path dataDirectory;
     private final ConfigService config;
@@ -95,6 +99,26 @@ public final class StorageService {
 
     public <T> CompletableFuture<T> write(final TransactionalCallable<T> work) {
         return this.run(dsl -> dsl.transactionResult(work));
+    }
+
+    /**
+     * Like {@link #write}, but runs the transaction again (up to {@value #CONFLICT_RETRIES}
+     * times) when it failed on a unique or foreign key because a concurrent writer won the race.
+     * The work must be safe to repeat: it reads what the winner wrote and decides again.
+     */
+    public <T> CompletableFuture<T> writeRetryingConflicts(final TransactionalCallable<T> work) {
+        return this.writeRetryingConflicts(work, CONFLICT_RETRIES);
+    }
+
+    private <T> CompletableFuture<T> writeRetryingConflicts(final TransactionalCallable<T> work,
+            final int retries) {
+        return this.write(work).exceptionallyCompose(failure -> {
+            if (retries > 0 && Futures.unwrap(failure)
+                    instanceof IntegrityConstraintViolationException) {
+                return this.writeRetryingConflicts(work, retries - 1);
+            }
+            return CompletableFuture.failedFuture(failure);
+        });
     }
 
     private <T> CompletableFuture<T> run(final Function<DSLContext, T> work) {

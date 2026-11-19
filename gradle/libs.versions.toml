@@ -11,6 +11,7 @@ mariadb = "4.0.0"
 mysql = "26.10.0"
 postgresql = "42.7.14"
 caffeine = "3.3.1"
+guava = "33.6.0-jre"
 configurate = "4.2.0"
 cloud-core = "2.1.0"
 cloud-minecraft = "2.0.1"
@@ -37,6 +38,7 @@ lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
 jooq = { module = "org.jooq:jooq", version.ref = "jooq" }
 hikari = { module = "com.zaxxer:HikariCP", version.ref = "hikari" }
 h2 = { module = "com.h2database:h2", version.ref = "h2" }
+guava = { module = "com.google.guava:guava", version.ref = "guava" }
 mariadb = { module = "org.mariadb.jdbc:mariadb-java-client", version.ref = "mariadb" }
 mysql = { module = "com.mysql:mysql-connector-j", version.ref = "mysql" }
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
