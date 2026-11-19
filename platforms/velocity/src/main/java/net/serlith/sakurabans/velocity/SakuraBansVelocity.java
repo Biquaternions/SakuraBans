@@ -3,28 +3,39 @@ package net.serlith.sakurabans.velocity;
 import com.google.inject.Inject;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
+import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
+import com.velocitypowered.api.plugin.Dependency;
 import com.velocitypowered.api.plugin.Plugin;
+import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.serlith.sakurabans.core.SakuraBansCore;
-import org.slf4j.Logger;
+import net.serlith.sakurabans.core.util.BuildConstants;
 
 @Plugin(
         id = "sakurabans",
         name = "SakuraBans",
-        version = "1.0.0-SNAPSHOT",
-        authors = {"Biquaternions"}
+        version = BuildConstants.VERSION,
+        authors = {"Biquaternions"},
+        dependencies = {
+            @Dependency(id = "luckperms", optional = true),
+            @Dependency(id = "floodgate", optional = true)
+        }
 )
-public class SakuraBansVelocity implements SakuraBansCore {
+public final class SakuraBansVelocity {
+
+    private final SakuraBansCore core;
 
     @Inject
-    private Logger logger;
+    public SakuraBansVelocity(final ComponentLogger logger) {
+        this.core = new SakuraBansCore(logger);
+    }
 
-    /**
-     * Starts the plugin once the proxy has initialised.
-     *
-     * @param event the initialisation event
-     */
     @Subscribe
     public void onProxyInitialization(final ProxyInitializeEvent event) {
-        // Starts the core from S02 on.
+        this.core.start();
+    }
+
+    @Subscribe
+    public void onProxyShutdown(final ProxyShutdownEvent event) {
+        this.core.stop();
     }
 }
