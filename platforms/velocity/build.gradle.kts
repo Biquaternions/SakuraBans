@@ -50,6 +50,5 @@ tasks {
 
     runVelocity {
         velocityVersion(libs.versions.velocity.get())
-        jvmArgs("-Dsakurabans.selfCheck=true")
     }
 }

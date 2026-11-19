@@ -32,7 +32,7 @@ tasks {
 
     runServer {
         minecraftVersion("26.3")
-        jvmArgs("-Xms2G", "-Xmx2G", "-Dcom.mojang.eula.agree=true", "-Dsakurabans.selfCheck=true")
+        jvmArgs("-Xms2G", "-Xmx2G", "-Dcom.mojang.eula.agree=true")
     }
 
     processResources {

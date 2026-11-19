@@ -11,6 +11,10 @@
     <!-- Platform modules may import platform APIs. -->
     <suppress id="neutralImports" files="[\\/]platforms[\\/]"/>
 
+    <!-- Javadoc is mandatory in the public api module only (plan 4.3). -->
+    <suppress checks="MissingJavadocType|MissingJavadocMethod"
+            files="[\\/](core|platforms[\\/][^\\/]+)[\\/]src[\\/]"/>
+
     <!-- The API-only import bans apply to the api module alone. -->
     <suppress id="apiImports" files="[\\/](core|platforms[\\/][^\\/]+)[\\/]src[\\/]"/>
 </suppressions>
