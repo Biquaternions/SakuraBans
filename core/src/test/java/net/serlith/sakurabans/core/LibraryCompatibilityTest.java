@@ -4,10 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import de.bsommerfeld.jshepherd.annotation.Comment;
-import de.bsommerfeld.jshepherd.annotation.Key;
-import de.bsommerfeld.jshepherd.core.ConfigurablePojo;
-import de.bsommerfeld.jshepherd.core.ConfigurationLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Driver;
@@ -19,6 +15,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.spongepowered.configurate.CommentedConfigurationNode;
+import org.spongepowered.configurate.objectmapping.ConfigSerializable;
+import org.spongepowered.configurate.objectmapping.meta.Comment;
+import org.spongepowered.configurate.yaml.NodeStyle;
+import org.spongepowered.configurate.yaml.YamlConfigurationLoader;
 
 /**
  * The library behaviour S03 proved on the platforms that a plain classpath can reproduce
@@ -70,19 +71,28 @@ class LibraryCompatibilityTest {
     }
 
     @Test
-    void jshepherdWritesDefaultsWithComments(@TempDir final Path directory) throws Exception {
+    void configurateRoundTripsWithoutComments(@TempDir final Path directory) throws Exception {
         final Path file = directory.resolve("check.yml");
+        final YamlConfigurationLoader loader = YamlConfigurationLoader.builder()
+                .path(file)
+                .nodeStyle(NodeStyle.BLOCK)
+                .build();
+        final CommentedConfigurationNode node = loader.createNode();
+        node.set(CheckConfig.class, new CheckConfig());
 
-        final CheckConfig config = ConfigurationLoader.load(file, CheckConfig::new);
+        loader.save(node);
 
-        assertThat(config.greeting).isEqualTo("hello");
-        assertThat(Files.readString(file)).contains("This comment must survive.", "greeting");
+        // Configurate 4.2.0 doesn't write @Comment in YAML (plan 10.3), which is why defaults
+        // ship as commented resources. If this starts failing, comments are written now.
+        assertThat(Files.readString(file)).contains("greeting: hello")
+                .doesNotContain("This comment is not written.");
+        assertThat(loader.load().get(CheckConfig.class).greeting).isEqualTo("hello");
     }
 
-    static final class CheckConfig extends ConfigurablePojo<CheckConfig> {
+    @ConfigSerializable
+    static final class CheckConfig {
 
-        @Key("greeting")
-        @Comment("This comment must survive.")
+        @Comment("This comment is not written.")
         private String greeting = "hello";
     }
 }

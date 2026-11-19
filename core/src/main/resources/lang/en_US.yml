@@ -1,0 +1,45 @@
+# SakuraBans messages, in MiniMessage (https://docs.advntr.dev/minimessage/format.html).
+#
+# SakuraBans never rewrites this file. Keys missing here fall back to the built-in English text,
+# and are listed in the log at startup. To translate, copy this file to lang/<locale>.yml (for
+# example de_DE.yml); missing keys there fall back to en_US.
+#
+# <prefix> inserts the prefix below into any message. Values that come from players or staff
+# (names, reasons) are always shown as plain text.
+
+prefix: '<#f4a7b9>SakuraBans</#f4a7b9> <dark_gray>»</dark_gray> '
+
+error:
+  internal: '<prefix><red>Something went wrong. Please tell an administrator (incident <id>).</red>'
+  not_ready: '<prefix><red>SakuraBans is still starting. Try again in a moment.</red>'
+  no_permission: '<prefix><red>You don''t have permission to do that.</red>'
+
+operator:
+  console: Console
+
+type:
+  ban: ban
+  mute: mute
+  warn: warning
+  kick: kick
+
+scope:
+  global: everywhere
+  server: 'server <name>'
+  category: 'category <name>'
+
+time:
+  permanent: permanent
+  never: never
+  separator: ', '
+  last_separator: ' and '
+  second: '<count> second'
+  seconds: '<count> seconds'
+  minute: '<count> minute'
+  minutes: '<count> minutes'
+  hour: '<count> hour'
+  hours: '<count> hours'
+  day: '<count> day'
+  days: '<count> days'
+  year: '<count> year'
+  years: '<count> years'

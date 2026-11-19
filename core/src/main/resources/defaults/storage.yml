@@ -1,0 +1,45 @@
+# SakuraBans storage.
+#
+# Changes here need a restart; /sb reload keeps the current storage and says so. SakuraBans
+# never rewrites this file.
+
+# H2 (a local file, the default), MARIADB, MYSQL or POSTGRESQL. Several servers sharing one
+# MariaDB, MySQL or PostgreSQL database share their punishments.
+type: H2
+
+h2:
+  # The database file in the plugin folder, without extension.
+  file: sakurabans
+
+# Connection to MariaDB, MySQL or PostgreSQL.
+host: localhost
+# 0 uses the database's default port (3306, or 5432 for PostgreSQL).
+port: 0
+database: sakurabans
+username: sakurabans
+password: ''
+
+# Prepended to every table name, so several plugins or networks can share a database.
+table-prefix: sb_
+# PostgreSQL schema; empty uses the default (public).
+schema: ''
+# Extra JDBC connection properties, for example:
+#   useSSL: 'true'
+properties: {}
+
+pool:
+  # The most connections open at once.
+  maximum-size: 10
+  # Connections kept open while idle.
+  minimum-idle: 2
+  # How long to wait for a free connection.
+  connection-timeout: 5s
+  # How long a connection is kept before it is replaced.
+  max-lifetime: 30m
+
+sync:
+  # How several servers on one database tell each other about punishments: NONE, or SQL
+  # (polling a table, for networks).
+  mode: NONE
+  # How often SQL sync checks for news.
+  poll-interval: 2s

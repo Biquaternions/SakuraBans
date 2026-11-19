@@ -7,8 +7,7 @@ dependencies {
     implementation(libs.jooq)
     implementation(libs.hikari)
     implementation(libs.caffeine)
-    implementation(libs.jshepherd.core)
-    implementation(libs.jshepherd.yaml)
+    implementation(libs.configurate.yaml)
     implementation(libs.cloud.core)
     implementation(libs.cloud.minecraft.extras) {
         // Declares Adventure 4.15; Paper 26.3 and Velocity 4.3 provide Adventure 5.2 (D18).
@@ -21,12 +20,16 @@ dependencies {
 
     compileOnly(platform(libs.adventure.bom))
     compileOnly(libs.adventure.api)
+    compileOnly(libs.adventure.text.minimessage)
+    compileOnly(libs.adventure.text.serializer.plain)
     compileOnly(libs.adventure.text.logger.slf4j)
     compileOnly(libs.slf4j.api)
 
     testImplementation(platform(libs.adventure.bom))
     testImplementation(libs.adventure.api)
     testImplementation(libs.adventure.text.logger.slf4j)
+    testImplementation(libs.adventure.text.minimessage)
+    testImplementation(libs.adventure.text.serializer.plain)
     testImplementation(libs.slf4j.api)
 }
 

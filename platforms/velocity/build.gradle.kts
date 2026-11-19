@@ -25,7 +25,7 @@ tasks {
             exclude(dependency("com.google.inject:.*"))
             exclude(dependency("jakarta.inject:.*"))
             exclude(dependency("org.jspecify:.*"))
-            // Annotation-only artifacts pulled in by JShepherd, MySQL and Caffeine.
+            // Annotation-only artifacts pulled in by Configurate, MySQL and Caffeine.
             exclude(dependency("com.google.auto.service:.*"))
             exclude(dependency("com.google.errorprone:.*"))
             exclude(dependency("org.checkerframework:.*"))
@@ -37,8 +37,7 @@ tasks {
         relocate("org.reactivestreams", "$libs.reactivestreams")
         relocate("com.zaxxer.hikari", "$libs.hikari")
         relocate("com.github.benmanes.caffeine", "$libs.caffeine")
-        relocate("de.bsommerfeld.jshepherd", "$libs.jshepherd")
-        relocate("org.yaml.snakeyaml", "$libs.snakeyaml")
+        relocate("org.spongepowered.configurate", "$libs.configurate")
         relocate("org.incendo.cloud", "$libs.cloud")
         relocate("io.leangen.geantyref", "$libs.geantyref")
         relocate("org.h2", "$libs.h2")

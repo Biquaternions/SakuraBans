@@ -12,7 +12,7 @@ public final class Pagination {
     }
 
     public static int clamp(final int page, final int pageCount) {
-        return Math.max(1, Math.clamp(pageCount, 1, page));
+        return Math.clamp(page, 1, Math.max(1, pageCount));
     }
 
     public static long offset(final int page, final int pageSize) {
