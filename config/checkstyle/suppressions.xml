@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.2//EN"
+        "https://checkstyle.org/dtds/suppressions_1_2.dtd">
+
+<suppressions>
+    <!-- jOOQ column fields are UPPER_SNAKE (decision D2). -->
+    <suppress checks="GoogleNonConstantFieldName|MemberName"
+            files="[\\/]core[\\/]src[\\/]main[\\/]java[\\/].*[\\/]storage[\\/]dbo[\\/]"/>
+
+    <!-- Platform modules may import platform APIs. -->
+    <suppress id="neutralImports" files="[\\/]platforms[\\/]"/>
+
+    <!-- The API-only import bans apply to the api module alone. -->
+    <suppress id="apiImports" files="[\\/](core|platforms[\\/][^\\/]+)[\\/]src[\\/]"/>
+</suppressions>

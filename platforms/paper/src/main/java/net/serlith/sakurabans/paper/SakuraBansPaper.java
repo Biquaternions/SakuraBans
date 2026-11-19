@@ -7,12 +7,11 @@ public final class SakuraBansPaper extends JavaPlugin implements SakuraBansCore 
 
     @Override
     public void onEnable() {
-        // Plugin startup logic
+        // Starts the core from S02 on.
     }
 
     @Override
     public void onDisable() {
-        // Plugin shutdown logic
+        // Stops the core from S02 on.
     }
-
 }

@@ -1,4 +1,4 @@
-name: paper
+name: SakuraBans
 version: '${version}'
 
 main: net.serlith.sakurabans.paper.SakuraBansPaper
