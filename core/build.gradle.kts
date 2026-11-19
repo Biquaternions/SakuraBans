@@ -23,6 +23,11 @@ dependencies {
     compileOnly(libs.adventure.api)
     compileOnly(libs.adventure.text.logger.slf4j)
     compileOnly(libs.slf4j.api)
+
+    testImplementation(platform(libs.adventure.bom))
+    testImplementation(libs.adventure.api)
+    testImplementation(libs.adventure.text.logger.slf4j)
+    testImplementation(libs.slf4j.api)
 }
 
 val gitCommit = providers.exec {
