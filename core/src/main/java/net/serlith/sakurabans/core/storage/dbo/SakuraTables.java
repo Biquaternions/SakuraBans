@@ -2,7 +2,6 @@ package net.serlith.sakurabans.core.storage.dbo;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbActivePunishments;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbAllowedAddresses;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbAllowedPlayers;
@@ -72,8 +71,8 @@ public final class SakuraTables {
      * throw, because {@link Keys} and {@link Indexes} already captured the old tables.
      */
     public static synchronized void initialize(final String tablePrefix,
-            final Optional<String> schema) {
-        final String schemaName = schema.orElse("");
+            final @Nullable String schema) {
+        final String schemaName = schema == null ? "" : schema;
         if (prefix != null) {
             if (!prefix.equals(tablePrefix) || !Objects.requireNonNull(database).getName()
                     .equals(schemaName)) {

@@ -17,6 +17,7 @@ import net.serlith.sakurabans.api.model.Scope;
 import net.serlith.sakurabans.api.model.TemplateRef;
 import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.api.model.Visibility;
+import org.jspecify.annotations.Nullable;
 
 public record SakuraPunishment(
         long id,
@@ -24,19 +25,19 @@ public record SakuraPunishment(
         PunishmentType type,
         String kind,
         boolean shadow,
-        Optional<AddressStrictness> strictness,
+        @Nullable AddressStrictness strictnessOrNull,
         Victim victim,
         Operator operator,
         String source,
         Scope scope,
         String reason,
         Instant createdAt,
-        Optional<Instant> expiresAt,
-        Optional<String> originServer,
+        @Nullable Instant expiresAtOrNull,
+        @Nullable String originServerOrNull,
         Visibility visibility,
-        Optional<TemplateRef> template,
-        Optional<PunishmentEnd> end,
-        Optional<PunishmentVoid> voiding,
+        @Nullable TemplateRef templateOrNull,
+        @Nullable PunishmentEnd endOrNull,
+        @Nullable PunishmentVoid voidingOrNull,
         List<Evidence> evidence,
         long version) implements Punishment {
 
@@ -50,37 +51,62 @@ public record SakuraPunishment(
         if (shadow && type != PunishmentType.MUTE) {
             throw new IllegalArgumentException("only a mute can be a shadow mute");
         }
-        Objects.requireNonNull(strictness, "strictness");
         Objects.requireNonNull(victim, "victim");
         Objects.requireNonNull(operator, "operator");
         source = ModelChecks.source(source, "source");
         Objects.requireNonNull(scope, "scope");
         ModelChecks.text(reason, Lengths.MAX_REASON, "reason");
         Objects.requireNonNull(createdAt, "createdAt");
-        Objects.requireNonNull(expiresAt, "expiresAt");
-        ModelChecks.text(originServer, Lengths.MAX_IDENTIFIER, "originServer");
+        ModelChecks.optionalText(originServerOrNull, Lengths.MAX_IDENTIFIER, "originServer");
         Objects.requireNonNull(visibility, "visibility");
-        Objects.requireNonNull(template, "template");
-        Objects.requireNonNull(end, "end");
-        Objects.requireNonNull(voiding, "voiding");
         evidence = List.copyOf(evidence);
         if (version < 1) {
             throw new IllegalArgumentException("version must be positive: " + version);
         }
-        if (expiresAt.isPresent() && !expiresAt.get().isAfter(createdAt)) {
+        if (expiresAtOrNull != null && !expiresAtOrNull.isAfter(createdAt)) {
             throw new IllegalArgumentException("expiresAt must be after createdAt");
         }
-        if (end.isPresent() && end.get().at().isBefore(createdAt)) {
+        if (endOrNull != null && endOrNull.at().isBefore(createdAt)) {
             throw new IllegalArgumentException("end must not be before createdAt");
         }
-        if (voiding.isPresent() && voiding.get().at().isBefore(createdAt)) {
+        if (voidingOrNull != null && voidingOrNull.at().isBefore(createdAt)) {
             throw new IllegalArgumentException("voiding must not be before createdAt");
         }
-        if (end.isPresent() && end.get().kind() == EndKind.VOIDED && voiding.isEmpty()) {
+        if (endOrNull != null && endOrNull.kind() == EndKind.VOIDED && voidingOrNull == null) {
             throw new IllegalArgumentException("an end by voiding needs the voiding");
         }
-        if (type.instant() && (expiresAt.isPresent() || end.isPresent())) {
+        if (type.instant() && (expiresAtOrNull != null || endOrNull != null)) {
             throw new IllegalArgumentException(type + " can't expire or end");
         }
+    }
+
+    @Override
+    public Optional<AddressStrictness> strictness() {
+        return Optional.ofNullable(this.strictnessOrNull);
+    }
+
+    @Override
+    public Optional<Instant> expiresAt() {
+        return Optional.ofNullable(this.expiresAtOrNull);
+    }
+
+    @Override
+    public Optional<String> originServer() {
+        return Optional.ofNullable(this.originServerOrNull);
+    }
+
+    @Override
+    public Optional<TemplateRef> template() {
+        return Optional.ofNullable(this.templateOrNull);
+    }
+
+    @Override
+    public Optional<PunishmentEnd> end() {
+        return Optional.ofNullable(this.endOrNull);
+    }
+
+    @Override
+    public Optional<PunishmentVoid> voiding() {
+        return Optional.ofNullable(this.voidingOrNull);
     }
 }

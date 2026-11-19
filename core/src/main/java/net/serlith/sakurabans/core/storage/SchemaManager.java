@@ -37,8 +37,10 @@ public final class SchemaManager {
         this.logger = logger;
     }
 
-    public void prepare(final DSLContext dsl, final Optional<String> schema) {
-        schema.ifPresent(name -> dsl.createSchemaIfNotExists(name).execute());
+    public void prepare(final DSLContext dsl, final @Nullable String schema) {
+        if (schema != null) {
+            dsl.createSchemaIfNotExists(schema).execute();
+        }
         createTable(dsl, SakuraTables.META).execute();
 
         final Optional<Integer> found = this.version(dsl);
@@ -126,7 +128,7 @@ public final class SchemaManager {
     }
 
     private void createMissingIndexes(final DSLContext dsl, final SbTable<?> table,
-            final Optional<String> schema) {
+            final @Nullable String schema) {
         final List<Index> indexes = table.getIndexes();
         if (indexes.isEmpty()) {
             return;
@@ -149,10 +151,10 @@ public final class SchemaManager {
     }
 
     private static Set<String> existingIndexes(final DSLContext dsl, final SbTable<?> table,
-            final Optional<String> schema) {
+            final @Nullable String schema) {
         return dsl.connectionResult(connection -> {
             final DatabaseMetaData metaData = connection.getMetaData();
-            final @Nullable String schemaName = schema.orElse(connection.getSchema());
+            final String schemaName = schema != null ? schema : connection.getSchema();
             final Set<String> names = new HashSet<>();
             try (ResultSet rows = metaData.getIndexInfo(
                     connection.getCatalog(), schemaName, table.getName(), false, true)) {

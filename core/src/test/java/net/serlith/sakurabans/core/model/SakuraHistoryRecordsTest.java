@@ -23,10 +23,10 @@ class SakuraHistoryRecordsTest {
 
         assertThatThrownBy(() -> new SakuraNameRecord("Notch", LAST, FIRST))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new SakuraAddressRecord(address, LAST, FIRST, Optional.empty()))
+        assertThatThrownBy(() -> new SakuraAddressRecord(address, LAST, FIRST, null))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new SakuraPlayerProfileView(
-                uuid, "Notch", LAST, FIRST, Optional.empty()))
+                uuid, "Notch", LAST, FIRST, null))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThat(new SakuraNameRecord("Notch", FIRST, FIRST).lastSeen()).isEqualTo(FIRST);
     }
@@ -36,10 +36,10 @@ class SakuraHistoryRecordsTest {
         final InetAddress named = InetAddress.getByAddress("host", new byte[] {1, 2, 3, 4});
         final InetAddress plain = InetAddress.getByName("1.2.3.4");
 
-        assertThat(new SakuraAddressRecord(named, FIRST, LAST, Optional.of("lobby"))
+        assertThat(new SakuraAddressRecord(named, FIRST, LAST, "lobby")
                 .address().toString()).isEqualTo("/1.2.3.4");
         assertThat(new SakuraPlayerProfileView(
-                UUID.randomUUID(), "Notch", FIRST, LAST, Optional.of(named)).lastAddress())
+                UUID.randomUUID(), "Notch", FIRST, LAST, named).lastAddress())
                 .contains(plain);
     }
 

@@ -84,7 +84,7 @@ class ConfigServiceTest {
         service.load();
 
         final Settings settings = service.settings();
-        assertThat(settings.server().name()).contains("lobby-1");
+        assertThat(settings.server().name()).isEqualTo("lobby-1");
         assertThat(settings.server().categories()).containsExactly("survival");
         assertThat(settings.scopes().defaultScope())
                 .isEqualTo(new Settings.DefaultScope.Fixed(CategoryScope.of("survival")));
@@ -92,7 +92,7 @@ class ConfigServiceTest {
         assertThat(settings.enforcement().loginCheckTimeout()).isEqualTo(Duration.ofSeconds(2));
         assertThat(settings.enforcement().muteCommandBlacklist()).containsOnly("msg", "tell");
         assertThat(settings.reasons().requiredFor()).containsExactly(PunishmentType.BAN);
-        assertThat(settings.warnings().expireAfter()).isEmpty();
+        assertThat(settings.warnings().expireAfter()).isNull();
         assertThat(Files.readString(this.dir.resolve(ConfigFiles.CONFIG))).isEqualTo(yaml);
         assertThat(this.log.entries("warn")).singleElement()
                 .satisfies(entry -> assertThat(entry.format()).contains("missing keys"));

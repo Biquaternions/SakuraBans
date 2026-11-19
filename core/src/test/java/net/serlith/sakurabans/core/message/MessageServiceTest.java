@@ -34,6 +34,7 @@ import net.serlith.sakurabans.core.RecordingLogger;
 import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.model.SakuraPunishment;
 import net.serlith.sakurabans.core.model.SakuraPunishmentEnd;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -67,12 +68,12 @@ class MessageServiceTest {
     }
 
     private static SakuraPunishment punishment(final Victim victim, final String reason,
-            final Optional<Instant> expiresAt) {
+            final @Nullable Instant expiresAt) {
         return new SakuraPunishment(42, "K7Q2", PunishmentType.BAN, "ban", false,
-                Optional.empty(), victim, PlayerOperator.of(UUID.randomUUID(), "Moderator"),
+                null, victim, PlayerOperator.of(UUID.randomUUID(), "Moderator"),
                 "in-game", ServerScope.of("lobby"), reason, CREATED, expiresAt,
-                Optional.of("lobby"), Visibility.NORMAL, Optional.empty(), Optional.empty(),
-                Optional.empty(), List.of(), 1);
+                "lobby", Visibility.NORMAL, null, null,
+                null, List.of(), 1);
     }
 
     @Test
@@ -84,7 +85,7 @@ class MessageServiceTest {
     @Test
     void userTextNeverInjectsTags() {
         final Punishment ban = punishment(PlayerVictim.of(STEVE),
-                "<red>hacks</red> <click:run_command:/op>", Optional.empty());
+                "<red>hacks</red> <click:run_command:/op>", null);
         final Component rendered = MiniMessage.miniMessage()
                 .deserialize("<reason>", this.placeholders.punishment(ban, Locale.US, CREATED,
                         uuid -> Optional.empty(), false));
@@ -98,13 +99,13 @@ class MessageServiceTest {
     @Test
     void everyPunishmentTagResolves() {
         final Punishment ban = new SakuraPunishment(42, "K7Q2", PunishmentType.BAN, "ban", false,
-                Optional.empty(), PlayerVictim.of(STEVE), ConsoleOperator.INSTANCE, "console",
-                ServerScope.of("lobby"), "Spam", CREATED, Optional.of(CREATED.plus(
-                        Duration.ofDays(1).plusHours(12))), Optional.of("lobby"),
-                Visibility.NORMAL, Optional.empty(), Optional.of(new SakuraPunishmentEnd(
+                null, PlayerVictim.of(STEVE), ConsoleOperator.INSTANCE, "console",
+                ServerScope.of("lobby"), "Spam", CREATED, CREATED.plus(
+                        Duration.ofDays(1).plusHours(12)), "lobby",
+                Visibility.NORMAL, null, new SakuraPunishmentEnd(
                         EndKind.REVOKED, CREATED.plusSeconds(60),
-                        Optional.of(Actor.of(PlayerOperator.of(STEVE, "Admin"), "web")),
-                        Optional.of("appeal"))), Optional.empty(), List.of(), 2);
+                        Actor.of(PlayerOperator.of(STEVE, "Admin"), "web"),
+                        "appeal"), null, List.of(), 2);
         final String template = "<victim>|<operator>|<reason>|<duration>|<remaining>|<expires>|"
                 + "<id>|<display_id>|<scope>|<type>|<kind>|<server>|<revoker>|<revoke_reason>";
 
@@ -137,9 +138,9 @@ class MessageServiceTest {
                 Locale.US)).isEqualTo("1 year, 1 day, 2 minutes and 3 seconds");
         assertThat(this.formats.duration(Duration.ofMillis(400), Locale.US))
                 .isEqualTo("0 seconds");
-        assertThat(this.formats.length(punishment(PlayerVictim.of(STEVE), "", Optional.empty()),
+        assertThat(this.formats.length(punishment(PlayerVictim.of(STEVE), "", null),
                 Locale.US)).isEqualTo("permanent");
-        assertThat(this.formats.expiry(punishment(PlayerVictim.of(STEVE), "", Optional.empty()),
+        assertThat(this.formats.expiry(punishment(PlayerVictim.of(STEVE), "", null),
                 Locale.US)).isEqualTo("never");
     }
 

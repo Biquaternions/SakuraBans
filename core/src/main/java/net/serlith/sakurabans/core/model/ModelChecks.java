@@ -5,9 +5,9 @@ import java.net.UnknownHostException;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.regex.Pattern;
 import net.serlith.sakurabans.api.model.Lengths;
+import org.jspecify.annotations.Nullable;
 
 final class ModelChecks {
 
@@ -26,11 +26,11 @@ final class ModelChecks {
         return value;
     }
 
-    static Optional<String> text(
-            final Optional<String> value, final int maxLength, final String what) {
-        Objects.requireNonNull(value, what);
-        value.ifPresent(text -> text(text, maxLength, what));
-        return value;
+    static void optionalText(final @Nullable String value, final int maxLength,
+            final String what) {
+        if (value != null) {
+            text(value, maxLength, what);
+        }
     }
 
     static String name(final String value, final int maxLength, final String what) {

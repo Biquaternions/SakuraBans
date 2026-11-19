@@ -19,6 +19,7 @@ import net.serlith.sakurabans.api.model.PunishmentEnd;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.api.model.Visibility;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 class SakuraPunishmentTest {
@@ -29,29 +30,28 @@ class SakuraPunishmentTest {
     private static final Actor ACTOR = Actor.of(CONSOLE, "console");
 
     private static SakuraPunishment punishment(final PunishmentType type,
-            final Optional<Instant> expiresAt, final Optional<PunishmentEnd> end) {
+            final @Nullable Instant expiresAt, final @Nullable PunishmentEnd end) {
         return punishment(1, "A1B2C3", type, "reason", expiresAt, end);
     }
 
     private static SakuraPunishment punishment(final long id, final String displayId,
-            final PunishmentType type, final String reason, final Optional<Instant> expiresAt,
-            final Optional<PunishmentEnd> end) {
-        return new SakuraPunishment(id, displayId, type, type.name(), false, Optional.empty(),
+            final PunishmentType type, final String reason, final @Nullable Instant expiresAt,
+            final @Nullable PunishmentEnd end) {
+        return new SakuraPunishment(id, displayId, type, type.name(), false, null,
                 VICTIM, CONSOLE, "console", GlobalScope.INSTANCE, reason, CREATED, expiresAt,
-                Optional.empty(), Visibility.NORMAL, Optional.empty(), end, Optional.empty(),
+                null, Visibility.NORMAL, null, end, null,
                 List.of(), 1);
     }
 
-    private static Optional<PunishmentEnd> revokedAt(final Instant at) {
-        return Optional.of(new SakuraPunishmentEnd(
-                EndKind.REVOKED, at, Optional.of(ACTOR), Optional.empty()));
+    private static PunishmentEnd revokedAt(final Instant at) {
+        return new SakuraPunishmentEnd(EndKind.REVOKED, at, ACTOR, null);
     }
 
     @Test
     void temporaryPunishmentsAreActiveUntilTheyExpire() {
         final Instant expires = CREATED.plus(Duration.ofDays(1));
         final SakuraPunishment ban =
-                punishment(PunishmentType.BAN, Optional.of(expires), Optional.empty());
+                punishment(PunishmentType.BAN, expires, null);
 
         assertThat(ban.permanent()).isFalse();
         assertThat(ban.isActiveAt(CREATED)).isTrue();
@@ -62,9 +62,9 @@ class SakuraPunishmentTest {
     @Test
     void permanentPunishmentsStayActiveUntilTheyEnd() {
         final SakuraPunishment ban =
-                punishment(PunishmentType.BAN, Optional.empty(), Optional.empty());
+                punishment(PunishmentType.BAN, null, null);
         final SakuraPunishment revoked = punishment(
-                PunishmentType.BAN, Optional.empty(), revokedAt(CREATED.plusSeconds(60)));
+                PunishmentType.BAN, null, revokedAt(CREATED.plusSeconds(60)));
 
         assertThat(ban.permanent()).isTrue();
         assertThat(ban.isActiveAt(CREATED.plus(Duration.ofDays(9999)))).isTrue();
@@ -73,87 +73,86 @@ class SakuraPunishmentTest {
 
     @Test
     void kicksAreNeverActiveAndCantExpireOrEnd() {
-        assertThat(punishment(PunishmentType.KICK, Optional.empty(), Optional.empty())
+        assertThat(punishment(PunishmentType.KICK, null, null)
                 .isActiveAt(CREATED)).isFalse();
         assertThatThrownBy(() -> punishment(
-                PunishmentType.KICK, Optional.of(CREATED.plusSeconds(1)), Optional.empty()))
+                PunishmentType.KICK, CREATED.plusSeconds(1), null))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> punishment(
-                PunishmentType.KICK, Optional.empty(), revokedAt(CREATED)))
+                PunishmentType.KICK, null, revokedAt(CREATED)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void expiryMustBeAfterCreation() {
         assertThatThrownBy(() -> punishment(
-                PunishmentType.MUTE, Optional.of(CREATED), Optional.empty()))
+                PunishmentType.MUTE, CREATED, null))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> punishment(
-                PunishmentType.MUTE, Optional.of(CREATED.minusSeconds(1)), Optional.empty()))
+                PunishmentType.MUTE, CREATED.minusSeconds(1), null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void anEndCantPrecedeCreation() {
         assertThatThrownBy(() -> punishment(
-                PunishmentType.BAN, Optional.empty(), revokedAt(CREATED.minusSeconds(1))))
+                PunishmentType.BAN, null, revokedAt(CREATED.minusSeconds(1))))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void idsAreValidatedAndReasonsAreLimited() {
-        final Optional<Instant> none = Optional.empty();
         final PunishmentType ban = PunishmentType.BAN;
         final String tooLong = "x".repeat(Lengths.MAX_REASON + 1);
 
-        assertThatThrownBy(() -> punishment(0, "X", ban, "", none, Optional.empty()))
+        assertThatThrownBy(() -> punishment(0, "X", ban, "", null, null))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> punishment(1, " ", ban, "", none, Optional.empty()))
+        assertThatThrownBy(() -> punishment(1, " ", ban, "", null, null))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> punishment(1, "X", ban, tooLong, none, Optional.empty()))
+        assertThatThrownBy(() -> punishment(1, "X", ban, tooLong, null, null))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThat(punishment(1, "X", ban, "", none, Optional.empty()).reason()).isEmpty();
+        assertThat(punishment(1, "X", ban, "", null, null).reason()).isEmpty();
     }
 
     @Test
     void revocationsNeedAnOperatorButExpiriesDont() {
         assertThatThrownBy(() -> new SakuraPunishmentEnd(
-                EndKind.REVOKED, CREATED, Optional.empty(), Optional.empty()))
+                EndKind.REVOKED, CREATED, null, null))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThat(new SakuraPunishmentEnd(
-                EndKind.EXPIRED, CREATED, Optional.empty(), Optional.empty()).actor())
+                EndKind.EXPIRED, CREATED, null, null).actor())
                 .isEmpty();
         assertThatThrownBy(() -> new SakuraPunishmentEnd(EndKind.REVOKED, CREATED,
-                Optional.of(ACTOR), Optional.of("x".repeat(Lengths.MAX_REASON + 1))))
+                ACTOR, "x".repeat(Lengths.MAX_REASON + 1)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void kindsAreNormalisedAndOnlyMutesAreShadow() {
-        assertThat(punishment(PunishmentType.BAN, Optional.empty(), Optional.empty()).kind())
+        assertThat(punishment(PunishmentType.BAN, null, null).kind())
                 .isEqualTo("ban");
         assertThatThrownBy(() -> new SakuraPunishment(1, "X", PunishmentType.BAN, "ban", true,
-                Optional.empty(), VICTIM, CONSOLE, "console", GlobalScope.INSTANCE, "", CREATED,
-                Optional.empty(), Optional.empty(), Visibility.NORMAL, Optional.empty(),
-                Optional.empty(), Optional.empty(), List.of(), 1))
+                null, VICTIM, CONSOLE, "console", GlobalScope.INSTANCE, "", CREATED,
+                null, null, Visibility.NORMAL, null,
+                null, null, List.of(), 1))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void anEndByVoidingNeedsTheVoiding() {
-        final Optional<PunishmentEnd> voided = Optional.of(new SakuraPunishmentEnd(
-                EndKind.VOIDED, CREATED, Optional.of(ACTOR), Optional.empty()));
+        final PunishmentEnd voided = new SakuraPunishmentEnd(
+                EndKind.VOIDED, CREATED, ACTOR, null);
 
-        assertThatThrownBy(() -> punishment(PunishmentType.BAN, Optional.empty(), voided))
+        assertThatThrownBy(() -> punishment(PunishmentType.BAN, null, voided))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void endsOtherThanExpiryNeedAnActor() {
         assertThatThrownBy(() -> new SakuraPunishmentEnd(
-                EndKind.ROLLED_BACK, CREATED, Optional.empty(), Optional.empty()))
+                EndKind.ROLLED_BACK, CREATED, null, null))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThat(new SakuraPunishmentEnd(
-                EndKind.SUPERSEDED, CREATED, Optional.empty(), Optional.empty()).actor()).isEmpty();
+                EndKind.SUPERSEDED, CREATED, null, null).actor()).isEmpty();
     }
 }

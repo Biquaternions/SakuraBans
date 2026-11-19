@@ -8,9 +8,10 @@ import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.EndKind;
 import net.serlith.sakurabans.api.model.Lengths;
 import net.serlith.sakurabans.api.model.PunishmentEnd;
+import org.jspecify.annotations.Nullable;
 
 public record SakuraPunishmentEnd(
-        EndKind kind, Instant at, Optional<Actor> actor, Optional<String> reason)
+        EndKind kind, Instant at, @Nullable Actor actorOrNull, @Nullable String reasonOrNull)
         implements PunishmentEnd {
 
     private static final Set<EndKind> BY_NOBODY = Set.of(EndKind.EXPIRED, EndKind.SUPERSEDED);
@@ -18,10 +19,19 @@ public record SakuraPunishmentEnd(
     public SakuraPunishmentEnd {
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(at, "at");
-        Objects.requireNonNull(actor, "actor");
-        if (actor.isEmpty() && !BY_NOBODY.contains(kind)) {
+        if (actorOrNull == null && !BY_NOBODY.contains(kind)) {
             throw new IllegalArgumentException(kind + " needs an actor");
         }
-        ModelChecks.text(reason, Lengths.MAX_REASON, "reason");
+        ModelChecks.optionalText(reasonOrNull, Lengths.MAX_REASON, "reason");
+    }
+
+    @Override
+    public Optional<Actor> actor() {
+        return Optional.ofNullable(this.actorOrNull);
+    }
+
+    @Override
+    public Optional<String> reason() {
+        return Optional.ofNullable(this.reasonOrNull);
     }
 }

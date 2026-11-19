@@ -66,7 +66,7 @@ final class SettingsMapper {
                 .flatMap(category -> this.identifier("server.categories", category).stream())
                 .toList();
         final Settings.Server server =
-                new Settings.Server(serverName, categories, config.server().role());
+                new Settings.Server(serverName.orElse(null), categories, config.server().role());
 
         final Settings.Scopes scopes = new Settings.Scopes(
                 this.defaultScope(config.scopes().defaultScope()),
@@ -89,7 +89,8 @@ final class SettingsMapper {
                 config.exemption().provider(), config.exemption().permitSameWeight(),
                 config.exemption().protectsEdits());
         final Settings.Warnings warnings = new Settings.Warnings(
-                this.durationOrNever("warnings.expire-after", config.warnings().expireAfter()));
+                this.durationOrNever("warnings.expire-after", config.warnings().expireAfter())
+                        .orElse(null));
         final Settings.Display display = this.display(config.display());
         return new Settings(server, scopes, enforcementSettings, alts, reasons, exemption,
                 warnings, display, new Settings.Lockdown(config.lockdown().persist()));
@@ -107,7 +108,8 @@ final class SettingsMapper {
         final var limiter = alts.connectionLimiter();
         this.check(limiter.limit() >= 1, "alts.connection-limiter.limit", "must be at least 1");
         return new Settings.Alts(alts.registerOnConnection(), Set.copyOf(servers),
-                this.durationOrNever("alts.record-expiration", alts.recordExpiration()),
+                this.durationOrNever("alts.record-expiration", alts.recordExpiration())
+                        .orElse(null),
                 new Settings.JoinNotification(join.enabled(), join.onlyIfPunished(),
                         join.threshold(), join.limit()),
                 new Settings.ConnectionLimiter(limiter.enabled(), limiter.limit(),
@@ -179,7 +181,7 @@ final class SettingsMapper {
                 "pool.minimum-idle", "must be 0 to pool.maximum-size");
         return new StorageSettings(config.type(), config.h2().file(), config.host(), config.port(),
                 config.database(), config.username(), config.password(), config.tablePrefix(),
-                schema, config.properties(),
+                schema.orElse(null), config.properties(),
                 new StorageSettings.Pool(pool.maximumSize(), pool.minimumIdle(),
                         pool.connectionTimeout(), pool.maxLifetime()),
                 new StorageSettings.Sync(config.sync().mode(), config.sync().pollInterval()));

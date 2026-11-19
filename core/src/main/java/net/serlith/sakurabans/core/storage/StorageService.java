@@ -43,7 +43,7 @@ public final class StorageService {
 
     public void start() {
         final StorageSettings settings = this.config.storage();
-        final Optional<String> schemaName = schemaName(settings);
+        final String schemaName = schemaName(settings).orElse(null);
         SakuraTables.initialize(settings.tablePrefix(), schemaName);
         System.setProperty("org.jooq.no-logo", "true");
         System.setProperty("org.jooq.no-tips", "true");
@@ -90,7 +90,7 @@ public final class StorageService {
     }
 
     public <T> CompletableFuture<T> read(final Function<DSLContext, T> query) {
-        return this.run(dsl -> query.apply(dsl));
+        return this.run(query);
     }
 
     public <T> CompletableFuture<T> write(final TransactionalCallable<T> work) {
@@ -115,14 +115,17 @@ public final class StorageService {
         return current.dsl();
     }
 
-    static Settings jooqSettings(final Optional<String> schemaName) {
+    /** {@code schemaName} is {@code null} to use the connection's default schema. */
+    static Settings jooqSettings(final @Nullable String schemaName) {
         return new Settings()
                 .withRenderCatalog(false)
-                .withRenderSchema(schemaName.isPresent())
+                .withRenderSchema(schemaName != null)
                 .withExecuteLogging(false);
     }
 
     static Optional<String> schemaName(final StorageSettings settings) {
-        return settings.type() == StorageType.POSTGRESQL ? settings.schema() : Optional.empty();
+        return settings.type() == StorageType.POSTGRESQL
+                ? Optional.ofNullable(settings.schema())
+                : Optional.empty();
     }
 }

@@ -7,7 +7,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import net.serlith.sakurabans.core.storage.dbo.SbTable;
 import org.jooq.DSLContext;
@@ -30,9 +29,9 @@ class SchemaSnapshotTest {
     @ParameterizedTest
     @EnumSource(value = SQLDialect.class, names = {"H2", "MARIADB", "MYSQL", "POSTGRES"})
     void theDdlMatchesTheSnapshot(final SQLDialect dialect) throws Exception {
-        SakuraTables.initialize(H2Database.PREFIX, Optional.empty());
+        SakuraTables.initialize(H2Database.PREFIX, null);
         final DSLContext dsl =
-                DSL.using(dialect, StorageService.jooqSettings(Optional.empty()));
+                DSL.using(dialect, StorageService.jooqSettings(null));
         final List<String> statements = new ArrayList<>();
         for (final SbTable<?> table : SakuraTables.all()) {
             statements.add(SchemaManager.createTable(dsl, table).getSQL(ParamType.INLINED));

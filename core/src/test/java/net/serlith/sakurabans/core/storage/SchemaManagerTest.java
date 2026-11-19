@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.net.InetAddress;
 import java.time.Instant;
-import java.util.Optional;
 import java.util.UUID;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Visibility;
@@ -30,7 +29,7 @@ class SchemaManagerTest {
     void createsEveryTableIndexAndTheGlobalScope() {
         final DSLContext dsl = H2Database.create();
 
-        this.manager.prepare(dsl, Optional.empty());
+        this.manager.prepare(dsl, null);
 
         for (final SbTable<?> table : SakuraTables.all()) {
             assertThat(dsl.fetchCount(table)).as(table.getName()).isNotNegative();
@@ -46,8 +45,8 @@ class SchemaManagerTest {
     void preparingTwiceChangesNothing() {
         final DSLContext dsl = H2Database.create();
 
-        this.manager.prepare(dsl, Optional.empty());
-        this.manager.prepare(dsl, Optional.empty());
+        this.manager.prepare(dsl, null);
+        this.manager.prepare(dsl, null);
 
         assertThat(dsl.fetchCount(SakuraTables.SCOPES)).isOne();
         assertThat(dsl.fetchCount(SakuraTables.META)).isEqualTo(2);
@@ -58,11 +57,11 @@ class SchemaManagerTest {
     @Test
     void refusesDatabasesOfNewerVersions() {
         final DSLContext dsl = H2Database.create();
-        this.manager.prepare(dsl, Optional.empty());
+        this.manager.prepare(dsl, null);
         dsl.update(SakuraTables.META).set(SakuraTables.META.V, "2")
                 .where(SakuraTables.META.K.eq(SchemaManager.VERSION_KEY)).execute();
 
-        assertThatThrownBy(() -> this.manager.prepare(dsl, Optional.empty()))
+        assertThatThrownBy(() -> this.manager.prepare(dsl, null))
                 .isInstanceOf(StorageException.class)
                 .hasMessageContaining("schema version 2");
         assertThat(this.manager.version(dsl)).as("left as it was").contains(2);
@@ -71,7 +70,7 @@ class SchemaManagerTest {
     @Test
     void theDatabaseEnforcesVictimShapes() throws Exception {
         final DSLContext dsl = H2Database.create();
-        this.manager.prepare(dsl, Optional.empty());
+        this.manager.prepare(dsl, null);
         final byte[] v4 = InetAddresses.toBytes(InetAddress.getByName("203.0.113.7"));
 
         insertVictim(dsl, VictimKind.PLAYER, UUID.randomUUID(), new byte[0], 0);
@@ -89,7 +88,7 @@ class SchemaManagerTest {
     @Test
     void oneActiveBanPerVictimAndScopeButWarnsStack() {
         final DSLContext dsl = H2Database.create();
-        this.manager.prepare(dsl, Optional.empty());
+        this.manager.prepare(dsl, null);
         final long victim = insertVictim(dsl, VictimKind.PLAYER, UUID.randomUUID(), new byte[0], 0);
         final int global = dsl.select(SakuraTables.SCOPES.ID).from(SakuraTables.SCOPES)
                 .fetchSingle(SakuraTables.SCOPES.ID);

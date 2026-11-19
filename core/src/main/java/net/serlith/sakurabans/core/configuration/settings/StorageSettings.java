@@ -2,7 +2,7 @@ package net.serlith.sakurabans.core.configuration.settings;
 
 import java.time.Duration;
 import java.util.Map;
-import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 
 public record StorageSettings(
         StorageType type,
@@ -13,7 +13,7 @@ public record StorageSettings(
         String username,
         String password,
         String tablePrefix,
-        Optional<String> schema,
+        @Nullable String schema,
         Map<String, String> properties,
         Pool pool,
         Sync sync) {

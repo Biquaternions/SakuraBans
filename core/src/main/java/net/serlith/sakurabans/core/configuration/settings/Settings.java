@@ -6,11 +6,11 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.Set;
 import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Scope;
+import org.jspecify.annotations.Nullable;
 
 public record Settings(
         Server server,
@@ -23,14 +23,12 @@ public record Settings(
         Display display,
         Lockdown lockdown) {
 
-    /** Empty {@code name} means "detect it" (plugin messaging, Velocity). */
-    public record Server(Optional<String> name, List<String> categories, ServerRole role) {
+    public record Server(@Nullable String name, List<String> categories, ServerRole role) {
     }
 
     public record Scopes(DefaultScope defaultScope, boolean requirePermissions) {
     }
 
-    /** {@code local} needs the server's own scope, so it is resolved when it is used. */
     public sealed interface DefaultScope {
 
         record Local() implements DefaultScope {
@@ -46,7 +44,7 @@ public record Settings(
     }
 
     public record Alts(boolean registerOnConnection, Set<String> serversWithoutIpRegistration,
-            Optional<Duration> recordExpiration, JoinNotification joinNotification,
+            @Nullable Duration recordExpiration, JoinNotification joinNotification,
             ConnectionLimiter connectionLimiter) {
     }
 
@@ -65,8 +63,7 @@ public record Settings(
             boolean protectsEdits) {
     }
 
-    /** Empty {@code expireAfter} means warnings never expire on their own. */
-    public record Warnings(Optional<Duration> expireAfter) {
+    public record Warnings(@Nullable Duration expireAfter) {
     }
 
     public record Display(Locale defaultLocale, String dateFormat, ZoneId zone, IdStyle idStyle,
