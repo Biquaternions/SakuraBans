@@ -21,7 +21,7 @@ public final class ValidationException extends IllegalArgumentException {
      *
      * @param errors the problems, not empty
      */
-    ValidationException(final List<FieldError> errors) {
+    private ValidationException(final List<FieldError> errors) {
         super(describe(errors));
         this.errors = List.copyOf(errors);
     }
@@ -31,7 +31,7 @@ public final class ValidationException extends IllegalArgumentException {
      *
      * @param error the problem
      */
-    ValidationException(final FieldError error) {
+    private ValidationException(final FieldError error) {
         this(List.of(error));
     }
 

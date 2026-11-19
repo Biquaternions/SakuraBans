@@ -5,6 +5,7 @@ main: net.serlith.sakurabans.paper.SakuraBansPaper
 bootstrapper: net.serlith.sakurabans.paper.SakuraBansPaperBootstrap
 loader: net.serlith.sakurabans.paper.SakuraBansPaperLoader
 api-version: '26.3'
+folia-supported: true
 load: STARTUP
 
 authors: [Biquaternions]
