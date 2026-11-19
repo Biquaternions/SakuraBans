@@ -1,7 +1,7 @@
 package net.serlith.sakurabans.core.model;
 
+import com.google.common.base.Preconditions;
 import java.time.Instant;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import net.serlith.sakurabans.api.model.Actor;
@@ -17,8 +17,8 @@ public record SakuraPunishmentEnd(
     private static final Set<EndKind> BY_NOBODY = Set.of(EndKind.EXPIRED, EndKind.SUPERSEDED);
 
     public SakuraPunishmentEnd {
-        Objects.requireNonNull(kind, "kind");
-        Objects.requireNonNull(at, "at");
+        Preconditions.checkNotNull(kind, "kind");
+        Preconditions.checkNotNull(at, "at");
         if (actorOrNull == null && !BY_NOBODY.contains(kind)) {
             throw new IllegalArgumentException(kind + " needs an actor");
         }

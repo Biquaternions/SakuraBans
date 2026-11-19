@@ -29,9 +29,12 @@ tasks {
             exclude(dependency("com.google.auto.service:.*"))
             exclude(dependency("com.google.errorprone:.*"))
             exclude(dependency("org.checkerframework:.*"))
+            exclude(dependency("com.google.j2objc:.*"))
         }
 
         val libs = "net.serlith.sakurabans.libs"
+        relocate("com.google.common", "$libs.guava")
+        relocate("com.google.thirdparty", "$libs.guava.thirdparty")
         relocate("org.jooq", "$libs.jooq")
         relocate("io.r2dbc", "$libs.r2dbc")
         relocate("org.reactivestreams", "$libs.reactivestreams")

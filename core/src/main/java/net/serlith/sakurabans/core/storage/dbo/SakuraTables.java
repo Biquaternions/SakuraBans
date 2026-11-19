@@ -1,7 +1,7 @@
 package net.serlith.sakurabans.core.storage.dbo;
 
+import com.google.common.base.Preconditions;
 import java.util.List;
-import java.util.Objects;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbActivePunishments;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbAllowedAddresses;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbAllowedPlayers;
@@ -74,7 +74,7 @@ public final class SakuraTables {
             final @Nullable String schema) {
         final String schemaName = schema == null ? "" : schema;
         if (prefix != null) {
-            if (!prefix.equals(tablePrefix) || !Objects.requireNonNull(database).getName()
+            if (!prefix.equals(tablePrefix) || !Preconditions.checkNotNull(database).getName()
                     .equals(schemaName)) {
                 throw new IllegalStateException("the table prefix or schema changed from '"
                         + prefix + "' (schema '" + database.getName() + "') to '" + tablePrefix

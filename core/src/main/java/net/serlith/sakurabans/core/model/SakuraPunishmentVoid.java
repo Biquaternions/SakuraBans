@@ -1,7 +1,7 @@
 package net.serlith.sakurabans.core.model;
 
+import com.google.common.base.Preconditions;
 import java.time.Instant;
-import java.util.Objects;
 import java.util.Optional;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.Lengths;
@@ -12,8 +12,8 @@ public record SakuraPunishmentVoid(Instant at, Actor actor, @Nullable String rea
         implements PunishmentVoid {
 
     public SakuraPunishmentVoid {
-        Objects.requireNonNull(at, "at");
-        Objects.requireNonNull(actor, "actor");
+        Preconditions.checkNotNull(at, "at");
+        Preconditions.checkNotNull(actor, "actor");
         ModelChecks.optionalText(reasonOrNull, Lengths.MAX_REASON, "reason");
     }
 

@@ -1,8 +1,8 @@
 package net.serlith.sakurabans.core.model;
 
+import com.google.common.base.Preconditions;
 import java.net.InetAddress;
 import java.time.Instant;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import net.serlith.sakurabans.api.model.Lengths;
@@ -13,7 +13,7 @@ public record SakuraPlayerProfileView(UUID uuid, String name, Instant firstSeen,
         @Nullable InetAddress lastAddressOrNull) implements PlayerProfileView {
 
     public SakuraPlayerProfileView {
-        Objects.requireNonNull(uuid, "uuid");
+        Preconditions.checkNotNull(uuid, "uuid");
         ModelChecks.name(name, Lengths.MAX_PLAYER_NAME, "name");
         ModelChecks.seen(firstSeen, lastSeen);
         if (lastAddressOrNull != null) {

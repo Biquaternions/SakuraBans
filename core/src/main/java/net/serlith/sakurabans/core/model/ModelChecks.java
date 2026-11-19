@@ -1,10 +1,10 @@
 package net.serlith.sakurabans.core.model;
 
+import com.google.common.base.Preconditions;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.Instant;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.regex.Pattern;
 import net.serlith.sakurabans.api.model.Lengths;
 import org.jspecify.annotations.Nullable;
@@ -18,7 +18,7 @@ final class ModelChecks {
     }
 
     static String text(final String value, final int maxLength, final String what) {
-        Objects.requireNonNull(value, what);
+        Preconditions.checkNotNull(value, what);
         if (value.length() > maxLength) {
             throw new IllegalArgumentException(
                     what + " is longer than " + maxLength + " characters");
@@ -42,7 +42,7 @@ final class ModelChecks {
     }
 
     static String identifier(final String value, final String what) {
-        Objects.requireNonNull(value, what);
+        Preconditions.checkNotNull(value, what);
         final String lower = value.toLowerCase(Locale.ROOT);
         if (lower.length() > Lengths.MAX_IDENTIFIER || !IDENTIFIER.matcher(lower).matches()) {
             throw new IllegalArgumentException(what + " must be 1-" + Lengths.MAX_IDENTIFIER
@@ -52,7 +52,7 @@ final class ModelChecks {
     }
 
     static String source(final String value, final String what) {
-        Objects.requireNonNull(value, what);
+        Preconditions.checkNotNull(value, what);
         final String lower = value.toLowerCase(Locale.ROOT);
         if (lower.length() > Lengths.MAX_SOURCE || !SOURCE.matcher(lower).matches()) {
             throw new IllegalArgumentException(what + " must be 1-" + Lengths.MAX_SOURCE
@@ -62,7 +62,7 @@ final class ModelChecks {
     }
 
     static InetAddress address(final InetAddress address, final String what) {
-        Objects.requireNonNull(address, what);
+        Preconditions.checkNotNull(address, what);
         try {
             return InetAddress.getByAddress(address.getAddress());
         } catch (final UnknownHostException e) {
@@ -71,8 +71,8 @@ final class ModelChecks {
     }
 
     static void seen(final Instant firstSeen, final Instant lastSeen) {
-        Objects.requireNonNull(firstSeen, "firstSeen");
-        Objects.requireNonNull(lastSeen, "lastSeen");
+        Preconditions.checkNotNull(firstSeen, "firstSeen");
+        Preconditions.checkNotNull(lastSeen, "lastSeen");
         if (lastSeen.isBefore(firstSeen)) {
             throw new IllegalArgumentException("lastSeen must not be before firstSeen");
         }

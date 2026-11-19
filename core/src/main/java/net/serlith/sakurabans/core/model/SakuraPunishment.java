@@ -1,8 +1,8 @@
 package net.serlith.sakurabans.core.model;
 
+import com.google.common.base.Preconditions;
 import java.time.Instant;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.EndKind;
@@ -46,19 +46,19 @@ public record SakuraPunishment(
             throw new IllegalArgumentException("id must be positive: " + id);
         }
         ModelChecks.name(displayId, Lengths.MAX_IDENTIFIER, "displayId");
-        Objects.requireNonNull(type, "type");
+        Preconditions.checkNotNull(type, "type");
         kind = ModelChecks.identifier(kind, "kind");
         if (shadow && type != PunishmentType.MUTE) {
             throw new IllegalArgumentException("only a mute can be a shadow mute");
         }
-        Objects.requireNonNull(victim, "victim");
-        Objects.requireNonNull(operator, "operator");
+        Preconditions.checkNotNull(victim, "victim");
+        Preconditions.checkNotNull(operator, "operator");
         source = ModelChecks.source(source, "source");
-        Objects.requireNonNull(scope, "scope");
+        Preconditions.checkNotNull(scope, "scope");
         ModelChecks.text(reason, Lengths.MAX_REASON, "reason");
-        Objects.requireNonNull(createdAt, "createdAt");
+        Preconditions.checkNotNull(createdAt, "createdAt");
         ModelChecks.optionalText(originServerOrNull, Lengths.MAX_IDENTIFIER, "originServer");
-        Objects.requireNonNull(visibility, "visibility");
+        Preconditions.checkNotNull(visibility, "visibility");
         evidence = List.copyOf(evidence);
         if (version < 1) {
             throw new IllegalArgumentException("version must be positive: " + version);

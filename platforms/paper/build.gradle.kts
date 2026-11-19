@@ -9,10 +9,15 @@ dependencies {
     compileOnly(libs.paper.api)
 }
 
+val shadedOnPaper = setOf("com.google.guava")
+
 val generatePaperLibraries = tasks.register<GeneratePaperLibraries>("generatePaperLibraries") {
     libraries = configurations.runtimeClasspath
         .flatMap { it.incoming.resolutionResult.rootComponent }
-        .map(GeneratePaperLibraries::directLibraries)
+        .map { root ->
+            GeneratePaperLibraries.directLibraries(root)
+                .filterNot { it.substringBefore(':') in shadedOnPaper }
+        }
     outputDirectory = layout.buildDirectory.dir("generated/resources/paperLibraries")
 }
 
@@ -24,10 +29,13 @@ val ownGroup = project.group.toString()
 
 tasks {
     shadowJar {
-        // Only our own classes; every library is resolved by SakuraBansPaperLoader (plan 3.3).
+        // Our own classes and Guava; every other library is resolved by SakuraBansPaperLoader.
         dependencies {
-            exclude { it.moduleGroup != ownGroup }
+            exclude { it.moduleGroup != ownGroup && it.moduleGroup !in shadedOnPaper }
         }
+        val libs = "net.serlith.sakurabans.libs"
+        relocate("com.google.common", "$libs.guava")
+        relocate("com.google.thirdparty", "$libs.guava.thirdparty")
     }
 
     runServer {
