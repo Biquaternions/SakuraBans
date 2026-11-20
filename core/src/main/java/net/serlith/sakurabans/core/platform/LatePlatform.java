@@ -60,6 +60,11 @@ public final class LatePlatform implements Platform {
     }
 
     @Override
+    public ProfileLookup profiles() {
+        return this.platform().profiles();
+    }
+
+    @Override
     public boolean onlineMode() {
         return this.platform().onlineMode();
     }

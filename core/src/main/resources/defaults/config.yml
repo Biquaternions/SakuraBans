@@ -116,3 +116,15 @@ display:
 lockdown:
   # Whether an active lockdown survives a restart.
   persist: true
+
+notifications:
+  # The shortest time between two "tried to join while banned" or "tried to chat while muted"
+  # notices about the same player.
+  attempt-throttle: 30s
+
+players:
+  # Whether a name SakuraBans has never seen (for example /ban on someone who never joined) is
+  # looked up through the server's profile service, which asks Mojang. Turn it off on shared
+  # hosting, where every server on the address shares Mojang's rate limit; such names then only
+  # resolve through integrations. A proxy never looks names up.
+  remote-lookup: true

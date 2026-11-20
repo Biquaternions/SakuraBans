@@ -16,4 +16,6 @@ public final class MainConfig {
     private WarningsSection warnings = new WarningsSection();
     private DisplaySection display = new DisplaySection();
     private LockdownSection lockdown = new LockdownSection();
+    private NotificationsSection notifications = new NotificationsSection();
+    private PlayersSection players = new PlayersSection();
 }

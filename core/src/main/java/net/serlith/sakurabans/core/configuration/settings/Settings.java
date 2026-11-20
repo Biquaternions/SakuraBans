@@ -21,7 +21,9 @@ public record Settings(
         Exemption exemption,
         Warnings warnings,
         Display display,
-        Lockdown lockdown) {
+        Lockdown lockdown,
+        Notifications notifications,
+        Players players) {
 
     public record Server(@Nullable String name, List<String> categories, ServerRole role) {
     }
@@ -76,5 +78,13 @@ public record Settings(
     }
 
     public record Lockdown(boolean persist) {
+    }
+
+    /** {@code attemptThrottle}: at most one "tried to join/chat" notice per player this often. */
+    public record Notifications(Duration attemptThrottle) {
+    }
+
+    /** {@code remoteLookup}: whether unseen names are looked up through the platform. */
+    public record Players(boolean remoteLookup) {
     }
 }

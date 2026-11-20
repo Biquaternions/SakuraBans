@@ -92,8 +92,12 @@ final class SettingsMapper {
                 this.durationOrNever("warnings.expire-after", config.warnings().expireAfter())
                         .orElse(null));
         final Settings.Display display = this.display(config.display());
+        this.check(!config.notifications().attemptThrottle().isNegative(),
+                "notifications.attempt-throttle", "must not be negative");
         return new Settings(server, scopes, enforcementSettings, alts, reasons, exemption,
-                warnings, display, new Settings.Lockdown(config.lockdown().persist()));
+                warnings, display, new Settings.Lockdown(config.lockdown().persist()),
+                new Settings.Notifications(config.notifications().attemptThrottle()),
+                new Settings.Players(config.players().remoteLookup()));
     }
 
     private Settings.Alts alts(final AltsSection alts) {

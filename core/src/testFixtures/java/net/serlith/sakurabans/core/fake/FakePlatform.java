@@ -14,6 +14,7 @@ import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
 import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import net.serlith.sakurabans.core.platform.Platform;
+import net.serlith.sakurabans.core.platform.ProfileLookup;
 import net.serlith.sakurabans.core.platform.ServerIdentity;
 import net.serlith.sakurabans.core.platform.TaskScheduler;
 import org.jspecify.annotations.Nullable;
@@ -33,6 +34,8 @@ public final class FakePlatform implements Platform {
     };
     private final @Nullable String serverName;
     private final Set<String> backends;
+    private volatile boolean onlineMode = true;
+    private volatile ProfileLookup profiles = ProfileLookup.NONE;
 
     public FakePlatform() {
         this(null, Set.of());
@@ -108,8 +111,23 @@ public final class FakePlatform implements Platform {
     }
 
     @Override
+    public ProfileLookup profiles() {
+        return this.profiles;
+    }
+
+    public FakePlatform profiles(final ProfileLookup profiles) {
+        this.profiles = profiles;
+        return this;
+    }
+
+    @Override
     public boolean onlineMode() {
-        return true;
+        return this.onlineMode;
+    }
+
+    public FakePlatform onlineMode(final boolean onlineMode) {
+        this.onlineMode = onlineMode;
+        return this;
     }
 
     @Override

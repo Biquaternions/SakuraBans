@@ -14,16 +14,18 @@ public final class CoreBootstrap {
      * Throws {@link IllegalStateException} after logging every error if the configuration is
      * invalid, so the platform refuses to load the plugin.
      */
-    public static SakuraBansCore create(final CoreEnvironment environment) {
+    public static SakuraBansCore create(final CoreEnvironment environment)
+            throws IllegalStateException {
         return create(environment, InstantSource.system());
     }
 
     public static SakuraBansCore create(final CoreEnvironment environment,
-            final InstantSource clock) {
+            final InstantSource clock) throws IllegalStateException {
         return create(new CoreComponents(environment, clock));
     }
 
-    static SakuraBansCore create(final CoreComponents components) {
+    static SakuraBansCore create(final CoreComponents components)
+            throws IllegalStateException {
         try {
             components.config().load();
         } catch (final ConfigException e) {
@@ -35,6 +37,9 @@ public final class CoreBootstrap {
         components.lifecycle().advance(LifecycleState.NEW, LifecycleState.CREATED);
         return new SakuraBansCore(components.environment().logger(), components.lifecycle(),
                 components.platform(), components.executors(), components.config(),
-                components.messages(), components.storage());
+                components.messages(), components.storage(),
+                new SakuraBansCore.Services(components.notifications(), components.sweeper(),
+                        components.punishmentService(),
+                        components.loginGate(), components.chatGate()));
     }
 }

@@ -8,6 +8,7 @@ import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import net.serlith.sakurabans.core.platform.Platform;
+import net.serlith.sakurabans.core.platform.ProfileLookup;
 import net.serlith.sakurabans.core.platform.ServerIdentity;
 import net.serlith.sakurabans.core.platform.TaskScheduler;
 import net.serlith.sakurabans.core.util.Futures;
@@ -56,6 +57,12 @@ final class VelocityPlatform implements Platform {
     @Override
     public ServerIdentity serverIdentity() {
         return this.identity;
+    }
+
+    /** Velocity has no profile lookup: a proxy resolves only names it has seen (plan 6.2). */
+    @Override
+    public ProfileLookup profiles() {
+        return ProfileLookup.NONE;
     }
 
     @Override

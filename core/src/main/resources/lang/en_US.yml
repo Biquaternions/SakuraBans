@@ -43,3 +43,52 @@ time:
   days: '<count> days'
   year: '<count> year'
   years: '<count> years'
+
+# Disconnect screens. Placeholders: <reason> <operator> <duration> <remaining> <expires> <id>
+# <display_id> <scope> <type> <kind> <server>.
+screen:
+  ban: |-
+    <red><bold>You are banned.</bold></red>
+
+    <gray>Reason:</gray> <white><reason></white>
+    <gray>Banned by:</gray> <white><operator></white>
+
+    <dark_gray>Punishment <display_id></dark_gray>
+  ban_temporary: |-
+    <red><bold>You are banned.</bold></red>
+
+    <gray>Reason:</gray> <white><reason></white>
+    <gray>Banned by:</gray> <white><operator></white>
+    <gray>Ends in:</gray> <white><remaining></white>
+
+    <dark_gray>Punishment <display_id></dark_gray>
+  kick: |-
+    <red><bold>You were kicked.</bold></red>
+
+    <gray>Reason:</gray> <white><reason></white>
+
+# Sent to the punished player.
+victim:
+  muted: '<prefix><red>You were muted by <operator>: <reason></red>'
+  muted_temporary: '<prefix><red>You were muted by <operator> for <duration>: <reason></red>'
+  warned: '<prefix><red>You were warned by <operator>: <reason></red>'
+
+# When a muted player chats or runs a blocked command.
+chat:
+  muted: '<prefix><red>You are muted: <reason></red>'
+  muted_temporary: '<prefix><red>You are muted for <remaining>: <reason></red>'
+  command_muted: '<prefix><red>You can''t use this command while you are muted.</red>'
+  loading: '<prefix><gray>Your chat is still being checked. Try again in a moment.</gray>'
+
+# Staff notices. <silent> is the silent tag below for silent punishments, else empty.
+notify:
+  silent_tag: '<gray>[Silent]</gray> '
+  ban: '<prefix><silent><white><operator></white> <red>banned</red> <white><victim></white> <gray>(<duration>, <scope>):</gray> <reason>'
+  mute: '<prefix><silent><white><operator></white> <red>muted</red> <white><victim></white> <gray>(<duration>, <scope>):</gray> <reason>'
+  warn: '<prefix><silent><white><operator></white> <yellow>warned</yellow> <white><victim></white><gray>:</gray> <reason>'
+  kick: '<prefix><silent><white><operator></white> <yellow>kicked</yellow> <white><victim></white><gray>:</gray> <reason>'
+  unban: '<prefix><silent><white><revoker></white> <green>unbanned</green> <white><victim></white>'
+  unmute: '<prefix><silent><white><revoker></white> <green>unmuted</green> <white><victim></white>'
+  unwarn: '<prefix><silent><white><revoker></white> <green>removed a warning of</green> <white><victim></white>'
+  attempt_join: '<prefix><gray><name> tried to join but is banned:</gray> <reason>'
+  attempt_chat: '<prefix><gray><name> tried to chat but is muted:</gray> <message>'

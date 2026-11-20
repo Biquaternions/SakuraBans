@@ -19,6 +19,8 @@ public interface Platform {
 
     ServerIdentity serverIdentity();
 
+    ProfileLookup profiles();
+
     boolean onlineMode();
 
     String platformVersion();

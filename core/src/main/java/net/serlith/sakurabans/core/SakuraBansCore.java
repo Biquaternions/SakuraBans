@@ -7,9 +7,14 @@ import net.serlith.sakurabans.core.concurrent.LifecycleState;
 import net.serlith.sakurabans.core.concurrent.SakuraExecutors;
 import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.configuration.ReloadResult;
+import net.serlith.sakurabans.core.enforce.ChatGate;
+import net.serlith.sakurabans.core.enforce.LoginGate;
 import net.serlith.sakurabans.core.message.MessageService;
+import net.serlith.sakurabans.core.notify.NotificationService;
 import net.serlith.sakurabans.core.platform.LatePlatform;
 import net.serlith.sakurabans.core.platform.Platform;
+import net.serlith.sakurabans.core.punish.ExpirySweeper;
+import net.serlith.sakurabans.core.punish.SakuraPunishmentService;
 import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.util.BuildConstants;
 
@@ -24,11 +29,17 @@ public final class SakuraBansCore {
     private final ConfigService config;
     private final MessageService messages;
     private final StorageService storage;
+    private final Services services;
+
+    /** What runs while the core runs, and what platforms wire their listeners to. */
+    public record Services(NotificationService notifications, ExpirySweeper sweeper,
+            SakuraPunishmentService punishments, LoginGate loginGate, ChatGate chatGate) {
+    }
 
     public SakuraBansCore(final ComponentLogger logger, final Lifecycle lifecycle,
             final LatePlatform platform, final SakuraExecutors executors,
             final ConfigService config, final MessageService messages,
-            final StorageService storage) {
+            final StorageService storage, final Services services) {
         this.logger = logger;
         this.lifecycle = lifecycle;
         this.platform = platform;
@@ -36,6 +47,7 @@ public final class SakuraBansCore {
         this.config = config;
         this.messages = messages;
         this.storage = storage;
+        this.services = services;
     }
 
     public void start(final Platform platform) {
@@ -43,6 +55,8 @@ public final class SakuraBansCore {
         try {
             this.platform.bind(platform);
             this.storage.start();
+            this.services.notifications().start();
+            this.services.sweeper().start();
         } catch (final RuntimeException | Error e) {
             this.stop();
             throw e;
@@ -67,6 +81,8 @@ public final class SakuraBansCore {
         if (!this.lifecycle.advanceTo(LifecycleState.STOPPING)) {
             return;
         }
+        this.services.sweeper().stop();
+        this.services.notifications().stop();
         if (!this.executors.shutdown(SHUTDOWN_TIMEOUT)) {
             this.logger.warn("Background tasks didn't finish within {} s and were interrupted",
                     SHUTDOWN_TIMEOUT.toSeconds());
@@ -79,5 +95,17 @@ public final class SakuraBansCore {
 
     public LifecycleState state() {
         return this.lifecycle.state();
+    }
+
+    public LoginGate loginGate() {
+        return this.services.loginGate();
+    }
+
+    public ChatGate chatGate() {
+        return this.services.chatGate();
+    }
+
+    public SakuraPunishmentService punishments() {
+        return this.services.punishments();
     }
 }

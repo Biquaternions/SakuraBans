@@ -6,6 +6,7 @@ import java.util.UUID;
 import net.kyori.adventure.audience.Audience;
 import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import net.serlith.sakurabans.core.platform.Platform;
+import net.serlith.sakurabans.core.platform.ProfileLookup;
 import net.serlith.sakurabans.core.platform.ServerIdentity;
 import net.serlith.sakurabans.core.platform.TaskScheduler;
 import org.bukkit.Server;
@@ -16,10 +17,12 @@ final class PaperPlatform implements Platform {
     private final Server server;
     private final PaperTaskScheduler scheduler;
     private final ServerIdentity identity = new PaperServerIdentity();
+    private final ProfileLookup profiles;
 
     PaperPlatform(final Plugin plugin) {
         this.server = plugin.getServer();
         this.scheduler = new PaperTaskScheduler(plugin);
+        this.profiles = new PaperProfileLookup(this.server);
     }
 
     @Override
@@ -54,6 +57,11 @@ final class PaperPlatform implements Platform {
     @Override
     public ServerIdentity serverIdentity() {
         return this.identity;
+    }
+
+    @Override
+    public ProfileLookup profiles() {
+        return this.profiles;
     }
 
     @Override

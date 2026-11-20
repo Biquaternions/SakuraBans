@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import net.serlith.sakurabans.core.RecordingLogger;
+import net.serlith.sakurabans.core.TestConfig;
 import net.serlith.sakurabans.core.concurrent.SakuraExecutors;
 import net.serlith.sakurabans.core.configuration.ConfigService;
 import org.jooq.Condition;
@@ -39,14 +40,18 @@ public abstract class DatabaseTest {
         return TestDatabase.H2;
     }
 
+    /** The {@code config.yml} for the test; keys it leaves out keep their defaults. */
+    protected String configYaml() {
+        return "";
+    }
+
     @BeforeEach
     final void openDatabase() throws Exception {
         final Optional<String> yaml = this.database().freshStorageYaml();
         if (yaml.isPresent()) {
             Files.writeString(this.dir.resolve("storage.yml"), yaml.get());
         }
-        this.config = new ConfigService(this.dir, this.log.logger());
-        this.config.load();
+        this.config = TestConfig.load(this.dir, this.configYaml(), this.log);
         this.storage = new StorageService(this.dir, this.config,
                 new SchemaManager(this.log.logger()), this.executors, this.log.logger());
         this.storage.start();

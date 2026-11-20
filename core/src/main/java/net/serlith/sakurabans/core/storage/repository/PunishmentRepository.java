@@ -183,16 +183,28 @@ public final class PunishmentRepository {
     }
 
     public CompletableFuture<List<Punishment>> active(final PunishmentType type,
-            final Victim victim, final Scope scope, final Instant now) {
+            final Victim victim, final @Nullable Scope scope, final Instant now) {
         final SbPunishments p = SakuraTables.PUNISHMENTS;
         final SbActivePunishments active = SakuraTables.ACTIVE_PUNISHMENTS;
         return this.storage.read(dsl -> this.mapper.map(dsl, PunishmentMapper.select(dsl)
                 .join(active).on(active.PUNISHMENT_ID.eq(p.ID))
                 .where(active.TYPE.eq(type))
                 .and(StoredVictim.of(victim).matches(SakuraTables.VICTIMS))
-                .and(ScopeRepository.matches(scope))
+                .and(scope == null ? DSL.noCondition() : ScopeRepository.matches(scope))
                 .and(unexpired(now))
                 .orderBy(p.CREATED_AT.desc(), p.ID.desc())
+                .fetch()));
+    }
+
+    /** Active rows whose expiry has passed (the sweeper ends them), oldest expiry first. */
+    public CompletableFuture<List<Punishment>> expiredActive(final Instant now, final int limit) {
+        final SbPunishments p = SakuraTables.PUNISHMENTS;
+        final SbActivePunishments active = SakuraTables.ACTIVE_PUNISHMENTS;
+        return this.storage.read(dsl -> this.mapper.map(dsl, PunishmentMapper.select(dsl)
+                .join(active).on(active.PUNISHMENT_ID.eq(p.ID))
+                .where(active.EXPIRES_AT.le(now))
+                .orderBy(active.EXPIRES_AT.asc(), p.ID.asc())
+                .limit(limit)
                 .fetch()));
     }
 

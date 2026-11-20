@@ -26,7 +26,7 @@ class LayeringTest {
 
     /** Keep in sync with the table in IMPLEMENTATION_PLAN.md 5.3. */
     private static final List<List<String>> LAYERS = List.of(
-            List.of("util", "concurrent", "model", "platform"),
+            List.of("util", "concurrent", "model", "platform", "integration"),
             List.of("configuration", "message", "storage"),
             List.of("permission", "event", "sync", "player", "scope"),
             List.of("punish", "alts", "template", "limit", "notify"),
