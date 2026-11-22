@@ -1,7 +1,21 @@
 package net.serlith.sakurabans.core.bootstrap;
 
 import java.time.InstantSource;
+import java.util.List;
 import java.util.UUID;
+import net.serlith.sakurabans.core.command.CommandRegistrar;
+import net.serlith.sakurabans.core.command.CommandRunner;
+import net.serlith.sakurabans.core.command.Pager;
+import net.serlith.sakurabans.core.command.PunishFlags;
+import net.serlith.sakurabans.core.command.Replies;
+import net.serlith.sakurabans.core.command.SakuraCommands;
+import net.serlith.sakurabans.core.command.module.AltCommands;
+import net.serlith.sakurabans.core.command.module.CheckCommands;
+import net.serlith.sakurabans.core.command.module.HistoryCommands;
+import net.serlith.sakurabans.core.command.module.PunishCommands;
+import net.serlith.sakurabans.core.command.module.RevokeCommands;
+import net.serlith.sakurabans.core.command.parser.ScopeParser;
+import net.serlith.sakurabans.core.command.parser.TargetParser;
 import net.serlith.sakurabans.core.concurrent.Lifecycle;
 import net.serlith.sakurabans.core.concurrent.SakuraExecutors;
 import net.serlith.sakurabans.core.configuration.ConfigService;
@@ -61,6 +75,7 @@ final class CoreComponents {
     private final VictimRepository victims;
     private final PunishmentRepository punishments;
     private final AuditRepository audit;
+    private final Formats formats;
     private final Placeholders placeholders;
 
     // Layer 2
@@ -84,6 +99,9 @@ final class CoreComponents {
     private final LoginGate loginGate;
     private final ChatGate chatGate;
 
+    // Layer 5
+    private final SakuraCommands commands;
+
     CoreComponents(final CoreEnvironment environment, final InstantSource clock) {
         this.environment = environment;
         this.clock = clock;
@@ -106,8 +124,8 @@ final class CoreComponents {
         this.punishments = new PunishmentRepository(this.storage,
                 new PunishmentMapper(Long::toString));
         this.audit = new AuditRepository(this.storage);
-        this.placeholders =
-                new Placeholders(this.messages, new Formats(this.messages, this.config));
+        this.formats = new Formats(this.messages, this.config);
+        this.placeholders = new Placeholders(this.messages, this.formats);
 
         this.integrations = new SakuraIntegrationRegistry();
         this.events = new SakuraEventBus(environment.logger());
@@ -140,6 +158,29 @@ final class CoreComponents {
                 this.notifications, this.events, clock, environment.logger());
         this.chatGate = new ChatGate(this.mutes, new CommandBlacklist(this.config),
                 this.enforcementMessages, this.notifications, this.events, environment.logger());
+
+        final CommandRegistrar registrar = new CommandRegistrar(this.config, this.messages);
+        final CommandRunner runner =
+                new CommandRunner(this.lifecycle, this.messages, environment.logger());
+        final Replies replies =
+                new Replies(runner, this.placeholders, this.names, this.config, clock);
+        final TargetParser targetParser =
+                new TargetParser(this.platform, this.names, this.lifecycle);
+        final PunishFlags flags = new PunishFlags(new ScopeParser(this.scopeService));
+        final Pager pager = new Pager(runner, replies, clock);
+        this.commands = new SakuraCommands(List.of(
+                new PunishCommands(registrar, runner, replies, flags, targetParser,
+                        this.targets, this.punishmentService, this.names, this.config,
+                        this.scopeService),
+                new RevokeCommands(registrar, runner, replies, flags, targetParser,
+                        this.targets, this.punishmentService),
+                new CheckCommands(registrar, runner, replies, pager, targetParser,
+                        this.targets, this.punishmentService, this.config),
+                new HistoryCommands(registrar, runner, pager, targetParser, this.targets,
+                        this.punishmentService),
+                new AltCommands(registrar, runner, replies, this.formats, targetParser,
+                        this.targets, this.players)),
+                registrar, runner, this.messages);
     }
 
     CoreEnvironment environment() {
@@ -248,5 +289,9 @@ final class CoreComponents {
 
     ChatGate chatGate() {
         return this.chatGate;
+    }
+
+    SakuraCommands commands() {
+        return this.commands;
     }
 }

@@ -10,6 +10,7 @@ import net.serlith.sakurabans.core.platform.ProfileLookup;
 import net.serlith.sakurabans.core.platform.ServerIdentity;
 import net.serlith.sakurabans.core.platform.TaskScheduler;
 import org.bukkit.Server;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
 final class PaperPlatform implements Platform {
@@ -22,7 +23,7 @@ final class PaperPlatform implements Platform {
     PaperPlatform(final Plugin plugin) {
         this.server = plugin.getServer();
         this.scheduler = new PaperTaskScheduler(plugin);
-        this.profiles = new PaperProfileLookup(this.server);
+        this.profiles = new PaperProfileLookup(plugin);
     }
 
     @Override
@@ -34,6 +35,10 @@ final class PaperPlatform implements Platform {
     public Optional<OnlinePlayer> player(final UUID uuid) {
         return Optional.ofNullable(this.server.getPlayer(uuid))
                 .map(player -> new PaperOnlinePlayer(player, this.scheduler));
+    }
+
+    OnlinePlayer online(final Player player) {
+        return new PaperOnlinePlayer(player, this.scheduler);
     }
 
     @Override

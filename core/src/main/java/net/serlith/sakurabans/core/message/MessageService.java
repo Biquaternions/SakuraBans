@@ -3,6 +3,7 @@ package net.serlith.sakurabans.core.message;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.identity.Identity;
@@ -72,32 +73,34 @@ public final class MessageService {
      * default locale, then English.
      */
     String text(final MessageKey key, final Locale locale) {
+        return this.find(key.key(), locale).orElseThrow(
+                () -> new IllegalStateException("no text for " + key.key()));
+    }
+
+    /** {@link #text(MessageKey, Locale)} for a key given as text (Cloud captions). */
+    public Optional<String> find(final String key, final Locale locale) {
         final Map<Locale, Map<String, String>> all = this.texts.get();
         final String exact = lookup(all.get(locale), key);
         if (exact != null) {
-            return exact;
+            return Optional.of(exact);
         }
         for (final Map.Entry<Locale, Map<String, String>> entry : all.entrySet()) {
             if (entry.getKey().getLanguage().equals(locale.getLanguage())) {
                 final String sameLanguage = lookup(entry.getValue(), key);
                 if (sameLanguage != null) {
-                    return sameLanguage;
+                    return Optional.of(sameLanguage);
                 }
             }
         }
         final String fallback = lookup(all.get(this.defaultLocale()), key);
         if (fallback != null) {
-            return fallback;
+            return Optional.of(fallback);
         }
-        final String english = lookup(all.get(LangLoader.BASE_LOCALE), key);
-        if (english == null) {
-            throw new IllegalStateException("no text for " + key.key());
-        }
-        return english;
+        return Optional.ofNullable(lookup(all.get(LangLoader.BASE_LOCALE), key));
     }
 
     private static @Nullable String lookup(
-            final @Nullable Map<String, String> texts, final MessageKey key) {
-        return texts == null ? null : texts.get(key.key());
+            final @Nullable Map<String, String> texts, final String key) {
+        return texts == null ? null : texts.get(key);
     }
 }

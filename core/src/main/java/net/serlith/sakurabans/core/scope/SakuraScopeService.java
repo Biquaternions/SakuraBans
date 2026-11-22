@@ -13,8 +13,10 @@ import net.serlith.sakurabans.api.scope.ScopeService;
 import net.serlith.sakurabans.api.validation.Validator;
 import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.configuration.settings.Settings;
+import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import net.serlith.sakurabans.core.platform.Platform;
 import net.serlith.sakurabans.core.platform.PlatformType;
+import org.jspecify.annotations.Nullable;
 
 public final class SakuraScopeService implements ScopeService {
 
@@ -72,12 +74,7 @@ public final class SakuraScopeService implements ScopeService {
     @Override
     public Optional<ServerScope> thisServer() {
         final Settings.Server server = this.config.settings().server();
-        final boolean proxy = switch (server.role()) {
-            case PROXY -> true;
-            case BACKEND -> false;
-            case AUTO -> this.platformType.proxy();
-        };
-        if (proxy) {
+        if (this.proxy()) {
             return Optional.empty();
         }
         if (server.name() != null) {
@@ -86,6 +83,14 @@ public final class SakuraScopeService implements ScopeService {
         return this.platform.serverIdentity().name()
                 .flatMap(Validator::normalizeIdentifier)
                 .map(ServerScope::of);
+    }
+
+    public boolean proxy() {
+        return switch (this.config.settings().server().role()) {
+            case PROXY -> true;
+            case BACKEND -> false;
+            case AUTO -> this.platformType.proxy();
+        };
     }
 
     @Override
@@ -110,6 +115,19 @@ public final class SakuraScopeService implements ScopeService {
     public Set<Scope> localScopes() {
         return this.thisServer().map(this::applicableScopes)
                 .orElse(Set.of(GlobalScope.INSTANCE));
+    }
+
+    public Set<Scope> scopesOn(final @Nullable String server) {
+        if (server == null || this.thisServer().isPresent()) {
+            return this.localScopes();
+        }
+        return Validator.normalizeIdentifier(server)
+                .map(name -> this.applicableScopes(ServerScope.of(name)))
+                .orElseGet(this::localScopes);
+    }
+
+    public boolean appliesTo(final Scope scope, final OnlinePlayer player) {
+        return this.scopesOn(player.currentServer().orElse(null)).contains(scope);
     }
 
     public Set<Scope> covering(final Scope scope) {

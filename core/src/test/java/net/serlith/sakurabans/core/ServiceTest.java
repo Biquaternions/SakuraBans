@@ -80,6 +80,10 @@ public abstract class ServiceTest extends DatabaseTest {
     protected ExpirySweeper sweeper;
     protected InetAddress home;
 
+    protected PlatformType platformType() {
+        return PlatformType.PAPER;
+    }
+
     @BeforeEach
     final void wireServices() throws UnknownHostException {
         this.home = InetAddress.getByName("203.0.113.7");
@@ -90,7 +94,7 @@ public abstract class ServiceTest extends DatabaseTest {
         this.placeholders =
                 new Placeholders(this.messages, new Formats(this.messages, this.config));
         this.names = new NameCache();
-        this.scopes = new SakuraScopeService(this.config, this.platform, PlatformType.PAPER);
+        this.scopes = new SakuraScopeService(this.config, this.platform, this.platformType());
         this.players = new PlayerRepository(this.storage);
         this.punishments =
                 new PunishmentRepository(this.storage, new PunishmentMapper(Long::toString));

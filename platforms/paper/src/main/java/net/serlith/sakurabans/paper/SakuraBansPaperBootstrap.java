@@ -6,30 +6,43 @@ import io.papermc.paper.plugin.bootstrap.PluginProviderContext;
 import net.serlith.sakurabans.core.SakuraBansCore;
 import net.serlith.sakurabans.core.bootstrap.CoreBootstrap;
 import net.serlith.sakurabans.core.bootstrap.CoreEnvironment;
+import net.serlith.sakurabans.core.command.CommandActor;
 import net.serlith.sakurabans.core.platform.PlatformType;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.incendo.cloud.execution.ExecutionCoordinator;
+import org.incendo.cloud.paper.PaperCommandManager;
 import org.jspecify.annotations.Nullable;
 
+/** Phase 1 (plan 6.3): reads the files and registers the commands before the server exists. */
 @SuppressWarnings("UnstableApiUsage")
 public final class SakuraBansPaperBootstrap implements PluginBootstrap {
 
     private @Nullable SakuraBansCore core;
+    private PaperCommandManager.@Nullable Bootstrapped<CommandActor> commands;
 
     public SakuraBansPaperBootstrap() {
     }
 
     @Override
     public void bootstrap(final BootstrapContext context) {
-        this.core = CoreBootstrap.create(new CoreEnvironment(
+        final SakuraBansCore created = CoreBootstrap.create(new CoreEnvironment(
                 context.getDataDirectory(), context.getLogger(), PlatformType.PAPER));
+        final PaperCommandManager.Bootstrapped<CommandActor> manager =
+                PaperCommandManager.builder(new PaperSenderMapper())
+                        .executionCoordinator(ExecutionCoordinator.simpleCoordinator())
+                        .buildBootstrapped(context);
+        created.commands().install(manager);
+        this.core = created;
+        this.commands = manager;
     }
 
     @Override
     public JavaPlugin createPlugin(final PluginProviderContext context) {
-        final SakuraBansCore core = this.core;
-        if (core == null) {
+        final SakuraBansCore created = this.core;
+        final PaperCommandManager.Bootstrapped<CommandActor> manager = this.commands;
+        if (created == null || manager == null) {
             throw new IllegalStateException("createPlugin was called before bootstrap");
         }
-        return new SakuraBansPaper(core);
+        return new SakuraBansPaper(created, manager);
     }
 }

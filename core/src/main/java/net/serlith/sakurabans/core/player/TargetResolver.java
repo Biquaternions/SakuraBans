@@ -4,7 +4,6 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-
 import net.serlith.sakurabans.api.model.PlayerProfileView;
 import net.serlith.sakurabans.core.model.ResolvedTarget;
 import net.serlith.sakurabans.core.model.TargetInput;
@@ -51,24 +50,27 @@ public final class TargetResolver {
             return CompletableFuture.completedFuture(this.online(online.get()));
         }
         final Optional<UUID> cached = this.names.uuid(name);
-        return cached.map(uuid -> this.byUuid(uuid).thenApply(ResolvedTarget.class::cast)).orElseGet(() -> this.players.profile(name).thenCompose(profile -> {
-            return profile.<CompletionStage<ResolvedTarget>>map(playerProfileView -> CompletableFuture.completedFuture(this.known(playerProfileView)))
-                    .orElseGet(() -> this.uuids.resolve(name).thenApply(uuid -> uuid
-                            .<ResolvedTarget>map(found -> {
-                                this.names.put(found, name);
-                                return new ResolvedTarget.Player(found, name, null);
-                            })
-                            .orElseGet(() -> new ResolvedTarget.Unknown(input))));
-        }));
+        return cached
+                .map(uuid -> this.byUuid(uuid).thenApply(ResolvedTarget.class::cast))
+                .orElseGet(() -> this.players.profile(name).thenCompose(profile -> profile
+                        .<CompletionStage<ResolvedTarget>>map(known ->
+                                CompletableFuture.completedFuture(this.known(known)))
+                        .orElseGet(() -> this.uuids.resolve(name).thenApply(uuid -> uuid
+                                .<ResolvedTarget>map(found -> {
+                                    this.names.put(found, name);
+                                    return new ResolvedTarget.Player(found, name, null);
+                                })
+                                .orElseGet(() -> new ResolvedTarget.Unknown(input))))));
     }
 
     private CompletableFuture<ResolvedTarget.Player> byUuid(final UUID uuid) {
         final Optional<OnlinePlayer> online = this.platform.player(uuid);
-        return online.map(onlinePlayer -> CompletableFuture.completedFuture(this.online(onlinePlayer)))
+        return online
+                .map(player -> CompletableFuture.completedFuture(this.online(player)))
                 .orElseGet(() -> this.players.profile(uuid).thenApply(profile -> profile
-                .map(this::known)
-                .orElseGet(() -> new ResolvedTarget.Player(uuid,
-                        this.names.name(uuid).orElse(null), null))));
+                        .map(this::known)
+                        .orElseGet(() -> new ResolvedTarget.Player(uuid,
+                                this.names.name(uuid).orElse(null), null))));
     }
 
     private ResolvedTarget.Player online(final OnlinePlayer player) {

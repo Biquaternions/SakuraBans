@@ -51,14 +51,14 @@ public final class LocalEnforcer implements Enforcer {
 
     @Override
     public CompletableFuture<Void> created(final Punishment punishment) {
-        if (!this.scopes.appliesHere(punishment.scope())) {
-            return CompletableFuture.completedFuture(null);
-        }
         final CompletableFuture<Void> work = this.affected(punishment)
                 .thenCompose(targets -> {
                     final List<CompletableFuture<Void>> steps = new ArrayList<>();
                     for (final OnlinePlayer player : targets) {
-                        steps.add(this.apply(punishment, player));
+                        // On a proxy, a server's punishments reach the players on that server.
+                        if (this.scopes.appliesTo(punishment.scope(), player)) {
+                            steps.add(this.apply(punishment, player));
+                        }
                     }
                     return CompletableFuture.allOf(steps.toArray(CompletableFuture[]::new));
                 });
@@ -85,12 +85,15 @@ public final class LocalEnforcer implements Enforcer {
                         this.messages.localeOf(player)));
                 yield CompletableFuture.completedFuture(null);
             }
-            case MUTE -> this.mutes.load(player.uuid(), player.address()).thenRun(() -> {
-                if (!punishment.shadow()) {
-                    player.sendMessage(this.messages.muted(punishment,
-                            this.messages.localeOf(player)));
-                }
-            });
+            // Mutes are enforced on the backends only (D4).
+            case MUTE -> this.scopes.proxy()
+                    ? CompletableFuture.completedFuture(null)
+                    : this.mutes.load(player.uuid(), player.address()).thenRun(() -> {
+                        if (!punishment.shadow()) {
+                            player.sendMessage(this.messages.muted(punishment,
+                                    this.messages.localeOf(player)));
+                        }
+                    });
             case WARN -> {
                 player.sendMessage(this.messages.warned(punishment,
                         this.messages.localeOf(player)));

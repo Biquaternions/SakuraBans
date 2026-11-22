@@ -1,9 +1,11 @@
 package net.serlith.sakurabans.core.bootstrap;
 
 import java.time.InstantSource;
+import net.serlith.sakurabans.core.SakuraApi;
 import net.serlith.sakurabans.core.SakuraBansCore;
 import net.serlith.sakurabans.core.concurrent.LifecycleState;
 import net.serlith.sakurabans.core.configuration.ConfigException;
+import net.serlith.sakurabans.core.player.SakuraPlayerService;
 
 public final class CoreBootstrap {
 
@@ -40,6 +42,10 @@ public final class CoreBootstrap {
                 components.messages(), components.storage(),
                 new SakuraBansCore.Services(components.notifications(), components.sweeper(),
                         components.punishmentService(),
-                        components.loginGate(), components.chatGate()));
+                        components.loginGate(), components.chatGate(),
+                        components.commands(), SakuraApi.create(components.punishmentService(),
+                                new SakuraPlayerService(components.players()),
+                                components.scopeService(), components.events(),
+                                components.integrations())));
     }
 }

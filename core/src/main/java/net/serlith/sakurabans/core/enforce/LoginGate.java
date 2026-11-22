@@ -11,6 +11,7 @@ import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.serlith.sakurabans.api.event.PlayerDenyEvent.Denial;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentType;
+import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.core.concurrent.Lifecycle;
 import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.configuration.settings.Settings;
@@ -68,14 +69,43 @@ public final class LoginGate {
         final Settings settings = this.config.settings();
         this.names.put(attempt.uuid(), attempt.name());
         this.record(attempt, settings);
-        Futures.logged(this.mutes.load(attempt.uuid(), attempt.address()), this.logger,
-                "load the mutes of " + attempt.name());
-        final Duration timeout = settings.enforcement().loginCheckTimeout();
-        return this.punishments.activeApplicable(PunishmentType.BAN,
+        if (!this.scopes.proxy()) {
+            Futures.logged(this.mutes.load(attempt.uuid(), attempt.address()), this.logger,
+                    "load the mutes of " + attempt.name());
+        }
+        return this.bounded(attempt, this.punishments.activeApplicable(PunishmentType.BAN,
                         Applicabilities.of(attempt.uuid(), attempt.address(),
                                 settings.enforcement().addressStrictness()),
                         this.scopes.localScopes(), this.clock.instant())
-                .thenApply(bans -> this.decide(attempt, bans))
+                .thenApply(bans -> this.decide(attempt, bans, Denial.LOGIN_BANNED)))
+                .whenComplete((decision, ignored) -> {
+                    if (decision instanceof LoginDecision.Denied) {
+                        this.mutes.invalidate(attempt.uuid());
+                    }
+                });
+    }
+
+    public CompletableFuture<LoginDecision> checkServer(final LoginAttempt attempt,
+            final String server) {
+        final Settings settings = this.config.settings();
+        if (!this.lifecycle.running() || !settings.enforcement().enforceServerSwitch()) {
+            return CompletableFuture.completedFuture(new LoginDecision.Allowed());
+        }
+        return this.bounded(attempt, this.punishments.activeApplicable(PunishmentType.BAN,
+                        Applicabilities.of(attempt.uuid(), attempt.address(),
+                                settings.enforcement().addressStrictness()),
+                        this.scopes.scopesOn(server), this.clock.instant())
+                .thenApply(bans -> this.decide(attempt, bans, Denial.SERVER_SWITCH_BANNED)));
+    }
+
+    public void quit(final UUID uuid) {
+        this.mutes.invalidate(uuid);
+    }
+
+    private CompletableFuture<LoginDecision> bounded(final LoginAttempt attempt,
+            final CompletableFuture<LoginDecision> decision) {
+        final Duration timeout = this.config.settings().enforcement().loginCheckTimeout();
+        return decision
                 .orTimeout(timeout.toMillis(), TimeUnit.MILLISECONDS)
                 .exceptionally(failure -> {
                     final Throwable cause = Futures.unwrap(failure);
@@ -87,38 +117,31 @@ public final class LoginGate {
                                 attempt.name(), cause);
                     }
                     return new LoginDecision.Allowed();
-                })
-                .whenComplete((decision, ignored) -> {
-                    if (decision instanceof LoginDecision.Denied) {
-                        this.mutes.invalidate(attempt.uuid());
-                    }
                 });
     }
 
-    public void quit(final UUID uuid) {
-        this.mutes.invalidate(uuid);
-    }
-
-    private LoginDecision decide(final LoginAttempt attempt, final List<Punishment> bans) {
+    private LoginDecision decide(final LoginAttempt attempt, final List<Punishment> bans,
+            final Denial denial) {
         if (bans.isEmpty()) {
             return new LoginDecision.Allowed();
         }
         final Punishment ban = bans.getFirst();
         final SakuraPlayerDenyEvent event = this.events.post(new SakuraPlayerDenyEvent(
-                attempt.uuid(), attempt.name(), attempt.address(), Denial.LOGIN_BANNED, ban,
+                attempt.uuid(), attempt.name(), attempt.address(), denial, ban,
                 this.messages.banScreen(ban, this.messages.defaultLocale())));
         if (event.cancelled()) {
             return new LoginDecision.Allowed();
         }
         this.notifications.attemptedJoin(attempt.name(), ban);
-        return new LoginDecision.Denied(event.message(), Denial.LOGIN_BANNED, ban);
+        return new LoginDecision.Denied(event.message(), denial, ban);
     }
 
     private void record(final LoginAttempt attempt, final Settings settings) {
         if (!settings.alts().registerOnConnection()) {
             return;
         }
-        final String server = attempt.server();
+        final String server = attempt.server() != null ? attempt.server()
+                : this.scopes.thisServer().map(ServerScope::server).orElse(null);
         final boolean withAddress = server == null
                 || !settings.alts().serversWithoutIpRegistration().contains(server);
         Futures.logged(this.players.recordConnection(attempt.uuid(), attempt.name(),

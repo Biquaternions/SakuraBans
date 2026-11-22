@@ -128,3 +128,12 @@ players:
   # hosting, where every server on the address shares Mojang's rate limit; such names then only
   # resolve through integrations. A proxy never looks names up.
   remote-lookup: true
+
+commands:
+  # The labels of each command; the first is its name, the rest are aliases. A command left out
+  # uses its own name; an empty list ([]) disables it. Changes need a restart.
+  # Commands: sakurabans, ban, tempban, ipban, mute, tempmute, ipmute, warn, kick, unban, unmute,
+  # unwarn, checkban, checkmute, checkwarn, history, staffhistory, warns, banlist, mutelist,
+  # warnlist, alts, iphistory, namehistory, lastuuid.
+  labels:
+    sakurabans: [sakurabans, sb]

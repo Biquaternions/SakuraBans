@@ -10,8 +10,14 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-
-import net.serlith.sakurabans.api.model.*;
+import net.serlith.sakurabans.api.model.AddressVictim;
+import net.serlith.sakurabans.api.model.CompositeVictim;
+import net.serlith.sakurabans.api.model.PlayerProfileView;
+import net.serlith.sakurabans.api.model.PlayerVictim;
+import net.serlith.sakurabans.api.model.PunishmentType;
+import net.serlith.sakurabans.api.model.Scope;
+import net.serlith.sakurabans.api.model.ServerScope;
+import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.api.punish.DraftPunishment;
 import net.serlith.sakurabans.api.punish.PunishOptions;
 import net.serlith.sakurabans.api.punish.PunishResult.Failure.Reason;
@@ -139,13 +145,14 @@ public final class PunishmentFactory {
         final Optional<InetAddress> online = this.platform.player(uuid).map(OnlinePlayer::address);
         return online.map(CompletableFuture::completedFuture)
                 .orElseGet(() -> this.players.profile(uuid).thenApply(profile -> {
-            final InetAddress last = profile.flatMap(PlayerProfileView::lastAddress).orElse(null);
-            if (last == null) {
-                Validator.create().add("victim", Code.NOT_ALLOWED,
-                        "no address is known for " + uuid).throwIfAny();
-            }
-            return Preconditions.checkNotNull(last);
-        }));
+                    final InetAddress last =
+                            profile.flatMap(PlayerProfileView::lastAddress).orElse(null);
+                    if (last == null) {
+                        Validator.create().add("victim", Code.NOT_ALLOWED,
+                                "no address is known for " + uuid).throwIfAny();
+                    }
+                    return Preconditions.checkNotNull(last);
+                }));
     }
 
     private static CompletableFuture<Prepared> refused(final Reason reason) {

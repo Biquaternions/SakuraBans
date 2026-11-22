@@ -1,0 +1,45 @@
+package net.serlith.sakurabans.core;
+
+import java.time.Duration;
+import java.util.Locale;
+import java.util.concurrent.ExecutionException;
+import net.serlith.sakurabans.api.Capability;
+import net.serlith.sakurabans.api.audit.AuditQuery;
+import net.serlith.sakurabans.core.integration.SakuraIntegrationRegistry;
+import net.serlith.sakurabans.core.player.SakuraPlayerService;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Test;
+
+class SakuraApiTest extends ServiceTest {
+
+    private SakuraApi api() {
+        return SakuraApi.create(this.service, new SakuraPlayerService(this.players), this.scopes,
+                this.bus, new SakuraIntegrationRegistry());
+    }
+
+    @Test
+    void unfinishedServicesSayWhenTheyArrive() {
+        final SakuraApi api = this.api();
+
+        Assertions.assertThat(api.templates().templates()).isEmpty();
+        Assertions.assertThat(api.kinds().kind("ban")).isEmpty();
+        Assertions.assertThat(api.audit().query(
+                        AuditQuery.builder().build()))
+                .failsWithin(Duration.ofSeconds(1))
+                .withThrowableOfType(ExecutionException.class)
+                .withCauseInstanceOf(UnsupportedOperationException.class)
+                .withMessageContaining("S35");
+        Assertions.assertThatThrownBy(() -> api.formatter().formatDuration(Duration.ofHours(1),
+                        Locale.ROOT))
+                .isInstanceOf(UnsupportedOperationException.class);
+        Assertions.assertThat(api.audit()).isEqualTo(api.audit()).hasToString(
+                "Unsupported AuditService");
+    }
+
+    @Test
+    void onlyFinishedCapabilitiesAreListed() {
+        Assertions.assertThat(this.api().capabilities())
+                .containsExactlyInAnyOrder(Capability.SHADOW_MUTE, Capability.CURSORS);
+        Assertions.assertThat(this.api().punishments()).isSameAs(this.service);
+    }
+}

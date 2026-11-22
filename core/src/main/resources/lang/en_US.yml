@@ -90,5 +90,153 @@ notify:
   unban: '<prefix><silent><white><revoker></white> <green>unbanned</green> <white><victim></white>'
   unmute: '<prefix><silent><white><revoker></white> <green>unmuted</green> <white><victim></white>'
   unwarn: '<prefix><silent><white><revoker></white> <green>removed a warning of</green> <white><victim></white>'
-  attempt_join: '<prefix><gray><name> tried to join but is banned:</gray> <reason>'
+  attempt_join: '<prefix><gray><name> tried to join but is banned (<duration>, by <operator>):</gray> <reason>'
   attempt_chat: '<prefix><gray><name> tried to chat but is muted:</gray> <message>'
+
+# Commands. Captions (command.caption.*) are the errors of the command framework; their
+# placeholders are the framework's variables.
+command:
+  caption:
+    argument:
+      parse:
+        failure:
+          boolean: '<red>''<input>'' is not true or false.</red>'
+          number: '<red>''<input>'' is not a number from <min> to <max>.</red>'
+          char: '<red>''<input>'' is not a single character.</red>'
+          string: '<red>''<input>'' is not valid text here.</red>'
+          uuid: '<red>''<input>'' is not a UUID.</red>'
+          enum: '<red>''<input>'' is not one of <acceptableValues>.</red>'
+          regex: '<red>''<input>'' doesn''t match <pattern>.</red>'
+          flag:
+            unknown: '<red>Unknown flag <flag>.</red>'
+            duplicate_flag: '<red>The flag <flag> is given twice.</red>'
+            no_flag_started: '<red>''<input>'' isn''t a flag. Flags start with - or --.</red>'
+            missing_argument: '<red>The flag <flag> needs a value.</red>'
+            no_permission: '<red>You can''t use the flag <flag>.</red>'
+          color: '<red>''<input>'' is not a color.</red>'
+          duration: '<red>''<input>'' is not a duration (like 30m, 7d or 1mo).</red>'
+          aggregate:
+            missing: '<red>Missing <component>.</red>'
+          either: '<red>''<input>'' is neither <primary> nor <fallback>.</red>'
+    exception:
+      unexpected: '<red>Something went wrong while running this command.</red>'
+      invalid_argument: '<cause>'
+      no_such_command: '<red>Unknown command.</red>'
+      no_permission: '<red>You don''t have permission to do that.</red>'
+      invalid_sender: '<red>Only <expected> can use this command.</red>'
+      invalid_sender_list: '<red>Only <expected> can use this command.</red>'
+      invalid_syntax: '<red>Usage: <syntax></red>'
+    sakurabans:
+      target: '<red>''<input>'' is not a player, UUID, address or #id.</red>'
+      duration: '<red>''<input>'' is not a duration (like 30m, 7d or 1mo).</red>'
+      scope: '<red>''<input>'' is not a scope (global, local, server:<name> or category:<name>).</red>'
+  description:
+    sakurabans: 'SakuraBans help'
+    ban: 'Ban a player or address'
+    tempban: 'Ban for a while'
+    ipban: 'Ban a player together with their address'
+    mute: 'Mute a player or address'
+    tempmute: 'Mute for a while'
+    ipmute: 'Mute a player together with their address'
+    warn: 'Warn a player'
+    kick: 'Kick a player'
+    unban: 'Lift a ban'
+    unmute: 'Lift a mute'
+    unwarn: 'Remove a warning'
+    checkban: 'Show active bans'
+    checkmute: 'Show active mutes'
+    checkwarn: 'Show active warnings'
+    history: 'A player''s punishment history'
+    staffhistory: 'The punishments a staff member issued'
+    warns: 'Active warnings'
+    banlist: 'Active bans'
+    mutelist: 'Active mutes'
+    warnlist: 'Active warnings of everyone'
+    alts: 'Accounts that share an address'
+    iphistory: 'Addresses a player joined from'
+    namehistory: 'Names a player used'
+    lastuuid: 'The last account that used a name'
+  invalid: '<prefix><red>That doesn''t work: <details></red>'
+  unknown_target: '<prefix><red>Nobody is known as <input>.</red>'
+  id_not_allowed: '<prefix><red>Name a player or an address here, not a punishment id.</red>'
+  range_unsupported: '<prefix><red>Address ranges aren''t supported yet.</red>'
+  no_address: '<prefix><red>No address is known for <name>.</red>'
+  address_no_permission: '<prefix><red>You can''t punish addresses.</red>'
+  scope_no_permission: '<prefix><red>You can''t punish in <scope>.</red>'
+  sender_needs_name: '<prefix><red>--sender-uuid needs --sender with a name.</red>'
+  players_only: '<prefix><red>Only players can use this without naming someone.</red>'
+  player_required: '<prefix><red><input> is not a player.</red>'
+punish:
+  ban: '<prefix><green>Banned <white><victim></white> (<duration>, <scope>): <white><reason></white> <gray>#<display_id></gray></green>'
+  mute: '<prefix><green>Muted <white><victim></white> (<duration>, <scope>): <white><reason></white> <gray>#<display_id></gray></green>'
+  warn: '<prefix><green>Warned <white><victim></white>: <white><reason></white> <gray>#<display_id></gray></green>'
+  kick: '<prefix><green>Kicked <white><victim></white>: <white><reason></white></green>'
+  failure:
+    already_punished: '<prefix><red><victim> already has an active <type> in <scope> (#<display_id>, <duration>). Use -o to replace it.</red>'
+    exempt: '<prefix><red>That player can''t be punished by you.</red>'
+    cancelled: '<prefix><red>Another plugin cancelled this punishment.</red>'
+    limit_exceeded: '<prefix><red>That is longer than you may punish.</red>'
+    cooldown: '<prefix><red>Wait a moment before punishing again.</red>'
+    reason_required: '<prefix><red>Give a reason.</red>'
+    template_required: '<prefix><red>Use a template (#name).</red>'
+    unknown_template: '<prefix><red>There is no such template.</red>'
+    unknown_kind: '<prefix><red>There is no such punishment kind.</red>'
+    evidence_required: '<prefix><red>This punishment needs evidence.</red>'
+    forbidden: '<prefix><red>You may not do that.</red>'
+revoke:
+  ban: '<prefix><green>Unbanned <white><target></white> (<count>).</green>'
+  mute: '<prefix><green>Unmuted <white><target></white> (<count>).</green>'
+  warn: '<prefix><green>Removed a warning of <white><target></white>.</green>'
+  failure:
+    not_found: '<prefix><red>No active punishment was found.</red>'
+    not_own: '<prefix><red>You can only lift punishments you issued.</red>'
+    exempt: '<prefix><red>You can''t lift that punishment.</red>'
+    cancelled: '<prefix><red>Another plugin cancelled this.</red>'
+    reason_required: '<prefix><red>Give a reason.</red>'
+    forbidden: '<prefix><red>You may not do that.</red>'
+    wrong_type: '<prefix><red>#<display_id> is a <type>.</red>'
+check:
+  none: '<prefix><gray><name> has nothing active.</gray>'
+  header: '<prefix><white><name></white><gray>: <total> active (page <page>/<pages>)</gray>'
+  detail: |-
+    <prefix><white>#<display_id></white> <type> of <white><victim></white> by <operator>, <created>
+    <gray>Reason:</gray> <reason>
+    <gray>Scope:</gray> <scope> <gray>Length:</gray> <duration> <gray>Expires:</gray> <expires>
+history:
+  header: '<prefix><gray>History of</gray> <white><name></white> <gray>(<total>, page <page>/<pages>)</gray>'
+staffhistory:
+  header: '<prefix><gray>Issued by</gray> <white><name></white> <gray>(<total>, page <page>/<pages>)</gray>'
+warns:
+  header: '<prefix><gray>Warnings of</gray> <white><name></white> <gray>(<total>, page <page>/<pages>)</gray>'
+list:
+  header:
+    banlist: '<prefix><gray>Active bans (<total>, page <page>/<pages>)</gray>'
+    mutelist: '<prefix><gray>Active mutes (<total>, page <page>/<pages>)</gray>'
+    warnlist: '<prefix><gray>Active warnings (<total>, page <page>/<pages>)</gray>'
+  entry: '<dark_gray>#<display_id></dark_gray> <status> <white><type></white> <victim> <gray>by</gray> <operator> <gray>(<duration>, <created>):</gray> <reason>'
+  empty: '<prefix><gray>Nothing to show.</gray>'
+  no_such_page: '<prefix><red>There are only <pages> pages.</red>'
+  footer: '<gray><previous> Page <page> of <pages> <next></gray>'
+  previous: '<white>[«]</white>'
+  next: '<white>[»]</white>'
+  arrow_disabled: '<dark_gray>[ ]</dark_gray>'
+  status:
+    active: '<red>●</red>'
+    expired: '<gray>○</gray>'
+    ended: '<green>○</green>'
+    instant: '<yellow>●</yellow>'
+alts:
+  none: '<prefix><gray>No other account joined from <name>''s addresses.</gray>'
+  header: '<prefix><white><name></white><gray> shares addresses with <count> accounts:</gray>'
+  entry: '<gray> - </gray><white><name></white> <gray>(last seen <last_seen>)</gray>'
+iphistory:
+  none: '<prefix><gray>No addresses are known for <name>.</gray>'
+  header: '<prefix><gray>Addresses of</gray> <white><name></white><gray>:</gray>'
+  entry: '<gray> - </gray><white><address></white> <gray>(<first_seen> to <last_seen>, <server>)</gray>'
+namehistory:
+  none: '<prefix><gray>No names are known for <name>.</gray>'
+  header: '<prefix><gray>Names of</gray> <white><name></white><gray>:</gray>'
+  entry: '<gray> - </gray><white><name></white> <gray>(<first_seen> to <last_seen>)</gray>'
+lastuuid:
+  result: '<prefix><white><name></white><gray> was last used by</gray> <white><uuid></white>'
+  none: '<prefix><gray>Nobody has used the name <name> here.</gray>'

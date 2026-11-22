@@ -2,6 +2,9 @@ package net.serlith.sakurabans.core;
 
 import java.time.Duration;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
+import net.serlith.sakurabans.api.SakuraBans;
+import net.serlith.sakurabans.api.SakuraBansApi;
+import net.serlith.sakurabans.core.command.SakuraCommands;
 import net.serlith.sakurabans.core.concurrent.Lifecycle;
 import net.serlith.sakurabans.core.concurrent.LifecycleState;
 import net.serlith.sakurabans.core.concurrent.SakuraExecutors;
@@ -31,9 +34,9 @@ public final class SakuraBansCore {
     private final StorageService storage;
     private final Services services;
 
-    /** What runs while the core runs, and what platforms wire their listeners to. */
     public record Services(NotificationService notifications, ExpirySweeper sweeper,
-            SakuraPunishmentService punishments, LoginGate loginGate, ChatGate chatGate) {
+            SakuraPunishmentService punishments, LoginGate loginGate, ChatGate chatGate,
+            SakuraCommands commands, SakuraApi api) {
     }
 
     public SakuraBansCore(final ComponentLogger logger, final Lifecycle lifecycle,
@@ -57,6 +60,7 @@ public final class SakuraBansCore {
             this.storage.start();
             this.services.notifications().start();
             this.services.sweeper().start();
+            SakuraBans.register(this.services.api());
         } catch (final RuntimeException | Error e) {
             this.stop();
             throw e;
@@ -81,6 +85,7 @@ public final class SakuraBansCore {
         if (!this.lifecycle.advanceTo(LifecycleState.STOPPING)) {
             return;
         }
+        SakuraBans.unregister(this.services.api());
         this.services.sweeper().stop();
         this.services.notifications().stop();
         if (!this.executors.shutdown(SHUTDOWN_TIMEOUT)) {
@@ -105,7 +110,15 @@ public final class SakuraBansCore {
         return this.services.chatGate();
     }
 
+    public SakuraCommands commands() {
+        return this.services.commands();
+    }
+
     public SakuraPunishmentService punishments() {
         return this.services.punishments();
+    }
+
+    public SakuraBansApi api() {
+        return this.services.api();
     }
 }

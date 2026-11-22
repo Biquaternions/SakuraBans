@@ -38,7 +38,7 @@ public final class Placeholders {
 
     /**
      * {@code <victim> <operator> <reason> <duration> <remaining> <expires> <id> <display_id>
-     * <scope> <type> <kind> <server> <revoker> <revoke_reason>}.
+     * <scope> <type> <kind> <server> <revoker> <revoke_reason> <created>}.
      *
      * @param names the last known name of an account, from memory (never a lookup)
      * @param showAddresses whether the viewer may see addresses uncensored
@@ -57,6 +57,8 @@ public final class Placeholders {
                 Placeholder.unparsed("duration", this.formats.length(punishment, locale)),
                 Placeholder.unparsed("remaining", this.formats.remaining(punishment, now, locale)),
                 Placeholder.unparsed("expires", this.formats.expiry(punishment, locale)),
+                Placeholder.unparsed("created",
+                        this.formats.instant(punishment.createdAt(), locale)),
                 Placeholder.unparsed("id", Long.toString(punishment.id())),
                 Placeholder.unparsed("display_id", punishment.displayId()),
                 Placeholder.component("scope", this.messages.render(

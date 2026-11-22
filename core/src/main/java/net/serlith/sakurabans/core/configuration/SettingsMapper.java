@@ -6,9 +6,11 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -19,6 +21,7 @@ import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.api.validation.Validator;
 import net.serlith.sakurabans.core.configuration.file.AltsSection;
+import net.serlith.sakurabans.core.configuration.file.CommandsSection;
 import net.serlith.sakurabans.core.configuration.file.DisplaySection;
 import net.serlith.sakurabans.core.configuration.file.MainConfig;
 import net.serlith.sakurabans.core.configuration.file.ReasonsSection;
@@ -34,6 +37,7 @@ final class SettingsMapper {
     private static final Pattern TABLE_PREFIX = Pattern.compile("[a-z][a-z0-9_]{0,15}");
     private static final Pattern SQL_NAME = Pattern.compile("[a-z_][a-z0-9_]{0,62}");
     private static final Duration MAX_LOGIN_TIMEOUT = Duration.ofSeconds(30);
+    private static final Pattern LABEL = Pattern.compile("[a-z0-9_-]{1,32}");
 
     private final String file;
     private final List<ConfigIssue> errors = new ArrayList<>();
@@ -97,7 +101,8 @@ final class SettingsMapper {
         return new Settings(server, scopes, enforcementSettings, alts, reasons, exemption,
                 warnings, display, new Settings.Lockdown(config.lockdown().persist()),
                 new Settings.Notifications(config.notifications().attemptThrottle()),
-                new Settings.Players(config.players().remoteLookup()));
+                new Settings.Players(config.players().remoteLookup()),
+                this.commands(config.commands()));
     }
 
     private Settings.Alts alts(final AltsSection alts) {
@@ -189,6 +194,24 @@ final class SettingsMapper {
                 new StorageSettings.Pool(pool.maximumSize(), pool.minimumIdle(),
                         pool.connectionTimeout(), pool.maxLifetime()),
                 new StorageSettings.Sync(config.sync().mode(), config.sync().pollInterval()));
+    }
+
+    private Settings.Commands commands(final CommandsSection section) {
+        final Map<String, List<String>> labels = new LinkedHashMap<>();
+        section.labels().forEach((command, names) -> {
+            final List<String> valid = new ArrayList<>();
+            for (final String name : names) {
+                final String lower = name.strip().toLowerCase(Locale.ROOT);
+                if (LABEL.matcher(lower).matches()) {
+                    valid.add(lower);
+                } else {
+                    this.error("commands.labels." + command, "\"" + name
+                            + "\" must be 1-32 characters of a-z, 0-9, '_' or '-'");
+                }
+            }
+            labels.put(command.toLowerCase(Locale.ROOT), List.copyOf(valid));
+        });
+        return new Settings.Commands(labels);
     }
 
     private Settings.DefaultScope defaultScope(final String text) {

@@ -42,7 +42,8 @@ public final class MuteCache {
         this.clock = clock;
     }
 
-    private record Entry(@Nullable InetAddress address, List<Punishment> mutes, Instant loadedAt) {
+    private record Entry(@Nullable InetAddress address, List<Punishment> mutes,
+            Instant loadedAt) {
     }
 
     public sealed interface Lookup {

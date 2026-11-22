@@ -6,6 +6,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.PunishmentType;
@@ -23,7 +24,8 @@ public record Settings(
         Display display,
         Lockdown lockdown,
         Notifications notifications,
-        Players players) {
+        Players players,
+        Commands commands) {
 
     public record Server(@Nullable String name, List<String> categories, ServerRole role) {
     }
@@ -80,11 +82,21 @@ public record Settings(
     public record Lockdown(boolean persist) {
     }
 
-    /** {@code attemptThrottle}: at most one "tried to join/chat" notice per player this often. */
     public record Notifications(Duration attemptThrottle) {
     }
 
-    /** {@code remoteLookup}: whether unseen names are looked up through the platform. */
     public record Players(boolean remoteLookup) {
     }
+
+    public record Commands(Map<String, List<String>> labels) {
+
+        public Commands {
+            labels = Map.copyOf(labels);
+        }
+
+        public List<String> labels(final String command) {
+            return this.labels.getOrDefault(command, List.of(command));
+        }
+    }
+
 }
