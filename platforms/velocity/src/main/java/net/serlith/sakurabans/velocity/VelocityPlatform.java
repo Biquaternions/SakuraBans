@@ -34,12 +34,15 @@ final class VelocityPlatform implements Platform {
 
     @Override
     public Optional<OnlinePlayer> player(final UUID uuid) {
-        return this.proxy.getPlayer(uuid).map(VelocityOnlinePlayer::new);
+        return this.proxy.getPlayer(uuid)
+                .map(player -> new VelocityOnlinePlayer(this.proxy, player));
     }
 
     @Override
     public Collection<? extends OnlinePlayer> onlinePlayers() {
-        return this.proxy.getAllPlayers().stream().map(VelocityOnlinePlayer::new).toList();
+        return this.proxy.getAllPlayers().stream()
+                .map(player -> new VelocityOnlinePlayer(this.proxy, player))
+                .toList();
     }
 
     @Override

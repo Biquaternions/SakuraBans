@@ -3,7 +3,6 @@ package net.serlith.sakurabans.core;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import net.kyori.adventure.text.Component;
@@ -15,6 +14,7 @@ import net.serlith.sakurabans.api.model.ConsoleOperator;
 import net.serlith.sakurabans.api.model.PlayerOperator;
 import net.serlith.sakurabans.core.concurrent.Lifecycle;
 import net.serlith.sakurabans.core.concurrent.LifecycleState;
+import net.serlith.sakurabans.core.enforce.ChannelReceiver;
 import net.serlith.sakurabans.core.enforce.ChatGate;
 import net.serlith.sakurabans.core.enforce.CommandBlacklist;
 import net.serlith.sakurabans.core.enforce.EnforcementMessages;
@@ -25,9 +25,9 @@ import net.serlith.sakurabans.core.fake.FakePlatform;
 import net.serlith.sakurabans.core.message.Formats;
 import net.serlith.sakurabans.core.message.MessageService;
 import net.serlith.sakurabans.core.message.Placeholders;
+import net.serlith.sakurabans.core.messaging.ProxyChannel;
 import net.serlith.sakurabans.core.notify.NotificationService;
 import net.serlith.sakurabans.core.notify.Throttle;
-import net.serlith.sakurabans.core.platform.PlatformType;
 import net.serlith.sakurabans.core.player.NameCache;
 import net.serlith.sakurabans.core.punish.ActionCheck;
 import net.serlith.sakurabans.core.punish.ExpirySweeper;
@@ -35,8 +35,10 @@ import net.serlith.sakurabans.core.punish.MuteCache;
 import net.serlith.sakurabans.core.punish.PunishmentFactory;
 import net.serlith.sakurabans.core.punish.SakuraPunishmentService;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
+import net.serlith.sakurabans.core.scope.ServerNameDetector;
 import net.serlith.sakurabans.core.storage.DatabaseTest;
 import net.serlith.sakurabans.core.storage.Lease;
+import net.serlith.sakurabans.core.storage.repository.MetaRepository;
 import net.serlith.sakurabans.core.storage.repository.PlayerRepository;
 import net.serlith.sakurabans.core.storage.repository.PunishmentMapper;
 import net.serlith.sakurabans.core.storage.repository.PunishmentRepository;
@@ -56,7 +58,7 @@ public abstract class ServiceTest extends DatabaseTest {
     protected static final Actor MODERATOR = Actor.of(PlayerOperator.of(MOD, "Mod"), "in-game");
     protected static final Actor CONSOLE = Actor.of(ConsoleOperator.INSTANCE, "console");
 
-    protected final FakePlatform platform = new FakePlatform("lobby", Set.of());
+    protected final FakePlatform platform;
     protected final Lifecycle lifecycle = new Lifecycle();
     protected final List<SakuraEvent> events = new CopyOnWriteArrayList<>();
     protected final List<SyncPacket> published = new CopyOnWriteArrayList<>();
@@ -66,13 +68,16 @@ public abstract class ServiceTest extends DatabaseTest {
     protected MessageService messages;
     protected Placeholders placeholders;
     protected NameCache names;
+    protected ServerNameDetector serverNames;
     protected SakuraScopeService scopes;
     protected PlayerRepository players;
     protected PunishmentRepository punishments;
     protected Lease lease;
     protected MuteCache mutes;
     protected EnforcementMessages enforcementMessages;
+    protected ProxyChannel channel;
     protected LocalEnforcer enforcer;
+    protected ChannelReceiver channelReceiver;
     protected SakuraPunishmentService service;
     protected NotificationService notifications;
     protected LoginGate loginGate;
@@ -80,8 +85,16 @@ public abstract class ServiceTest extends DatabaseTest {
     protected ExpirySweeper sweeper;
     protected InetAddress home;
 
-    protected PlatformType platformType() {
-        return PlatformType.PAPER;
+    protected boolean proxy() {
+        return false;
+    }
+
+    protected ServiceTest() {
+        this(new FakePlatform());
+    }
+
+    protected ServiceTest(final FakePlatform platform) {
+        this.platform = platform;
     }
 
     @BeforeEach
@@ -94,7 +107,12 @@ public abstract class ServiceTest extends DatabaseTest {
         this.placeholders =
                 new Placeholders(this.messages, new Formats(this.messages, this.config));
         this.names = new NameCache();
-        this.scopes = new SakuraScopeService(this.config, this.platform, this.platformType());
+        // As if the proxy had named this backend "lobby".
+        this.serverNames = new ServerNameDetector(this.dir, this.config, Runnable::run,
+                this.log.logger());
+        this.serverNames.detected("lobby");
+        this.scopes = new SakuraScopeService(this.config, this.platform, this.proxy(),
+                this.serverNames, this.log.logger());
         this.players = new PlayerRepository(this.storage);
         this.punishments =
                 new PunishmentRepository(this.storage, new PunishmentMapper(Long::toString));
@@ -106,8 +124,12 @@ public abstract class ServiceTest extends DatabaseTest {
                 this.placeholders, this.names, this.config, this.bus, new Throttle(this.clock),
                 Runnable::run, this.clock);
         this.notifications.start();
+        this.channel = new ProxyChannel(new MetaRepository(this.storage), this.log.logger());
+        this.channel.load();
         this.enforcer = new LocalEnforcer(this.platform, this.scopes, this.players, this.mutes,
-                this.enforcementMessages, this.config, this.log.logger());
+                this.enforcementMessages, this.config, this.channel, this.log.logger());
+        this.channelReceiver = new ChannelReceiver(this.channel, this.scopes, this.serverNames,
+                this.punishments, this.enforcer, this.clock, this.log.logger());
         this.service = new SakuraPunishmentService(this.lifecycle, this.executors.worker(),
                 this.clock, this.config, this.scopes, this.punishments,
                 new PunishmentFactory(this.scopes, this.config, this.players, this.platform,

@@ -9,7 +9,6 @@ import net.serlith.sakurabans.core.storage.dbo.tables.SbAppeals;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbAuditLog;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbBanWaveEntries;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbBanWaves;
-import net.serlith.sakurabans.core.storage.dbo.tables.SbInstances;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbKinds;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbLockdowns;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbMessageOverrides;
@@ -51,7 +50,6 @@ public final class SakuraTables {
     public static SbAuditLog AUDIT_LOG;
     public static SbAllowedPlayers ALLOWED_PLAYERS;
     public static SbAllowedAddresses ALLOWED_ADDRESSES;
-    public static SbInstances INSTANCES;
     public static SbLockdowns LOCKDOWNS;
     public static SbSyncMessages SYNC_MESSAGES;
     public static SbBanWaves BAN_WAVES;
@@ -99,7 +97,6 @@ public final class SakuraTables {
         AUDIT_LOG = new SbAuditLog(tablePrefix);
         ALLOWED_PLAYERS = new SbAllowedPlayers(tablePrefix);
         ALLOWED_ADDRESSES = new SbAllowedAddresses(tablePrefix);
-        INSTANCES = new SbInstances(tablePrefix);
         LOCKDOWNS = new SbLockdowns(tablePrefix);
         SYNC_MESSAGES = new SbSyncMessages(tablePrefix);
         BAN_WAVES = new SbBanWaves(tablePrefix);
@@ -127,7 +124,6 @@ public final class SakuraTables {
         return current;
     }
 
-    /** Every table in creation order: a table comes after the tables it references. */
     public static List<SbTable<?>> all() {
         return List.of(
                 META,
@@ -147,7 +143,6 @@ public final class SakuraTables {
                 AUDIT_LOG,
                 ALLOWED_PLAYERS,
                 ALLOWED_ADDRESSES,
-                INSTANCES,
                 LOCKDOWNS,
                 SYNC_MESSAGES,
                 BAN_WAVES,

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import net.serlith.sakurabans.api.event.PlayerDenyEvent;
 import net.serlith.sakurabans.core.ServiceTest;
 import net.serlith.sakurabans.core.model.LoginAttempt;
 import org.assertj.core.api.Assertions;
@@ -21,7 +22,7 @@ class LoginTimeoutTest extends ServiceTest {
     }
 
     @Test
-    void slowChecksLetThePlayerInWithinTheTimeout() throws Exception {
+    void slowChecksTurnThePlayerAwayWithinTheTimeout() throws Exception {
         // Hold every pooled connection, so the ban query has to wait.
         final CountDownLatch release = new CountDownLatch(1);
         final CountDownLatch held = new CountDownLatch(POOL_SIZE);
@@ -42,7 +43,13 @@ class LoginTimeoutTest extends ServiceTest {
         release.countDown();
         holders.forEach(CompletableFuture::join);
 
-        Assertions.assertThat(decision).isInstanceOf(LoginDecision.Allowed.class);
+        Assertions.assertThat(decision).isInstanceOfSatisfying(LoginDecision.Denied.class,
+                denied -> {
+                    Assertions.assertThat(denied.denial())
+                            .isEqualTo(PlayerDenyEvent.Denial.LOGIN_CHECK_FAILED);
+                    Assertions.assertThat(denied.punishment()).isNull();
+                    Assertions.assertThat(plain(denied.screen())).contains("couldn't check");
+                });
         Assertions.assertThat(millis).isBetween(900L, 4_000L);
         Assertions.assertThat(this.log.entries("warn"))
                 .anySatisfy(entry -> Assertions.assertThat(entry.format()).contains("longer"));

@@ -2,10 +2,9 @@ package net.serlith.sakurabans.core.command.parser;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
-import net.serlith.sakurabans.api.model.GlobalScope;
 import net.serlith.sakurabans.api.model.Scope;
-import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.core.command.CommandActor;
 import net.serlith.sakurabans.core.command.SakuraCaptions;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
@@ -17,9 +16,12 @@ import org.incendo.cloud.parser.ArgumentParseResult;
 import org.incendo.cloud.parser.ArgumentParser;
 import org.incendo.cloud.parser.ParserDescriptor;
 import org.incendo.cloud.suggestion.BlockingSuggestionProvider;
+import org.incendo.cloud.suggestion.SuggestionProvider;
 
 public final class ScopeParser implements ArgumentParser<CommandActor, Scope>,
         BlockingSuggestionProvider.Strings<CommandActor> {
+
+    public static final String ALL = "all";
 
     private final SakuraScopeService scopes;
 
@@ -29,6 +31,11 @@ public final class ScopeParser implements ArgumentParser<CommandActor, Scope>,
 
     public ParserDescriptor<CommandActor, Scope> descriptor() {
         return ParserDescriptor.of(this, Scope.class);
+    }
+
+    /** For revocations: a scope, or {@code all}. */
+    public ParserDescriptor<CommandActor, ScopeFilter> filterDescriptor() {
+        return ParserDescriptor.of(new FilterParser(), ScopeFilter.class);
     }
 
     @Override
@@ -47,16 +54,45 @@ public final class ScopeParser implements ArgumentParser<CommandActor, Scope>,
     public Iterable<String> stringSuggestions(final CommandContext<CommandActor> context,
             final CommandInput input) {
         final List<String> suggestions = new ArrayList<>(List.of("global"));
-        final Optional<ServerScope> own = this.scopes.thisServer();
-        if (own.isPresent()) {
+        if (this.scopes.thisServer().isPresent()) {
             suggestions.add("local");
-            this.scopes.applicableScopes(own.get()).forEach(scope -> {
-                if (!(scope instanceof GlobalScope)) {
-                    suggestions.add(this.scopes.format(scope));
-                }
-            });
         }
+        this.scopes.knownServers().forEach(server -> suggestions.add("server:" + server));
+        this.scopes.knownCategories()
+                .forEach(category -> suggestions.add("category:" + category));
         return suggestions;
+    }
+
+    public SuggestionProvider<CommandActor> servers() {
+        return SuggestionProvider.blockingStrings(
+                (context, input) -> List.copyOf(this.scopes.knownServers()));
+    }
+
+    public SuggestionProvider<CommandActor> categories() {
+        return SuggestionProvider.blockingStrings(
+                (context, input) -> List.copyOf(this.scopes.knownCategories()));
+    }
+
+    private final class FilterParser implements ArgumentParser<CommandActor, ScopeFilter>,
+            BlockingSuggestionProvider.Strings<CommandActor> {
+
+        @Override
+        public ArgumentParseResult<ScopeFilter> parse(
+                final CommandContext<CommandActor> context, final CommandInput input) {
+            if (input.peekString().toLowerCase(Locale.ROOT).equals(ALL)) {
+                input.readString();
+                return ArgumentParseResult.success(ScopeFilter.ALL);
+            }
+            return ScopeParser.this.parse(context, input).mapSuccess(ScopeFilter::of);
+        }
+
+        @Override
+        public Iterable<String> stringSuggestions(final CommandContext<CommandActor> context,
+                final CommandInput input) {
+            final List<String> suggestions = new ArrayList<>(List.of(ALL));
+            ScopeParser.this.stringSuggestions(context, input).forEach(suggestions::add);
+            return suggestions;
+        }
     }
 
     public static final class ScopeException extends ParserException {

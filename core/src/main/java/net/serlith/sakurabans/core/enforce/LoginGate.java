@@ -2,7 +2,9 @@ package net.serlith.sakurabans.core.enforce;
 
 import java.time.Duration;
 import java.time.InstantSource;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -11,6 +13,7 @@ import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.serlith.sakurabans.api.event.PlayerDenyEvent.Denial;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentType;
+import net.serlith.sakurabans.api.model.Scope;
 import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.core.concurrent.Lifecycle;
 import net.serlith.sakurabans.core.configuration.ConfigService;
@@ -26,6 +29,7 @@ import net.serlith.sakurabans.core.scope.SakuraScopeService;
 import net.serlith.sakurabans.core.storage.repository.PlayerRepository;
 import net.serlith.sakurabans.core.storage.repository.PunishmentRepository;
 import net.serlith.sakurabans.core.util.Futures;
+import org.jspecify.annotations.Nullable;
 
 public final class LoginGate {
 
@@ -64,7 +68,8 @@ public final class LoginGate {
 
     public CompletableFuture<LoginDecision> check(final LoginAttempt attempt) {
         if (!this.lifecycle.running()) {
-            return CompletableFuture.completedFuture(new LoginDecision.Allowed());
+            return CompletableFuture.completedFuture(this.unchecked(attempt,
+                    Denial.LOGIN_CHECK_FAILED));
         }
         final Settings settings = this.config.settings();
         this.names.put(attempt.uuid(), attempt.name());
@@ -73,11 +78,15 @@ public final class LoginGate {
             Futures.logged(this.mutes.load(attempt.uuid(), attempt.address()), this.logger,
                     "load the mutes of " + attempt.name());
         }
-        return this.bounded(attempt, this.punishments.activeApplicable(PunishmentType.BAN,
+        if (!settings.enforcement().denyBannedJoins()) {
+            return CompletableFuture.completedFuture(new LoginDecision.Allowed());
+        }
+        return this.bounded(attempt, Denial.LOGIN_CHECK_FAILED,
+                this.punishments.activeApplicable(PunishmentType.BAN,
                         Applicabilities.of(attempt.uuid(), attempt.address(),
                                 settings.enforcement().addressStrictness()),
                         this.scopes.localScopes(), this.clock.instant())
-                .thenApply(bans -> this.decide(attempt, bans, Denial.LOGIN_BANNED)))
+                .thenApply(bans -> this.decide(attempt, bans, Denial.LOGIN_BANNED, null)))
                 .whenComplete((decision, ignored) -> {
                     if (decision instanceof LoginDecision.Denied) {
                         this.mutes.invalidate(attempt.uuid());
@@ -88,14 +97,36 @@ public final class LoginGate {
     public CompletableFuture<LoginDecision> checkServer(final LoginAttempt attempt,
             final String server) {
         final Settings settings = this.config.settings();
-        if (!this.lifecycle.running() || !settings.enforcement().enforceServerSwitch()) {
+        if (!settings.enforcement().enforceServerSwitch()) {
             return CompletableFuture.completedFuture(new LoginDecision.Allowed());
         }
-        return this.bounded(attempt, this.punishments.activeApplicable(PunishmentType.BAN,
+        if (!this.lifecycle.running()) {
+            return CompletableFuture.completedFuture(this.unchecked(attempt,
+                    Denial.SERVER_SWITCH_CHECK_FAILED));
+        }
+        final List<String> fallbacks = this.scopes.fallbackServers().stream()
+                .filter(fallback -> !fallback.equalsIgnoreCase(server))
+                .toList();
+        final Set<Scope> scopes = new HashSet<>(this.scopes.scopesOn(server));
+        fallbacks.forEach(fallback -> scopes.addAll(this.scopes.scopesOn(fallback)));
+        return this.bounded(attempt, Denial.SERVER_SWITCH_CHECK_FAILED,
+                this.punishments.activeApplicable(PunishmentType.BAN,
                         Applicabilities.of(attempt.uuid(), attempt.address(),
                                 settings.enforcement().addressStrictness()),
-                        this.scopes.scopesOn(server), this.clock.instant())
-                .thenApply(bans -> this.decide(attempt, bans, Denial.SERVER_SWITCH_BANNED)));
+                        scopes, this.clock.instant())
+                .thenApply(bans -> {
+                    final List<Punishment> here = this.on(server, bans);
+                    final String fallback = fallbacks.stream()
+                            .filter(candidate -> this.on(candidate, bans).isEmpty())
+                            .findFirst()
+                            .orElse(null);
+                    return this.decide(attempt, here, Denial.SERVER_SWITCH_BANNED, fallback);
+                }));
+    }
+
+    private List<Punishment> on(final String server, final List<Punishment> bans) {
+        final Set<Scope> scopes = this.scopes.scopesOn(server);
+        return bans.stream().filter(ban -> scopes.contains(ban.scope())).toList();
     }
 
     public void quit(final UUID uuid) {
@@ -103,25 +134,35 @@ public final class LoginGate {
     }
 
     private CompletableFuture<LoginDecision> bounded(final LoginAttempt attempt,
-            final CompletableFuture<LoginDecision> decision) {
+            final Denial denial, final CompletableFuture<LoginDecision> decision) {
         final Duration timeout = this.config.settings().enforcement().loginCheckTimeout();
         return decision
                 .orTimeout(timeout.toMillis(), TimeUnit.MILLISECONDS)
                 .exceptionally(failure -> {
                     final Throwable cause = Futures.unwrap(failure);
                     if (cause instanceof TimeoutException) {
-                        this.logger.warn("The login check of {} took longer than {} ms;"
-                                + " letting them in", attempt.name(), timeout.toMillis());
+                        this.logger.warn("The ban check of {} took longer than {} ms;"
+                                + " turning them away", attempt.name(), timeout.toMillis());
                     } else {
-                        this.logger.error("The login check of {} failed; letting them in",
+                        this.logger.error("The ban check of {} failed; turning them away",
                                 attempt.name(), cause);
                     }
-                    return new LoginDecision.Allowed();
+                    return this.unchecked(attempt, denial);
                 });
     }
 
+    private LoginDecision unchecked(final LoginAttempt attempt, final Denial denial) {
+        final SakuraPlayerDenyEvent event = this.events.post(new SakuraPlayerDenyEvent(
+                attempt.uuid(), attempt.name(), attempt.address(), denial, null,
+                this.messages.checkFailed(this.messages.defaultLocale())));
+        if (event.cancelled()) {
+            return new LoginDecision.Allowed();
+        }
+        return new LoginDecision.Denied(event.message(), denial, null);
+    }
+
     private LoginDecision decide(final LoginAttempt attempt, final List<Punishment> bans,
-            final Denial denial) {
+            final Denial denial, final @Nullable String fallback) {
         if (bans.isEmpty()) {
             return new LoginDecision.Allowed();
         }
@@ -133,7 +174,7 @@ public final class LoginGate {
             return new LoginDecision.Allowed();
         }
         this.notifications.attemptedJoin(attempt.name(), ban);
-        return new LoginDecision.Denied(event.message(), denial, ban);
+        return new LoginDecision.Denied(event.message(), denial, ban, fallback);
     }
 
     private void record(final LoginAttempt attempt, final Settings settings) {

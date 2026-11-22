@@ -15,7 +15,6 @@ import net.serlith.sakurabans.core.SakuraBansCore;
 import net.serlith.sakurabans.core.bootstrap.CoreBootstrap;
 import net.serlith.sakurabans.core.bootstrap.CoreEnvironment;
 import net.serlith.sakurabans.core.command.CommandActor;
-import net.serlith.sakurabans.core.platform.PlatformType;
 import net.serlith.sakurabans.core.util.BuildConstants;
 import org.incendo.cloud.execution.ExecutionCoordinator;
 import org.incendo.cloud.velocity.VelocityCommandManager;
@@ -44,7 +43,7 @@ public final class SakuraBansVelocity {
         this.logger = logger;
         this.container = container;
         this.core = CoreBootstrap.create(
-                new CoreEnvironment(dataDirectory, logger, PlatformType.VELOCITY));
+                new CoreEnvironment(dataDirectory, logger, true));
     }
 
     @Subscribe
@@ -55,7 +54,9 @@ public final class SakuraBansVelocity {
         this.core.commands().install(commands);
         this.core.start(new VelocityPlatform(this.proxy, this.logger));
         this.proxy.getEventManager().register(this,
-                new VelocityLoginListener(this.core.loginGate()));
+                new VelocityLoginListener(this.proxy, this.core.loginGate()));
+        new VelocityChannelListener(this.core.channel(), this.core.channelReceiver())
+                .register(this.proxy, this);
     }
 
     @Subscribe

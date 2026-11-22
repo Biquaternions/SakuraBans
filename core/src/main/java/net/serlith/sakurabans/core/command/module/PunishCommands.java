@@ -34,6 +34,7 @@ import net.serlith.sakurabans.core.command.CommandRegistrar;
 import net.serlith.sakurabans.core.command.CommandRunner;
 import net.serlith.sakurabans.core.command.PunishFlags;
 import net.serlith.sakurabans.core.command.Replies;
+import net.serlith.sakurabans.core.command.ScopeAccess;
 import net.serlith.sakurabans.core.command.parser.DurationParser;
 import net.serlith.sakurabans.core.command.parser.PunishTail;
 import net.serlith.sakurabans.core.command.parser.TargetParser;
@@ -87,12 +88,13 @@ public final class PunishCommands implements CommandModule {
     private final NameCache names;
     private final ConfigService config;
     private final SakuraScopeService scopes;
+    private final ScopeAccess scopeAccess;
 
     public PunishCommands(final CommandRegistrar registrar, final CommandRunner runner,
             final Replies replies, final PunishFlags flags, final TargetParser targetParser,
             final TargetResolver targets, final SakuraPunishmentService punishments,
             final NameCache names, final ConfigService config,
-            final SakuraScopeService scopes) {
+            final SakuraScopeService scopes, final ScopeAccess scopeAccess) {
         this.registrar = registrar;
         this.runner = runner;
         this.replies = replies;
@@ -103,6 +105,7 @@ public final class PunishCommands implements CommandModule {
         this.names = names;
         this.config = config;
         this.scopes = scopes;
+        this.scopeAccess = scopeAccess;
     }
 
     @Override
@@ -158,9 +161,13 @@ public final class PunishCommands implements CommandModule {
                 ? context.<Duration>get("duration")
                 : tail.duration();
         final Optional<Scope> scope = this.scope(flags);
-        if (scope.isPresent() && !this.mayUse(actor, scope.get())) {
+        if (scope.isPresent() && !this.scopeAccess.mayUse(actor, scope.get())) {
             this.runner.send(actor, MessageKey.COMMAND_SCOPE_NO_PERMISSION,
                     Placeholder.unparsed("scope", this.scopes.format(scope.get())));
+            return CompletableFuture.completedFuture(null);
+        }
+        if (scope.isEmpty() && !this.scopeAccess.mayUseDefault(actor)) {
+            this.runner.send(actor, MessageKey.COMMAND_SCOPE_DEFAULT_NO_PERMISSION);
             return CompletableFuture.completedFuture(null);
         }
         final Actor issuer = this.issuer(actor, flags);
@@ -265,17 +272,6 @@ public final class PunishCommands implements CommandModule {
         return flags.getValue(PunishFlags.SCOPE);
     }
 
-    private boolean mayUse(final CommandActor actor, final Scope scope) {
-        if (!this.config.settings().scopes().requirePermissions()) {
-            return true;
-        }
-        return actor.hasPermission(switch (scope) {
-            case GlobalScope global -> Permissions.SCOPE_GLOBAL;
-            case ServerScope server -> Permissions.scopeServer(server.server());
-            case CategoryScope category -> Permissions.scopeCategory(category.category());
-        });
-    }
-
     private @Nullable Actor issuer(final CommandActor actor, final FlagContext flags) {
         final Optional<String> name = flags.getValue(PunishFlags.SENDER);
         final Optional<UUID> uuid = flags.getValue(PunishFlags.SENDER_UUID);
@@ -358,5 +354,5 @@ public final class PunishCommands implements CommandModule {
             case TargetInput.IdInput id -> "#" + id.id();
         };
     }
-    
+
 }

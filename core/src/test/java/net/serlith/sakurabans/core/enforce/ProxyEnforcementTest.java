@@ -1,15 +1,20 @@
 package net.serlith.sakurabans.core.enforce;
 
+import java.util.List;
+import java.util.Set;
 import net.serlith.sakurabans.api.event.PlayerDenyEvent;
+import net.serlith.sakurabans.api.model.CategoryScope;
 import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.api.punish.DraftPunishment;
+import net.serlith.sakurabans.api.punish.Enforcement;
 import net.serlith.sakurabans.api.punish.PunishOptions;
+import net.serlith.sakurabans.api.punish.PunishResult;
 import net.serlith.sakurabans.core.ServiceTest;
 import net.serlith.sakurabans.core.fake.FakeOnlinePlayer;
+import net.serlith.sakurabans.core.fake.FakePlatform;
 import net.serlith.sakurabans.core.model.LoginAttempt;
-import net.serlith.sakurabans.core.platform.PlatformType;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -17,8 +22,18 @@ import org.junit.jupiter.api.Test;
 class ProxyEnforcementTest extends ServiceTest {
 
     @Override
-    protected PlatformType platformType() {
-        return PlatformType.VELOCITY;
+    protected boolean proxy() {
+        return true;
+    }
+
+    ProxyEnforcementTest() {
+        super(new FakePlatform(Set.of("lobby", "hub", "survival", "creative"),
+                List.of("lobby", "hub")));
+    }
+
+    @Override
+    protected String configYaml() {
+        return "scopes:\n  categories:\n    hubs: [lobby, hub]\n";
     }
 
     private void punish(final PunishmentType type, final String server) {
@@ -54,6 +69,99 @@ class ProxyEnforcementTest extends ServiceTest {
 
         Assertions.assertThat(this.mutes.loaded(STEVE)).isFalse();
         Assertions.assertThat(steve.messages()).isEmpty();
+    }
+
+    @Test
+    void deniedFirstConnectionsNameServerThePlayerIsntBannedOn() {
+        this.punish(PunishmentType.BAN, "survival");
+        Assertions.assertThat(this.loginGate.checkServer(this.steve(), "survival").join())
+                .isInstanceOfSatisfying(LoginDecision.Denied.class, denied ->
+                        Assertions.assertThat(denied.fallback()).contains("lobby"));
+
+        this.punish(PunishmentType.BAN, "lobby");
+        Assertions.assertThat(this.loginGate.checkServer(this.steve(), "survival").join())
+                .isInstanceOfSatisfying(LoginDecision.Denied.class, denied ->
+                        Assertions.assertThat(denied.fallback()).contains("hub"));
+    }
+
+    @Test
+    void noFallbackWhenEveryTryServerIsCovered() {
+        this.service.punish(DraftPunishment.builder(PunishmentType.BAN, PlayerVictim.of(STEVE),
+                MODERATOR).scope(CategoryScope.of("hubs")).build(),
+                PunishOptions.defaults()).join();
+
+        Assertions.assertThat(this.loginGate.checkServer(this.steve(), "lobby").join())
+                .isInstanceOfSatisfying(LoginDecision.Denied.class, denied ->
+                        Assertions.assertThat(denied.fallback()).isEmpty());
+        Assertions.assertThat(this.loginGate.checkServer(this.steve(), "survival").join())
+                .isInstanceOf(LoginDecision.Allowed.class);
+    }
+
+    @Test
+    void serverBansMoveThePlayerToFallback() {
+        final FakeOnlinePlayer steve = this.platform.join(STEVE, "Steve", this.home, null,
+                "survival");
+
+        this.punish(PunishmentType.BAN, "survival");
+
+        Assertions.assertThat(steve.disconnectReason()).isEmpty();
+        Assertions.assertThat(steve.currentServer()).contains("lobby");
+        Assertions.assertThat(steve.messages()).hasSize(1);
+    }
+
+    @Test
+    void bansCoveringEveryFallbackDisconnect() {
+        final FakeOnlinePlayer steve = this.platform.join(STEVE, "Steve", this.home, null,
+                "lobby");
+
+        this.service.punish(DraftPunishment.builder(PunishmentType.BAN, PlayerVictim.of(STEVE),
+                MODERATOR).scope(CategoryScope.of("hubs")).build(),
+                PunishOptions.defaults()).join();
+
+        Assertions.assertThat(steve.disconnectReason()).isPresent();
+    }
+
+    @Test
+    void globalBansDisconnectFromTheProxy() {
+        final FakeOnlinePlayer steve = this.platform.join(STEVE, "Steve", this.home, null,
+                "survival");
+
+        this.service.punish(DraftPunishment.builder(PunishmentType.BAN, PlayerVictim.of(STEVE),
+                MODERATOR).build(), PunishOptions.defaults()).join();
+
+        Assertions.assertThat(steve.disconnectReason()).isPresent();
+    }
+
+    @Test
+    void punishmentsIssuedOnTheProxyComeFromIt() {
+        this.punish(PunishmentType.BAN, "survival");
+
+        Assertions.assertThat(this.service.activeBan(STEVE, null, ServerScope.of("survival"))
+                .join().orElseThrow().originServer()).contains("proxy");
+    }
+
+    @Test
+    void enforceRequestsFromBackendsApplyActiveBans() {
+        final FakeOnlinePlayer steve = this.platform.join(STEVE, "Steve", this.home, null,
+                "creative");
+        // Issued elsewhere (no enforcement here), as a backend would.
+        final long id = ((PunishResult.Success) this.service.punish(DraftPunishment.builder(
+                PunishmentType.BAN, PlayerVictim.of(STEVE), MODERATOR).build(),
+                PunishOptions.builder().enforcement(Enforcement.NONE).build()).join())
+                .punishment().id();
+        Assertions.assertThat(steve.disconnectReason()).isEmpty();
+
+        this.channelReceiver.received(this.channel.enforce(id + 1000)).join();
+        Assertions.assertThat(steve.disconnectReason()).isEmpty();
+        this.channelReceiver.received(this.channel.enforce(id)).join();
+        Assertions.assertThat(steve.disconnectReason()).isPresent();
+    }
+
+    @Test
+    void proxiesIgnoreServerNames() {
+        this.channelReceiver.received(this.channel.serverName("survival")).join();
+
+        Assertions.assertThat(this.scopes.thisServer()).isEmpty();
     }
 
     @Test

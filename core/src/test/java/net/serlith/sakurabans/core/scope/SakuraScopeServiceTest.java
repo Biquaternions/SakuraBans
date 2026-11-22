@@ -1,33 +1,50 @@
 package net.serlith.sakurabans.core.scope;
 
+import java.net.InetAddress;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import net.serlith.sakurabans.api.model.CategoryScope;
 import net.serlith.sakurabans.api.model.GlobalScope;
 import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.core.RecordingLogger;
 import net.serlith.sakurabans.core.TestConfig;
+import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.fake.FakePlatform;
-import net.serlith.sakurabans.core.platform.PlatformType;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class SakuraScopeServiceTest {
 
+    private static final String NETWORK = "scopes:\n  categories:\n"
+            + "    minigames: [bedwars-1, Bedwars-2]\n    pvp: [bedwars-1, kitpvp]\n";
+
     @TempDir
     Path dir;
 
-    private SakuraScopeService service(final String yaml, final PlatformType type,
+    private final RecordingLogger log = new RecordingLogger();
+    private ServerNameDetector detector;
+
+    private SakuraScopeService service(final String yaml, final boolean proxy,
             final FakePlatform platform) {
-        return new SakuraScopeService(TestConfig.load(this.dir, yaml, new RecordingLogger()),
-                platform, type);
+        final ConfigService config = TestConfig.load(this.dir, yaml, this.log);
+        this.detector = new ServerNameDetector(this.dir, config, Runnable::run, this.log.logger());
+        return new SakuraScopeService(config, platform, proxy, this.detector, this.log.logger());
+    }
+
+    private SakuraScopeService paper(final String yaml) {
+        return this.service(yaml, false, new FakePlatform());
+    }
+
+    private void detect(final String name) {
+        this.detector.detected(name);
     }
 
     @Test
     void parsesAndFormatsEveryScope() {
-        final SakuraScopeService scopes =
-                this.service("server:\n  name: lobby\n", PlatformType.PAPER, new FakePlatform());
+        final SakuraScopeService scopes = this.paper("server:\n  name: lobby\n");
 
         Assertions.assertThat(scopes.parse("GLOBAL")).contains(GlobalScope.INSTANCE);
         Assertions.assertThat(scopes.parse("server:Survival"))
@@ -38,6 +55,7 @@ class SakuraScopeServiceTest {
         Assertions.assertThat(scopes.parse("server:")).isEmpty();
         Assertions.assertThat(scopes.parse("world:x")).isEmpty();
         Assertions.assertThat(scopes.parse("server:a.b")).isEmpty();
+        Assertions.assertThat(scopes.parse("all")).isEmpty();
         Assertions.assertThat(scopes.format(CategoryScope.of("pvp"))).isEqualTo("category:pvp");
         Assertions.assertThat(scopes.parse(scopes.format(ServerScope.of("x"))))
                 .contains(ServerScope.of("x"));
@@ -45,20 +63,20 @@ class SakuraScopeServiceTest {
 
     @Test
     void theConfiguredNameWinsOverTheDetectedOne() {
-        Assertions.assertThat(this.service("server:\n  name: lobby\n", PlatformType.PAPER,
-                new FakePlatform("detected", Set.of())).thisServer())
-                .contains(ServerScope.of("lobby"));
-        Assertions.assertThat(this.service("", PlatformType.PAPER,
-                new FakePlatform("Detected", Set.of())).thisServer())
-                .contains(ServerScope.of("detected"));
-        Assertions.assertThat(this.service("", PlatformType.PAPER, new FakePlatform())
-                .thisServer()).isEmpty();
+        final SakuraScopeService configured = this.paper("server:\n  name: lobby\n");
+        this.detect("detected");
+        Assertions.assertThat(configured.thisServer()).contains(ServerScope.of("lobby"));
+
+        final SakuraScopeService auto = this.paper("");
+        Assertions.assertThat(auto.thisServer()).isEmpty();
+        this.detect("Detected");
+        Assertions.assertThat(auto.thisServer()).contains(ServerScope.of("detected"));
     }
 
     @Test
     void proxiesHaveNoServerOfTheirOwn() {
         final SakuraScopeService proxy = this.service("server:\n  name: proxy\n",
-                PlatformType.VELOCITY, new FakePlatform());
+                true, new FakePlatform());
 
         Assertions.assertThat(proxy.thisServer()).isEmpty();
         Assertions.assertThat(proxy.parse("local")).isEmpty();
@@ -67,9 +85,8 @@ class SakuraScopeServiceTest {
 
     @Test
     void localScopesAreGlobalThisServerAndItsCategories() {
-        final SakuraScopeService scopes = this.service(
-                "server:\n  name: bedwars-1\n  categories: [minigames, pvp]\n",
-                PlatformType.PAPER, new FakePlatform());
+        final SakuraScopeService scopes = this.paper(
+                "server:\n  name: bedwars-1\n  categories: [minigames, pvp]\n");
 
         Assertions.assertThat(scopes.localScopes()).containsExactlyInAnyOrder(
                 GlobalScope.INSTANCE, ServerScope.of("bedwars-1"),
@@ -81,14 +98,112 @@ class SakuraScopeServiceTest {
     }
 
     @Test
+    void ownCategoriesApplyBeforeTheNameIsKnown() {
+        final SakuraScopeService scopes = this.paper("server:\n  categories: [minigames]\n");
+
+        Assertions.assertThat(scopes.localScopes()).containsExactlyInAnyOrder(
+                GlobalScope.INSTANCE, CategoryScope.of("minigames"));
+    }
+
+    @Test
+    void theCategoryMapNamesEveryServersCategories() {
+        final SakuraScopeService scopes = this.paper("server:\n  name: kitpvp\n" + NETWORK);
+
+        Assertions.assertThat(scopes.categories(ServerScope.of("bedwars-1")))
+                .containsExactlyInAnyOrder(CategoryScope.of("minigames"), CategoryScope.of("pvp"));
+        Assertions.assertThat(scopes.categories(ServerScope.of("bedwars-2")))
+                .containsExactly(CategoryScope.of("minigames"));
+        Assertions.assertThat(scopes.localScopes()).containsExactlyInAnyOrder(
+                GlobalScope.INSTANCE, ServerScope.of("kitpvp"), CategoryScope.of("pvp"));
+        Assertions.assertThat(scopes.covering(ServerScope.of("bedwars-2")))
+                .containsExactlyInAnyOrder(GlobalScope.INSTANCE, ServerScope.of("bedwars-2"),
+                        CategoryScope.of("minigames"));
+    }
+
+    @Test
+    void theCategoryMapAddsToServerCategories() {
+        final SakuraScopeService scopes = this.paper(
+                "server:\n  name: kitpvp\n  categories: [arena]\n" + NETWORK);
+
+        Assertions.assertThat(scopes.categories(ServerScope.of("kitpvp")))
+                .containsExactlyInAnyOrder(CategoryScope.of("arena"), CategoryScope.of("pvp"));
+    }
+
+    @Test
+    void proxiesKnowTheirBackendsCategories() {
+        final SakuraScopeService proxy = this.service(NETWORK, true,
+                new FakePlatform(Set.of("bedwars-1", "lobby"), List.of("lobby")));
+
+        Assertions.assertThat(proxy.scopesOn("Bedwars-1")).containsExactlyInAnyOrder(
+                GlobalScope.INSTANCE, ServerScope.of("bedwars-1"),
+                CategoryScope.of("minigames"), CategoryScope.of("pvp"));
+        Assertions.assertThat(proxy.scopesOn("lobby")).containsExactlyInAnyOrder(
+                GlobalScope.INSTANCE, ServerScope.of("lobby"));
+        Assertions.assertThat(proxy.scopesOn(null)).containsExactly(GlobalScope.INSTANCE);
+    }
+
+    @Test
+    void invalidCategoryEntriesAreConfigErrors() {
+        Assertions.assertThatThrownBy(() -> this.paper(
+                        "scopes:\n  categories:\n    'bad name': [lobby]\n    ok: ['a.b']\n"))
+                .hasMessageContaining("scopes.categories.bad name")
+                .hasMessageContaining("scopes.categories.ok");
+    }
+
+    @Test
     void theDefaultScopeFollowsTheConfiguration() {
-        Assertions.assertThat(this.service("", PlatformType.PAPER, new FakePlatform())
-                .defaultScope()).isEqualTo(GlobalScope.INSTANCE);
-        Assertions.assertThat(this.service("server:\n  name: lobby\nscopes:\n  default: local\n",
-                        PlatformType.PAPER, new FakePlatform()).defaultScope())
-                .isEqualTo(ServerScope.of("lobby"));
-        Assertions.assertThat(this.service("scopes:\n  default: local\n",
-                PlatformType.VELOCITY, new FakePlatform()).defaultScope())
+        Assertions.assertThat(this.paper("").defaultScope()).isEqualTo(GlobalScope.INSTANCE);
+        Assertions.assertThat(this.paper("server:\n  name: lobby\nscopes:\n  default: local\n")
+                .defaultScope()).isEqualTo(ServerScope.of("lobby"));
+        Assertions.assertThat(this.paper("scopes:\n  default: category:pvp\n").defaultScope())
+                .isEqualTo(CategoryScope.of("pvp"));
+    }
+
+    @Test
+    void localIsGlobalWithWarningWhileTheNameIsUnknown() {
+        final SakuraScopeService scopes = this.paper("scopes:\n  default: local\n");
+        final int before = this.log.entries("warn").size();
+
+        Assertions.assertThat(scopes.defaultScope()).isEqualTo(GlobalScope.INSTANCE);
+        Assertions.assertThat(scopes.defaultScope()).isEqualTo(GlobalScope.INSTANCE);
+        Assertions.assertThat(this.log.entries("warn")).hasSize(before + 1);
+
+        this.detect("lobby");
+        Assertions.assertThat(scopes.defaultScope()).isEqualTo(ServerScope.of("lobby"));
+    }
+
+    @Test
+    void localOnProxiesIsTheIssuersServer() throws Exception {
+        final FakePlatform platform = new FakePlatform(Set.of("survival"), List.of());
+        final UUID staff = UUID.randomUUID();
+        platform.join(staff, "Mod", InetAddress.getLoopbackAddress(), null, "Survival");
+        final SakuraScopeService proxy =
+                this.service("scopes:\n  default: local\n", true, platform);
+
+        Assertions.assertThat(proxy.defaultScope(staff)).isEqualTo(ServerScope.of("survival"));
+        Assertions.assertThat(proxy.defaultScope(UUID.randomUUID()))
                 .isEqualTo(GlobalScope.INSTANCE);
+        Assertions.assertThat(proxy.defaultScope()).isEqualTo(GlobalScope.INSTANCE);
+    }
+
+    @Test
+    void theOriginIsThisServerOrTheProxy() {
+        Assertions.assertThat(this.paper("server:\n  name: lobby\n").originServer())
+                .contains("lobby");
+        Assertions.assertThat(this.paper("").originServer()).isEmpty();
+        Assertions.assertThat(this.service("", true, new FakePlatform())
+                .originServer()).contains("proxy");
+        Assertions.assertThat(this.service("server:\n  name: edge-1\n", true,
+                new FakePlatform()).originServer()).contains("edge-1");
+    }
+
+    @Test
+    void knownServersAndCategoriesFeedSuggestions() {
+        final SakuraScopeService proxy = this.service(NETWORK, true,
+                new FakePlatform(Set.of("Lobby", "kitpvp"), List.of()));
+
+        Assertions.assertThat(proxy.knownServers())
+                .containsExactly("bedwars-1", "bedwars-2", "kitpvp", "lobby");
+        Assertions.assertThat(proxy.knownCategories()).containsExactly("minigames", "pvp");
     }
 }

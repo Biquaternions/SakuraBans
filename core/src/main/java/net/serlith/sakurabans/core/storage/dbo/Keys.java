@@ -7,7 +7,6 @@ import net.serlith.sakurabans.core.storage.dbo.records.SbAppealsRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbAuditLogRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbBanWaveEntriesRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbBanWavesRecord;
-import net.serlith.sakurabans.core.storage.dbo.records.SbInstancesRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbKindsRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbLockdownsRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbMessageOverridesRecord;
@@ -154,10 +153,6 @@ public final class Keys {
     public static final UniqueKey<SbAllowedAddressesRecord> ALLOWED_ADDRESSES_PK =
             Internal.createUniqueKey(SakuraTables.ALLOWED_ADDRESSES, name("allowed_addresses_pk"),
                     new TableField[] {SakuraTables.ALLOWED_ADDRESSES.ADDRESS}, true);
-
-    public static final UniqueKey<SbInstancesRecord> INSTANCES_PK =
-            Internal.createUniqueKey(SakuraTables.INSTANCES, name("instances_pk"),
-                    new TableField[] {SakuraTables.INSTANCES.ID}, true);
 
     public static final UniqueKey<SbLockdownsRecord> LOCKDOWNS_PK =
             Internal.createUniqueKey(SakuraTables.LOCKDOWNS, name("lockdowns_pk"),

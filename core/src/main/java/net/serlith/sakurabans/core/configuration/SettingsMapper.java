@@ -70,11 +70,12 @@ final class SettingsMapper {
                 .flatMap(category -> this.identifier("server.categories", category).stream())
                 .toList();
         final Settings.Server server =
-                new Settings.Server(serverName.orElse(null), categories, config.server().role());
+                new Settings.Server(serverName.orElse(null), categories);
 
         final Settings.Scopes scopes = new Settings.Scopes(
                 this.defaultScope(config.scopes().defaultScope()),
-                config.scopes().requirePermissions());
+                config.scopes().requirePermissions(),
+                this.categories(config.scopes().categories()));
 
         final var enforcement = config.enforcement();
         this.check(enforcement.loginCheckTimeout().compareTo(MAX_LOGIN_TIMEOUT) <= 0,
@@ -84,7 +85,8 @@ final class SettingsMapper {
                 blacklist.add(command.strip().toLowerCase(Locale.ROOT).replaceFirst("^/", "")));
         final Settings.Enforcement enforcementSettings = new Settings.Enforcement(
                 enforcement.addressStrictness(), enforcement.compositeByDefault(),
-                Set.copyOf(blacklist), enforcement.enforceServerSwitch(),
+                Set.copyOf(blacklist), enforcement.denyBannedJoins(),
+                enforcement.enforceServerSwitch(),
                 enforcement.loginCheckTimeout());
 
         final Settings.Alts alts = this.alts(config.alts());
@@ -212,6 +214,22 @@ final class SettingsMapper {
             labels.put(command.toLowerCase(Locale.ROOT), List.copyOf(valid));
         });
         return new Settings.Commands(labels);
+    }
+
+    private Map<String, Set<String>> categories(final Map<String, List<String>> section) {
+        final Map<String, Set<String>> categories = new LinkedHashMap<>();
+        section.forEach((category, servers) -> {
+            final String path = "scopes.categories." + category;
+            this.identifier(path, category).ifPresent(name -> {
+                final Set<String> members = new LinkedHashSet<>(
+                        categories.getOrDefault(name, Set.of()));
+                for (final String server : servers) {
+                    this.identifier(path, server).ifPresent(members::add);
+                }
+                categories.put(name, Set.copyOf(members));
+            });
+        });
+        return Map.copyOf(categories);
     }
 
     private Settings.DefaultScope defaultScope(final String text) {

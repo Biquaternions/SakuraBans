@@ -32,18 +32,24 @@ public final class FakePlatform implements Platform {
             FakePlatform.this.consoleMessages.add(message);
         }
     };
-    private final @Nullable String serverName;
     private final Set<String> backends;
+    private final List<String> fallbacks;
     private volatile boolean onlineMode = true;
+    private volatile boolean behindProxy;
     private volatile ProfileLookup profiles = ProfileLookup.NONE;
 
     public FakePlatform() {
-        this(null, Set.of());
+        this(Set.of(), List.of());
     }
 
-    public FakePlatform(final @Nullable String serverName, final Set<String> backends) {
-        this.serverName = serverName;
+    /** A proxy with these servers and try list; players can connect to any of the servers. */
+    public FakePlatform(final Set<String> backends, final List<String> fallbacks) {
         this.backends = Set.copyOf(backends);
+        this.fallbacks = List.copyOf(fallbacks);
+    }
+
+    boolean accepts(final String server) {
+        return this.backends.contains(server);
     }
 
     public FakeOnlinePlayer join(final UUID uuid, final String name, final InetAddress address) {
@@ -99,13 +105,18 @@ public final class FakePlatform implements Platform {
     public ServerIdentity serverIdentity() {
         return new ServerIdentity() {
             @Override
-            public Optional<String> name() {
-                return Optional.ofNullable(FakePlatform.this.serverName);
+            public Set<String> backends() {
+                return FakePlatform.this.backends;
             }
 
             @Override
-            public Set<String> backends() {
-                return FakePlatform.this.backends;
+            public List<String> fallbackServers() {
+                return FakePlatform.this.fallbacks;
+            }
+
+            @Override
+            public boolean behindProxy() {
+                return FakePlatform.this.behindProxy;
             }
         };
     }
@@ -117,6 +128,11 @@ public final class FakePlatform implements Platform {
 
     public FakePlatform profiles(final ProfileLookup profiles) {
         this.profiles = profiles;
+        return this;
+    }
+
+    public FakePlatform behindProxy(final boolean behindProxy) {
+        this.behindProxy = behindProxy;
         return this;
     }
 

@@ -38,9 +38,10 @@ public abstract class CommandTest extends ServiceTest {
                         this.config, this.log.logger()));
         new SakuraCommands(List.of(
                 new PunishCommands(registrar, runner, replies, flags, targetParser, targets,
-                        this.service, this.names, this.config, this.scopes),
+                        this.service, this.names, this.config, this.scopes,
+                        new ScopeAccess(this.config)),
                 new RevokeCommands(registrar, runner, replies, flags, targetParser, targets,
-                        this.service),
+                        this.service, this.scopes, new ScopeAccess(this.config)),
                 new CheckCommands(registrar, runner, replies, pager, targetParser, targets,
                         this.service, this.config),
                 new HistoryCommands(registrar, runner, pager, targetParser, targets,

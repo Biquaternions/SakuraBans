@@ -9,6 +9,7 @@ import net.serlith.sakurabans.core.command.Pager;
 import net.serlith.sakurabans.core.command.PunishFlags;
 import net.serlith.sakurabans.core.command.Replies;
 import net.serlith.sakurabans.core.command.SakuraCommands;
+import net.serlith.sakurabans.core.command.ScopeAccess;
 import net.serlith.sakurabans.core.command.module.AltCommands;
 import net.serlith.sakurabans.core.command.module.CheckCommands;
 import net.serlith.sakurabans.core.command.module.HistoryCommands;
@@ -19,6 +20,7 @@ import net.serlith.sakurabans.core.command.parser.TargetParser;
 import net.serlith.sakurabans.core.concurrent.Lifecycle;
 import net.serlith.sakurabans.core.concurrent.SakuraExecutors;
 import net.serlith.sakurabans.core.configuration.ConfigService;
+import net.serlith.sakurabans.core.enforce.ChannelReceiver;
 import net.serlith.sakurabans.core.enforce.ChatGate;
 import net.serlith.sakurabans.core.enforce.CommandBlacklist;
 import net.serlith.sakurabans.core.enforce.EnforcementMessages;
@@ -29,6 +31,7 @@ import net.serlith.sakurabans.core.integration.SakuraIntegrationRegistry;
 import net.serlith.sakurabans.core.message.Formats;
 import net.serlith.sakurabans.core.message.MessageService;
 import net.serlith.sakurabans.core.message.Placeholders;
+import net.serlith.sakurabans.core.messaging.ProxyChannel;
 import net.serlith.sakurabans.core.notify.NotificationService;
 import net.serlith.sakurabans.core.notify.Throttle;
 import net.serlith.sakurabans.core.platform.LatePlatform;
@@ -41,6 +44,7 @@ import net.serlith.sakurabans.core.punish.MuteCache;
 import net.serlith.sakurabans.core.punish.PunishmentFactory;
 import net.serlith.sakurabans.core.punish.SakuraPunishmentService;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
+import net.serlith.sakurabans.core.scope.ServerNameDetector;
 import net.serlith.sakurabans.core.storage.Lease;
 import net.serlith.sakurabans.core.storage.SchemaManager;
 import net.serlith.sakurabans.core.storage.StorageService;
@@ -85,6 +89,7 @@ final class CoreComponents {
     private final NameCache names;
     private final UuidResolver uuids;
     private final TargetResolver targets;
+    private final ServerNameDetector serverNames;
     private final SakuraScopeService scopeService;
 
     // Layer 3
@@ -93,7 +98,9 @@ final class CoreComponents {
 
     // Layer 4, and the layer 3 services that take a layer 4 implementation of their interface
     private final EnforcementMessages enforcementMessages;
+    private final ProxyChannel channel;
     private final LocalEnforcer enforcer;
+    private final ChannelReceiver channelReceiver;
     private final SakuraPunishmentService punishmentService;
     private final ExpirySweeper sweeper;
     private final LoginGate loginGate;
@@ -134,8 +141,10 @@ final class CoreComponents {
         this.uuids = new UuidResolver(this.integrations, this.platform, this.config,
                 environment.logger());
         this.targets = new TargetResolver(this.platform, this.names, this.players, this.uuids);
-        this.scopeService =
-                new SakuraScopeService(this.config, this.platform, environment.platformType());
+        this.serverNames = new ServerNameDetector(environment.dataDirectory(), this.config,
+                this.executors.worker(), environment.logger());
+        this.scopeService = new SakuraScopeService(this.config, this.platform,
+                environment.proxy(), this.serverNames, environment.logger());
 
         this.mutes = new MuteCache(this.punishments, this.scopeService, this.config, clock);
         this.notifications = new NotificationService(this.platform, this.messages,
@@ -144,8 +153,12 @@ final class CoreComponents {
 
         this.enforcementMessages =
                 new EnforcementMessages(this.messages, this.placeholders, this.names, clock);
+        this.channel = new ProxyChannel(this.meta, environment.logger());
         this.enforcer = new LocalEnforcer(this.platform, this.scopeService, this.players,
-                this.mutes, this.enforcementMessages, this.config, environment.logger());
+                this.mutes, this.enforcementMessages, this.config, this.channel,
+                environment.logger());
+        this.channelReceiver = new ChannelReceiver(this.channel, this.scopeService,
+                this.serverNames, this.punishments, this.enforcer, clock, environment.logger());
         this.punishmentService = new SakuraPunishmentService(this.lifecycle,
                 this.executors.worker(), clock, this.config, this.scopeService, this.punishments,
                 new PunishmentFactory(this.scopeService, this.config, this.players, this.platform,
@@ -167,13 +180,14 @@ final class CoreComponents {
         final TargetParser targetParser =
                 new TargetParser(this.platform, this.names, this.lifecycle);
         final PunishFlags flags = new PunishFlags(new ScopeParser(this.scopeService));
+        final ScopeAccess scopeAccess = new ScopeAccess(this.config);
         final Pager pager = new Pager(runner, replies, clock);
         this.commands = new SakuraCommands(List.of(
                 new PunishCommands(registrar, runner, replies, flags, targetParser,
                         this.targets, this.punishmentService, this.names, this.config,
-                        this.scopeService),
+                        this.scopeService, scopeAccess),
                 new RevokeCommands(registrar, runner, replies, flags, targetParser,
-                        this.targets, this.punishmentService),
+                        this.targets, this.punishmentService, this.scopeService, scopeAccess),
                 new CheckCommands(registrar, runner, replies, pager, targetParser,
                         this.targets, this.punishmentService, this.config),
                 new HistoryCommands(registrar, runner, pager, targetParser, this.targets,
@@ -261,6 +275,18 @@ final class CoreComponents {
 
     TargetResolver targets() {
         return this.targets;
+    }
+
+    ServerNameDetector serverNames() {
+        return this.serverNames;
+    }
+
+    ProxyChannel channel() {
+        return this.channel;
+    }
+
+    ChannelReceiver channelReceiver() {
+        return this.channelReceiver;
     }
 
     SakuraScopeService scopeService() {

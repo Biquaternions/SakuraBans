@@ -6,20 +6,33 @@
 # /sb reload applies changes; if any value is invalid, the old settings stay active.
 
 server:
-  # This server's name, used for server scopes and staff notices. "auto" detects it (from the
-  # proxy, or the proxy's own name on Velocity). Otherwise 1-64 characters of a-z, 0-9, _ and -.
+  # This server's name, used for server scopes and staff notices: 1-64 characters of a-z, 0-9,
+  # _ and -, or "auto". With "auto", a backend takes the name SakuraBans on the proxy sends it
+  # when the first player joins, and remembers it in detected-server-name.txt. That needs
+  # SakuraBans on the proxy, on the same database, and Paper's proxy support on (velocity or
+  # bungee-cord in config/paper-global.yml). On a proxy, the name is only the origin of
+  # punishments issued there ("auto" means "proxy").
   name: auto
-  # Categories this server belongs to, so category:<name> punishments apply here.
+  # Categories this server belongs to, so category:<name> punishments apply here. Usually it's
+  # simpler to list servers under scopes.categories instead, which every instance can share.
   categories: []
-  # auto, proxy or backend. auto decides by platform.
-  role: auto
 
 scopes:
-  # Where a punishment applies when the command doesn't say: global, local (this server),
-  # server:<name> or category:<name>.
+  # Where a punishment applies when the command doesn't say: global, local, server:<name> or
+  # category:<name>. local is this server; on a proxy it is the server the staff member is on
+  # (global from the console).
   default: global
-  # Whether staff need sakurabans.scope.<...> permissions to punish in a scope.
+  # Whether staff need permissions to use scopes: sakurabans.scope.global,
+  # sakurabans.scope.server.<name> and sakurabans.scope.category.<name> to punish in a scope or
+  # revoke a punishment in it, and sakurabans.scope.default to punish without naming a scope.
   require-permissions: false
+  # Categories (groups of servers) and the servers in them, so category:<name> punishments apply
+  # on those servers. Keep this the same on every instance (proxy and backends), so each knows
+  # the categories of the others. For example:
+  #   categories:
+  #     minigames: [bedwars-1, bedwars-2, skywars]
+  #     survival: [survival, survival-nether]
+  categories: {}
 
 enforcement:
   # How far address bans reach through shared addresses: LENIENT (that address only), NORMAL
@@ -44,9 +57,13 @@ enforcement:
   - minecraft:tell
   - minecraft:msg
   - minecraft:w
+  # Whether this instance turns banned players away when they join. With SakuraBans on both the
+  # proxy and the backends, choose where bans are checked: on the proxy, on the backends, or both.
+  deny-banned-joins: true
   # On a proxy, whether server scopes are checked when a player switches servers.
   enforce-server-switch: true
-  # How long a join may wait for the ban check before it is let through (at most 30s).
+  # How long a join or server switch may wait for the ban check (at most 30s). If the check
+  # takes longer or fails (for example, the database is down), the player is turned away.
   login-check-timeout: 5s
 
 alts:

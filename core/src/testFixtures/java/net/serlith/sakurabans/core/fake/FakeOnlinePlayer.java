@@ -6,6 +6,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
@@ -19,9 +20,10 @@ public final class FakeOnlinePlayer implements OnlinePlayer {
     private final String name;
     private final InetAddress address;
     private final @Nullable Locale locale;
-    private final @Nullable String currentServer;
+    private final AtomicReference<@Nullable String> currentServer;
     private final Set<String> permissions = ConcurrentHashMap.newKeySet();
     private final List<Component> messages = new CopyOnWriteArrayList<>();
+    private final List<byte[]> channelMessages = new CopyOnWriteArrayList<>();
     private final AtomicReference<@Nullable Component> disconnectReason = new AtomicReference<>();
     private final FakePlatform platform;
 
@@ -33,7 +35,7 @@ public final class FakeOnlinePlayer implements OnlinePlayer {
         this.name = name;
         this.address = address;
         this.locale = locale;
-        this.currentServer = currentServer;
+        this.currentServer = new AtomicReference<>(currentServer);
     }
 
     @Override
@@ -53,7 +55,7 @@ public final class FakeOnlinePlayer implements OnlinePlayer {
 
     @Override
     public Optional<String> currentServer() {
-        return Optional.ofNullable(this.currentServer);
+        return Optional.ofNullable(this.currentServer.get());
     }
 
     @Override
@@ -72,6 +74,25 @@ public final class FakeOnlinePlayer implements OnlinePlayer {
             this.disconnectReason.set(reason);
             this.platform.leave(this.uuid);
         });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> connect(final String server) {
+        if (!this.platform.accepts(server)) {
+            return CompletableFuture.completedFuture(false);
+        }
+        this.currentServer.set(server);
+        return CompletableFuture.completedFuture(true);
+    }
+
+    @Override
+    public void sendChannelMessage(final byte[] data) {
+        this.channelMessages.add(data.clone());
+    }
+
+    /** What was sent on {@code sakurabans:main}, oldest first. */
+    public List<byte[]> channelMessages() {
+        return List.copyOf(this.channelMessages);
     }
 
     @Override

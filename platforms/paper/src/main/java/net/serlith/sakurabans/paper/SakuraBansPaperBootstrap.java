@@ -7,13 +7,11 @@ import net.serlith.sakurabans.core.SakuraBansCore;
 import net.serlith.sakurabans.core.bootstrap.CoreBootstrap;
 import net.serlith.sakurabans.core.bootstrap.CoreEnvironment;
 import net.serlith.sakurabans.core.command.CommandActor;
-import net.serlith.sakurabans.core.platform.PlatformType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.incendo.cloud.execution.ExecutionCoordinator;
 import org.incendo.cloud.paper.PaperCommandManager;
 import org.jspecify.annotations.Nullable;
 
-/** Phase 1 (plan 6.3): reads the files and registers the commands before the server exists. */
 @SuppressWarnings("UnstableApiUsage")
 public final class SakuraBansPaperBootstrap implements PluginBootstrap {
 
@@ -26,7 +24,7 @@ public final class SakuraBansPaperBootstrap implements PluginBootstrap {
     @Override
     public void bootstrap(final BootstrapContext context) {
         final SakuraBansCore created = CoreBootstrap.create(new CoreEnvironment(
-                context.getDataDirectory(), context.getLogger(), PlatformType.PAPER));
+                context.getDataDirectory(), context.getLogger(), false));
         final PaperCommandManager.Bootstrapped<CommandActor> manager =
                 PaperCommandManager.builder(new PaperSenderMapper())
                         .executionCoordinator(ExecutionCoordinator.simpleCoordinator())

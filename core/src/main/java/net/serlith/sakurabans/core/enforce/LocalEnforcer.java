@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
+import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.serlith.sakurabans.api.model.AddressRangeVictim;
 import net.serlith.sakurabans.api.model.AddressStrictness;
@@ -18,6 +19,7 @@ import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.core.configuration.ConfigService;
+import net.serlith.sakurabans.core.messaging.ProxyChannel;
 import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import net.serlith.sakurabans.core.platform.Platform;
 import net.serlith.sakurabans.core.punish.Enforcer;
@@ -34,18 +36,20 @@ public final class LocalEnforcer implements Enforcer {
     private final MuteCache mutes;
     private final EnforcementMessages messages;
     private final ConfigService config;
+    private final ProxyChannel channel;
     private final ComponentLogger logger;
 
     public LocalEnforcer(final Platform platform, final SakuraScopeService scopes,
             final PlayerRepository players, final MuteCache mutes,
             final EnforcementMessages messages, final ConfigService config,
-            final ComponentLogger logger) {
+            final ProxyChannel channel, final ComponentLogger logger) {
         this.platform = platform;
         this.scopes = scopes;
         this.players = players;
         this.mutes = mutes;
         this.messages = messages;
         this.config = config;
+        this.channel = channel;
         this.logger = logger;
     }
 
@@ -75,11 +79,7 @@ public final class LocalEnforcer implements Enforcer {
 
     private CompletableFuture<Void> apply(final Punishment punishment, final OnlinePlayer player) {
         return switch (punishment.type()) {
-            case BAN -> {
-                player.disconnect(this.messages.banScreen(punishment,
-                        this.messages.localeOf(player)));
-                yield CompletableFuture.completedFuture(null);
-            }
+            case BAN -> this.ban(punishment, player);
             case KICK -> {
                 player.disconnect(this.messages.kickScreen(punishment,
                         this.messages.localeOf(player)));
@@ -100,6 +100,47 @@ public final class LocalEnforcer implements Enforcer {
                 yield CompletableFuture.completedFuture(null);
             }
         };
+    }
+
+    private CompletableFuture<Void> ban(final Punishment punishment, final OnlinePlayer player) {
+        final Component screen = this.messages.banScreen(punishment,
+                this.messages.localeOf(player));
+        if (!this.scopes.proxy()) {
+            // Ask the proxy to apply it to the network (it may move them to another server).
+            // Sent first: the kick would make the proxy move them before it reads the message.
+            if (this.platform.serverIdentity().behindProxy()) {
+                player.sendChannelMessage(this.channel.enforce(punishment.id()));
+            }
+            player.disconnect(screen);
+            return CompletableFuture.completedFuture(null);
+        }
+        final String current = player.currentServer().orElse(null);
+        if (current == null) {
+            player.disconnect(screen);
+            return CompletableFuture.completedFuture(null);
+        }
+        final List<String> fallbacks = this.scopes.fallbackServers().stream()
+                .filter(server -> !server.equalsIgnoreCase(current))
+                .filter(server -> !this.scopes.scopesOn(server).contains(punishment.scope()))
+                .toList();
+        return this.moveOrDisconnect(player, fallbacks, 0, screen);
+    }
+
+    private CompletableFuture<Void> moveOrDisconnect(final OnlinePlayer player,
+            final List<String> fallbacks, final int index, final Component screen) {
+        if (index >= fallbacks.size()) {
+            player.disconnect(screen);
+            return CompletableFuture.completedFuture(null);
+        }
+        return player.connect(fallbacks.get(index))
+                .exceptionally(failure -> false)
+                .thenCompose(connected -> {
+                    if (connected) {
+                        player.sendMessage(screen);
+                        return CompletableFuture.<Void>completedFuture(null);
+                    }
+                    return this.moveOrDisconnect(player, fallbacks, index + 1, screen);
+                });
     }
 
     private CompletableFuture<List<OnlinePlayer>> affected(final Punishment punishment) {

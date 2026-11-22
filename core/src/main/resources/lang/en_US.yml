@@ -66,6 +66,10 @@ screen:
     <red><bold>You were kicked.</bold></red>
 
     <gray>Reason:</gray> <white><reason></white>
+  check_failed: |-
+    <red><bold>We couldn't check your account.</bold></red>
+
+    <gray>Please try again in a moment.</gray>
 
 # Sent to the punished player.
 victim:
@@ -129,7 +133,7 @@ command:
     sakurabans:
       target: '<red>''<input>'' is not a player, UUID, address or #id.</red>'
       duration: '<red>''<input>'' is not a duration (like 30m, 7d or 1mo).</red>'
-      scope: '<red>''<input>'' is not a scope (global, local, server:<name> or category:<name>).</red>'
+      scope: '<red>''<input>'' is not a scope (global, local, server:<name> or category:<name>; all only when lifting punishments).</red>'
   description:
     sakurabans: 'SakuraBans help'
     ban: 'Ban a player or address'
@@ -163,6 +167,7 @@ command:
   no_address: '<prefix><red>No address is known for <name>.</red>'
   address_no_permission: '<prefix><red>You can''t punish addresses.</red>'
   scope_no_permission: '<prefix><red>You can''t punish in <scope>.</red>'
+  scope_default_no_permission: '<prefix><red>Name a scope: -g, --server, --category or --scope.</red>'
   sender_needs_name: '<prefix><red>--sender-uuid needs --sender with a name.</red>'
   players_only: '<prefix><red>Only players can use this without naming someone.</red>'
   player_required: '<prefix><red><input> is not a player.</red>'
@@ -195,6 +200,8 @@ revoke:
     reason_required: '<prefix><red>Give a reason.</red>'
     forbidden: '<prefix><red>You may not do that.</red>'
     wrong_type: '<prefix><red>#<display_id> is a <type>.</red>'
+    scope_no_permission: '<prefix><red>You can''t lift punishments in <scopes>.</red>'
+  skipped_scopes: '<prefix><yellow>Not lifted in <scopes>, which you can''t use.</yellow>'
 check:
   none: '<prefix><gray><name> has nothing active.</gray>'
   header: '<prefix><white><name></white><gray>: <total> active (page <page>/<pages>)</gray>'

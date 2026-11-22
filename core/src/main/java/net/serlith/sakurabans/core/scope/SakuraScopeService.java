@@ -1,10 +1,16 @@
 package net.serlith.sakurabans.core.scope;
 
+import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.serlith.sakurabans.api.model.CategoryScope;
 import net.serlith.sakurabans.api.model.GlobalScope;
 import net.serlith.sakurabans.api.model.Scope;
@@ -15,20 +21,27 @@ import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.configuration.settings.Settings;
 import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import net.serlith.sakurabans.core.platform.Platform;
-import net.serlith.sakurabans.core.platform.PlatformType;
 import org.jspecify.annotations.Nullable;
 
 public final class SakuraScopeService implements ScopeService {
 
+    public static final String PROXY_ORIGIN = "proxy";
+
     private final ConfigService config;
     private final Platform platform;
-    private final PlatformType platformType;
+    private final boolean proxy;
+    private final ServerNameDetector detector;
+    private final ComponentLogger logger;
+    private final AtomicBoolean warnedLocal = new AtomicBoolean();
 
     public SakuraScopeService(final ConfigService config, final Platform platform,
-            final PlatformType platformType) {
+            final boolean proxy, final ServerNameDetector detector,
+            final ComponentLogger logger) {
         this.config = config;
         this.platform = platform;
-        this.platformType = platformType;
+        this.proxy = proxy;
+        this.detector = detector;
+        this.logger = logger;
     }
 
     @Override
@@ -64,43 +77,70 @@ public final class SakuraScopeService implements ScopeService {
 
     @Override
     public Scope defaultScope() {
+        return this.defaultScope(null);
+    }
+
+    public Scope defaultScope(final @Nullable UUID issuer) {
         return switch (this.config.settings().scopes().defaultScope()) {
             case Settings.DefaultScope.Fixed fixed -> fixed.scope();
-            case Settings.DefaultScope.Local local ->
-                    this.thisServer().<Scope>map(server -> server).orElse(GlobalScope.INSTANCE);
+            case Settings.DefaultScope.Local local -> this.local(issuer);
         };
+    }
+
+    private Scope local(final @Nullable UUID issuer) {
+        if (this.proxy()) {
+            return Optional.ofNullable(issuer)
+                    .flatMap(this.platform::player)
+                    .flatMap(OnlinePlayer::currentServer)
+                    .flatMap(Validator::normalizeIdentifier)
+                    .<Scope>map(ServerScope::of)
+                    .orElse(GlobalScope.INSTANCE);
+        }
+        final Optional<ServerScope> own = this.thisServer();
+        if (own.isPresent()) {
+            return own.get();
+        }
+        if (!this.warnedLocal.getAndSet(true)) {
+            this.logger.warn("scopes.default is local, but this server's name isn't known yet"
+                    + " (set server.name, or let a player join behind the proxy); punishing"
+                    + " globally until then");
+        }
+        return GlobalScope.INSTANCE;
     }
 
     @Override
     public Optional<ServerScope> thisServer() {
-        final Settings.Server server = this.config.settings().server();
         if (this.proxy()) {
             return Optional.empty();
         }
-        if (server.name() != null) {
-            return Optional.of(ServerScope.of(server.name()));
+        final String configured = this.config.settings().server().name();
+        return Optional.ofNullable(configured).or(this.detector::name).map(ServerScope::of);
+    }
+
+    public Optional<String> originServer() {
+        if (this.proxy()) {
+            return Optional.of(Optional.ofNullable(this.config.settings().server().name())
+                    .orElse(PROXY_ORIGIN));
         }
-        return this.platform.serverIdentity().name()
-                .flatMap(Validator::normalizeIdentifier)
-                .map(ServerScope::of);
+        return this.thisServer().map(ServerScope::server);
     }
 
     public boolean proxy() {
-        return switch (this.config.settings().server().role()) {
-            case PROXY -> true;
-            case BACKEND -> false;
-            case AUTO -> this.platformType.proxy();
-        };
+        return this.proxy;
     }
 
     @Override
     public Set<CategoryScope> categories(final ServerScope server) {
-        if (!this.thisServer().map(own -> own.server().equals(server.server())).orElse(false)) {
-            return Set.of();
+        final Set<CategoryScope> categories = new LinkedHashSet<>();
+        if (this.isThisServer(server)) {
+            categories.addAll(this.ownCategories());
         }
-        return this.config.settings().server().categories().stream()
-                .map(CategoryScope::of)
-                .collect(Collectors.toUnmodifiableSet());
+        this.config.settings().scopes().categories().forEach((category, servers) -> {
+            if (servers.contains(server.server())) {
+                categories.add(CategoryScope.of(category));
+            }
+        });
+        return Set.copyOf(categories);
     }
 
     @Override
@@ -113,17 +153,29 @@ public final class SakuraScopeService implements ScopeService {
     }
 
     public Set<Scope> localScopes() {
-        return this.thisServer().map(this::applicableScopes)
-                .orElse(Set.of(GlobalScope.INSTANCE));
+        final Optional<ServerScope> own = this.thisServer();
+        if (own.isPresent()) {
+            return this.applicableScopes(own.get());
+        }
+        final Set<Scope> scopes = new LinkedHashSet<>();
+        scopes.add(GlobalScope.INSTANCE);
+        if (!this.proxy()) {
+            scopes.addAll(this.ownCategories());
+        }
+        return Set.copyOf(scopes);
     }
 
     public Set<Scope> scopesOn(final @Nullable String server) {
-        if (server == null || this.thisServer().isPresent()) {
+        if (server == null || !this.proxy()) {
             return this.localScopes();
         }
         return Validator.normalizeIdentifier(server)
                 .map(name -> this.applicableScopes(ServerScope.of(name)))
                 .orElseGet(this::localScopes);
+    }
+
+    public List<String> fallbackServers() {
+        return this.platform.serverIdentity().fallbackServers();
     }
 
     public boolean appliesTo(final Scope scope, final OnlinePlayer player) {
@@ -140,6 +192,32 @@ public final class SakuraScopeService implements ScopeService {
 
     public boolean appliesHere(final Scope scope) {
         return this.localScopes().contains(scope);
+    }
+
+    public Set<String> knownServers() {
+        final Set<String> servers = new TreeSet<>();
+        this.thisServer().ifPresent(own -> servers.add(own.server()));
+        this.platform.serverIdentity().backends().forEach(backend ->
+                Validator.normalizeIdentifier(backend).ifPresent(servers::add));
+        this.config.settings().scopes().categories().values().forEach(servers::addAll);
+        return Collections.unmodifiableSet(servers);
+    }
+
+    public Set<String> knownCategories() {
+        final Set<String> categories = new TreeSet<>(this.config.settings().scopes()
+                .categories().keySet());
+        this.ownCategories().forEach(category -> categories.add(category.category()));
+        return Collections.unmodifiableSet(categories);
+    }
+
+    private boolean isThisServer(final ServerScope server) {
+        return this.thisServer().map(own -> own.server().equals(server.server())).orElse(false);
+    }
+
+    private Set<CategoryScope> ownCategories() {
+        return this.config.settings().server().categories().stream()
+                .map(CategoryScope::of)
+                .collect(Collectors.toUnmodifiableSet());
     }
 
 }

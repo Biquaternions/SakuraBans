@@ -1,9 +1,13 @@
 package net.serlith.sakurabans.core.command.module;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.AddressVictim;
@@ -22,12 +26,15 @@ import net.serlith.sakurabans.core.command.CommandRegistrar;
 import net.serlith.sakurabans.core.command.CommandRunner;
 import net.serlith.sakurabans.core.command.PunishFlags;
 import net.serlith.sakurabans.core.command.Replies;
+import net.serlith.sakurabans.core.command.ScopeAccess;
+import net.serlith.sakurabans.core.command.parser.ScopeFilter;
 import net.serlith.sakurabans.core.command.parser.TargetParser;
 import net.serlith.sakurabans.core.message.MessageKey;
 import net.serlith.sakurabans.core.model.ResolvedTarget;
 import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.player.TargetResolver;
 import net.serlith.sakurabans.core.punish.SakuraPunishmentService;
+import net.serlith.sakurabans.core.scope.SakuraScopeService;
 import net.serlith.sakurabans.core.util.Futures;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
@@ -58,10 +65,13 @@ public final class RevokeCommands implements CommandModule {
     private final TargetParser targetParser;
     private final TargetResolver targets;
     private final SakuraPunishmentService punishments;
+    private final SakuraScopeService scopes;
+    private final ScopeAccess scopeAccess;
 
     public RevokeCommands(final CommandRegistrar registrar, final CommandRunner runner,
             final Replies replies, final PunishFlags flags, final TargetParser targetParser,
-            final TargetResolver targets, final SakuraPunishmentService punishments) {
+            final TargetResolver targets, final SakuraPunishmentService punishments,
+            final SakuraScopeService scopes, final ScopeAccess scopeAccess) {
         this.registrar = registrar;
         this.runner = runner;
         this.replies = replies;
@@ -69,6 +79,8 @@ public final class RevokeCommands implements CommandModule {
         this.targetParser = targetParser;
         this.targets = targets;
         this.punishments = punishments;
+        this.scopes = scopes;
+        this.scopeAccess = scopeAccess;
     }
 
     @Override
@@ -90,7 +102,7 @@ public final class RevokeCommands implements CommandModule {
                 .optional("reason", StringParser.greedyFlagYieldingStringParser())
                 .flag(this.flags.silent(type))
                 .flag(this.flags.hide(type))
-                .flag(this.flags.scope())
+                .flag(this.flags.scopeFilter())
                 .futureHandler(context -> this.runner.run(context.sender(),
                         () -> this.execute(context, spec)));
     }
@@ -99,7 +111,9 @@ public final class RevokeCommands implements CommandModule {
             final Spec spec) {
         final CommandActor actor = context.sender();
         final FlagContext flags = context.flags();
-        final Optional<Scope> scope = flags.getValue(PunishFlags.SCOPE);
+        // No --scope and --scope all both mean every scope.
+        final Scope scope = flags.<ScopeFilter>getValue(PunishFlags.SCOPE)
+                .flatMap(ScopeFilter::scope).orElse(null);
         final Visibility visibility = flags.isPresent(PunishFlags.HIDE) ? Visibility.HIDDEN
                 : flags.isPresent(PunishFlags.SILENT) ? Visibility.SILENT : Visibility.NORMAL;
         final String reason = context.<String>optional("reason").map(String::strip)
@@ -116,17 +130,22 @@ public final class RevokeCommands implements CommandModule {
                     Placeholder.unparsed("details", e.getMessage()));
             return CompletableFuture.completedFuture(null);
         }
+        if (scope != null && !this.scopeAccess.mayUse(actor, scope)) {
+            this.runner.send(actor, MessageKey.REVOKE_FAILURE_SCOPE_NO_PERMISSION,
+                    Placeholder.unparsed("scopes", this.scopes.format(scope)));
+            return CompletableFuture.completedFuture(null);
+        }
         return this.targets.resolve(context.get("target"))
-                .thenCompose(target -> this.revocationTargets(
-                        actor, spec.type(), target, scope.orElse(null)
-                ))
-                .thenCompose(found -> found.map(value -> this.revokeAll(
-                        actor, spec, value.targets(), value.name(), reason, visibility, ownOnly))
+                .thenCompose(target -> this.revocationTargets(actor, spec.type(), target, scope))
+                .thenCompose(found -> found
+                        .flatMap(value -> this.permitted(actor, value))
+                        .map(value -> this.revokeAll(actor, spec, value, reason, visibility,
+                                ownOnly))
                         .orElseGet(() -> CompletableFuture.completedFuture(null))
                 );
     }
 
-    private record Found(List<RevocationTarget> targets, String name) {
+    private record Found(List<Punishment> punishments, String name, List<Scope> skipped) {
     }
 
     /** Empty after telling the sender why. */
@@ -145,38 +164,19 @@ public final class RevokeCommands implements CommandModule {
                                     this.replies.punishment(actor, found.get()));
                             return Optional.empty();
                         }
-                        return Optional.of(new Found(List.of(RevocationTarget.ById.of(id.id())),
-                                "#" + found.get().displayId()));
+                        return Optional.of(new Found(List.of(found.get()),
+                                "#" + found.get().displayId(), List.of()));
                     });
-            case ResolvedTarget.Player player -> this.punishments.query(PunishmentQuery.builder()
-                            .types(type)
-                            .applicableTo(PunishmentQuery.Applicability.of(player.uuid(), null,
-                                    AddressStrictness.LENIENT))
-                            .scope(scope)
-                            .activeOnly(true)
-                            .order(PunishmentQuery.Order.NEWEST_FIRST)
-                            .pageSize(type.stacks() ? 1 : PunishmentQuery.MAX_PAGE_SIZE)
-                            .build())
-                    .thenApply(page -> {
-                        if (page.items().isEmpty()) {
-                            this.runner.send(actor, MessageKey.REVOKE_FAILURE_NOT_FOUND);
-                            return Optional.empty();
-                        }
-                        final List<RevocationTarget> ids = new ArrayList<>();
-                        for (final Punishment punishment : page.items()) {
-                            ids.add(RevocationTarget.ById.of(punishment.id()));
-                        }
-                        return Optional.of(new Found(List.copyOf(ids),
-                                PunishCommands.displayName(player)));
-                    });
-            case ResolvedTarget.Address address -> CompletableFuture.completedFuture(
-                    Optional.of(new Found(List.of(RevocationTarget.ByVictim.of(type,
-                            AddressVictim.of(address.address()), scope)),
-                            this.replies.victim(actor, AddressVictim.of(address.address())))));
-            case ResolvedTarget.Range range -> CompletableFuture.completedFuture(
-                    Optional.of(new Found(List.of(RevocationTarget.ByVictim.of(type,
-                            range.range(), scope)),
-                            this.replies.victim(actor, range.range()))));
+            case ResolvedTarget.Player player -> this.active(actor, PunishmentQuery.builder()
+                    .applicableTo(PunishmentQuery.Applicability.of(player.uuid(), null,
+                            AddressStrictness.LENIENT)), type, scope,
+                    PunishCommands.displayName(player));
+            case ResolvedTarget.Address address -> this.active(actor, PunishmentQuery.builder()
+                    .victim(AddressVictim.of(address.address())), type, scope,
+                    this.replies.victim(actor, AddressVictim.of(address.address())));
+            case ResolvedTarget.Range range -> this.active(actor, PunishmentQuery.builder()
+                    .victim(range.range()), type, scope,
+                    this.replies.victim(actor, range.range()));
             case ResolvedTarget.Unknown unknown -> {
                 this.runner.send(actor, MessageKey.COMMAND_UNKNOWN_TARGET,
                         Placeholder.unparsed("input", PunishCommands.inputText(unknown.input())));
@@ -185,13 +185,54 @@ public final class RevokeCommands implements CommandModule {
         };
     }
 
+    private CompletableFuture<Optional<Found>> active(final CommandActor actor,
+            final PunishmentQuery.Builder query, final PunishmentType type,
+            final @Nullable Scope scope, final String name) {
+        return this.punishments.query(query
+                        .types(type)
+                        .scope(scope)
+                        .activeOnly(true)
+                        .order(PunishmentQuery.Order.NEWEST_FIRST)
+                        // A warning is removed one at a time, the newest first.
+                        .pageSize(type.stacks() ? 1 : PunishmentQuery.MAX_PAGE_SIZE)
+                        .build())
+                .thenApply(page -> {
+                    if (page.items().isEmpty()) {
+                        this.runner.send(actor, MessageKey.REVOKE_FAILURE_NOT_FOUND);
+                        return Optional.empty();
+                    }
+                    return Optional.of(new Found(page.items(), name, List.of()));
+                });
+    }
+
+    private Optional<Found> permitted(final CommandActor actor, final Found found) {
+        final List<Punishment> allowed = new ArrayList<>();
+        final Set<Scope> skipped = new LinkedHashSet<>();
+        for (final Punishment punishment : found.punishments()) {
+            if (this.scopeAccess.mayUse(actor, punishment.scope())) {
+                allowed.add(punishment);
+            } else {
+                skipped.add(punishment.scope());
+            }
+        }
+        if (allowed.isEmpty()) {
+            this.runner.send(actor, MessageKey.REVOKE_FAILURE_SCOPE_NO_PERMISSION,
+                    Placeholder.unparsed("scopes", this.formatAll(skipped)));
+            return Optional.empty();
+        }
+        return Optional.of(new Found(List.copyOf(allowed), found.name(), List.copyOf(skipped)));
+    }
+
+    private String formatAll(final Collection<Scope> scopes) {
+        return scopes.stream().map(this.scopes::format).collect(Collectors.joining(", "));
+    }
+
     private CompletableFuture<Void> revokeAll(final CommandActor actor, final Spec spec,
-            final List<RevocationTarget> revocations, final String name,
-            final @Nullable String reason,
+            final Found found, final @Nullable String reason,
             final Visibility visibility, final boolean ownOnly) {
-        final List<CompletableFuture<RevokeResult>> results = revocations.stream()
-                .map(target -> this.punishments.revoke(RevocationRequest.builder(target,
-                                actor.asActor())
+        final List<CompletableFuture<RevokeResult>> results = found.punishments().stream()
+                .map(punishment -> this.punishments.revoke(RevocationRequest.builder(
+                                RevocationTarget.ById.of(punishment.id()), actor.asActor())
                         .reason(reason).visibility(visibility).ownOnly(ownOnly).build()))
                 .toList();
         return Futures.allOf(results).thenAccept(all -> {
@@ -213,8 +254,13 @@ public final class RevokeCommands implements CommandModule {
                         : firstFailure.reason()));
                 return;
             }
-            this.runner.send(actor, spec.success(), Placeholder.unparsed("target", name),
+            this.runner.send(actor, spec.success(),
+                    Placeholder.unparsed("target", found.name()),
                     Placeholder.unparsed("count", Integer.toString(revoked.size())));
+            if (!found.skipped().isEmpty()) {
+                this.runner.send(actor, MessageKey.REVOKE_SKIPPED_SCOPES,
+                        Placeholder.unparsed("scopes", this.formatAll(found.skipped())));
+            }
         });
     }
 

@@ -52,6 +52,10 @@ public final class EnforcementMessages {
         return this.render(MessageKey.CHAT_COMMAND_MUTED, mute, locale);
     }
 
+    public Component checkFailed(final Locale locale) {
+        return this.messages.render(MessageKey.SCREEN_CHECK_FAILED, locale);
+    }
+
     public Component loading(final Locale locale) {
         return this.messages.render(MessageKey.CHAT_LOADING, locale);
     }

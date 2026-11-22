@@ -16,6 +16,7 @@ public final class EnforcementSection {
     private List<String> muteCommandBlacklist = new ArrayList<>(List.of(
             "me", "say", "tell", "msg", "w", "whisper", "r", "reply", "mail", "minecraft:me",
             "minecraft:say", "minecraft:tell", "minecraft:msg", "minecraft:w"));
+    private boolean denyBannedJoins = true;
     private boolean enforceServerSwitch = true;
     private Duration loginCheckTimeout = Duration.ofSeconds(5);
 }

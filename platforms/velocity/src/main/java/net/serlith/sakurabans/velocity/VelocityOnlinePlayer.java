@@ -1,10 +1,13 @@
 package net.serlith.sakurabans.velocity;
 
+import com.velocitypowered.api.proxy.ConnectionRequestBuilder;
 import com.velocitypowered.api.proxy.Player;
+import com.velocitypowered.api.proxy.ProxyServer;
 import java.net.InetAddress;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.audience.ForwardingAudience;
 import net.kyori.adventure.text.Component;
@@ -12,9 +15,11 @@ import net.serlith.sakurabans.core.platform.OnlinePlayer;
 
 final class VelocityOnlinePlayer implements OnlinePlayer, ForwardingAudience.Single {
 
+    private final ProxyServer proxy;
     private final Player player;
 
-    VelocityOnlinePlayer(final Player player) {
+    VelocityOnlinePlayer(final ProxyServer proxy, final Player player) {
+        this.proxy = proxy;
         this.player = player;
     }
 
@@ -57,5 +62,19 @@ final class VelocityOnlinePlayer implements OnlinePlayer, ForwardingAudience.Sin
     @Override
     public void disconnect(final Component reason) {
         this.player.disconnect(reason);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> connect(final String server) {
+        return this.proxy.getServer(server)
+                .map(target -> this.player.createConnectionRequest(target).connect()
+                        .thenApply(ConnectionRequestBuilder.Result::isSuccessful))
+                .orElseGet(() -> CompletableFuture.completedFuture(false));
+    }
+
+    @Override
+    public void sendChannelMessage(final byte[] data) {
+        this.player.getCurrentServer().ifPresent(connection ->
+                connection.sendPluginMessage(VelocityChannelListener.CHANNEL, data));
     }
 }

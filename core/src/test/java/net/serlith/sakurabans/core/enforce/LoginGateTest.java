@@ -130,11 +130,13 @@ class LoginGateTest extends ServiceTest {
     }
 
     @Test
-    void failingChecksLetThePlayerIn() {
+    void failingChecksTurnThePlayerAway() {
         this.storage.stop();
 
         Assertions.assertThat(this.login(STEVE, "Steve", null))
-                .isInstanceOf(LoginDecision.Allowed.class);
+                .isInstanceOfSatisfying(LoginDecision.Denied.class, denied ->
+                        Assertions.assertThat(denied.denial())
+                                .isEqualTo(PlayerDenyEvent.Denial.LOGIN_CHECK_FAILED));
         Assertions.assertThat(this.log.entries("error")).isNotEmpty();
     }
 }

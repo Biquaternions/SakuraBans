@@ -43,7 +43,9 @@ public final class CoreBootstrap {
                 new SakuraBansCore.Services(components.notifications(), components.sweeper(),
                         components.punishmentService(),
                         components.loginGate(), components.chatGate(),
-                        components.commands(), SakuraApi.create(components.punishmentService(),
+                        components.commands(), components.serverNames(), components.channel(),
+                        components.channelReceiver(),
+                        SakuraApi.create(components.punishmentService(),
                                 new SakuraPlayerService(components.players()),
                                 components.scopeService(), components.events(),
                                 components.integrations())));

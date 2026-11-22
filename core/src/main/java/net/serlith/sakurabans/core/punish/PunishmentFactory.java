@@ -12,11 +12,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import net.serlith.sakurabans.api.model.AddressVictim;
 import net.serlith.sakurabans.api.model.CompositeVictim;
+import net.serlith.sakurabans.api.model.PlayerOperator;
 import net.serlith.sakurabans.api.model.PlayerProfileView;
 import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Scope;
-import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.api.punish.DraftPunishment;
 import net.serlith.sakurabans.api.punish.PunishOptions;
@@ -97,7 +97,10 @@ public final class PunishmentFactory {
                 .orElse(settings.reasons().defaultReason());
         final Scope scope = draft.scope()
                 .or(kind::defaultScope)
-                .orElseGet(this.scopes::defaultScope);
+                .orElseGet(() -> this.scopes.defaultScope(
+                        draft.actor().operator() instanceof PlayerOperator player
+                                ? player.uuid()
+                                : null));
         final Instant now = this.clock.instant();
         final Duration duration = draft.duration()
                 .orElse(draft.type() == PunishmentType.WARN ? settings.warnings().expireAfter()
@@ -106,7 +109,7 @@ public final class PunishmentFactory {
                 new NewPunishment(draft.type(), kind.id(), kind.shadow(),
                         kind.strictnessOrNull(), victim, scope, text, draft.actor(), now,
                         duration == null ? null : now.plus(duration),
-                        this.scopes.thisServer().map(ServerScope::server).orElse(null),
+                        this.scopes.originServer().orElse(null),
                         options.visibility(), null, null, draft.evidence(), null),
                 kind));
     }

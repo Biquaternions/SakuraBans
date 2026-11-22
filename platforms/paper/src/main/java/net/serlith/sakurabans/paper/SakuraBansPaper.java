@@ -27,6 +27,9 @@ public final class SakuraBansPaper extends JavaPlugin {
                 .registerEvents(new PaperLoginListener(this.core.loginGate()), this);
         this.getServer().getPluginManager()
                 .registerEvents(new PaperChatListener(this.core.chatGate(), platform), this);
+        if (platform.serverIdentity().behindProxy()) {
+            new PaperChannelListener(this, this.core.channelReceiver()).register();
+        }
         this.getServer().getServicesManager().register(SakuraBansApi.class, this.core.api(),
                 this, ServicePriority.Normal);
     }

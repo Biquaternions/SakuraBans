@@ -42,6 +42,7 @@ public record MessageKey(String key) {
     public static final MessageKey SCREEN_BAN = new MessageKey("screen.ban");
     public static final MessageKey SCREEN_BAN_TEMPORARY = new MessageKey("screen.ban_temporary");
     public static final MessageKey SCREEN_KICK = new MessageKey("screen.kick");
+    public static final MessageKey SCREEN_CHECK_FAILED = new MessageKey("screen.check_failed");
 
     public static final MessageKey VICTIM_MUTED = new MessageKey("victim.muted");
     public static final MessageKey VICTIM_MUTED_TEMPORARY =
@@ -178,6 +179,8 @@ public record MessageKey(String key) {
             new MessageKey("command.address_no_permission");
     public static final MessageKey COMMAND_SCOPE_NO_PERMISSION =
             new MessageKey("command.scope_no_permission");
+    public static final MessageKey COMMAND_SCOPE_DEFAULT_NO_PERMISSION =
+            new MessageKey("command.scope_default_no_permission");
     public static final MessageKey COMMAND_SENDER_NEEDS_NAME =
             new MessageKey("command.sender_needs_name");
     public static final MessageKey COMMAND_PLAYERS_ONLY = new MessageKey("command.players_only");
@@ -222,6 +225,9 @@ public record MessageKey(String key) {
             new MessageKey("revoke.failure.reason_required");
     public static final MessageKey REVOKE_FAILURE_FORBIDDEN =
             new MessageKey("revoke.failure.forbidden");
+    public static final MessageKey REVOKE_FAILURE_SCOPE_NO_PERMISSION =
+            new MessageKey("revoke.failure.scope_no_permission");
+    public static final MessageKey REVOKE_SKIPPED_SCOPES = new MessageKey("revoke.skipped_scopes");
     public static final MessageKey REVOKE_FAILURE_WRONG_TYPE =
             new MessageKey("revoke.failure.wrong_type");
     public static final MessageKey CHECK_NONE = new MessageKey("check.none");

@@ -3,8 +3,10 @@ package net.serlith.sakurabans.core.command;
 import java.util.UUID;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Scope;
+import net.serlith.sakurabans.core.command.parser.ScopeFilter;
 import net.serlith.sakurabans.core.command.parser.ScopeParser;
 import net.serlith.sakurabans.core.permission.Permissions;
+import org.incendo.cloud.component.CommandComponent;
 import org.incendo.cloud.parser.flag.CommandFlag;
 import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.parser.standard.UUIDParser;
@@ -59,16 +61,30 @@ public final class PunishFlags {
 
     public CommandFlag<String> server() {
         return CommandFlag.<CommandActor>builder(SERVER)
-                .withComponent(StringParser.<CommandActor>stringParser()).build();
+                .withComponent(CommandComponent.<CommandActor, String>builder()
+                        .name(SERVER)
+                        .parser(StringParser.<CommandActor>stringParser())
+                        .suggestionProvider(this.scopes.servers()))
+                .build();
     }
 
     public CommandFlag<String> category() {
         return CommandFlag.<CommandActor>builder(CATEGORY)
-                .withComponent(StringParser.<CommandActor>stringParser()).build();
+                .withComponent(CommandComponent.<CommandActor, String>builder()
+                        .name(CATEGORY)
+                        .parser(StringParser.<CommandActor>stringParser())
+                        .suggestionProvider(this.scopes.categories()))
+                .build();
     }
 
     public CommandFlag<Scope> scope() {
         return CommandFlag.<CommandActor>builder(SCOPE).withComponent(this.scopes.descriptor())
+                .build();
+    }
+
+    public CommandFlag<ScopeFilter> scopeFilter() {
+        return CommandFlag.<CommandActor>builder(SCOPE)
+                .withComponent(this.scopes.filterDescriptor())
                 .build();
     }
 

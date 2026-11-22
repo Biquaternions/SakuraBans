@@ -17,11 +17,12 @@ final class PaperPlatform implements Platform {
 
     private final Server server;
     private final PaperTaskScheduler scheduler;
-    private final ServerIdentity identity = new PaperServerIdentity();
+    private final ServerIdentity identity;
     private final ProfileLookup profiles;
 
     PaperPlatform(final Plugin plugin) {
         this.server = plugin.getServer();
+        this.identity = new PaperServerIdentity(this.server);
         this.scheduler = new PaperTaskScheduler(plugin);
         this.profiles = new PaperProfileLookup(plugin);
     }

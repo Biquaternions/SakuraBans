@@ -20,8 +20,8 @@ import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.api.punish.OverridePolicy;
 import net.serlith.sakurabans.core.fake.FakePlatform;
-import net.serlith.sakurabans.core.platform.PlatformType;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
+import net.serlith.sakurabans.core.scope.ServerNameDetector;
 import net.serlith.sakurabans.core.storage.DatabaseTest;
 import net.serlith.sakurabans.core.storage.repository.InsertOutcome;
 import net.serlith.sakurabans.core.storage.repository.NewPunishment;
@@ -52,7 +52,10 @@ class MuteCacheTest extends DatabaseTest {
         this.punishments =
                 new PunishmentRepository(this.storage, new PunishmentMapper(Long::toString));
         final SakuraScopeService scopes =
-                new SakuraScopeService(this.config, new FakePlatform(), PlatformType.PAPER);
+                new SakuraScopeService(this.config, new FakePlatform(), false,
+                        new ServerNameDetector(this.dir, this.config, Runnable::run,
+                                this.log.logger()),
+                        this.log.logger());
         this.cache = new MuteCache(this.punishments, scopes, this.config, this.clock);
     }
 

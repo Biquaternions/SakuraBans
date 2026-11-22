@@ -18,7 +18,6 @@ import net.serlith.sakurabans.core.concurrent.LifecycleState;
 import net.serlith.sakurabans.core.configuration.ReloadResult;
 import net.serlith.sakurabans.core.fake.FakeOnlinePlayer;
 import net.serlith.sakurabans.core.fake.FakePlatform;
-import net.serlith.sakurabans.core.platform.PlatformType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -31,7 +30,7 @@ class CoreBootstrapTest {
 
     private CoreComponents components() {
         return new CoreComponents(
-                new CoreEnvironment(this.dir, this.log.logger(), PlatformType.PAPER),
+                new CoreEnvironment(this.dir, this.log.logger(), false),
                 InstantSource.system());
     }
 

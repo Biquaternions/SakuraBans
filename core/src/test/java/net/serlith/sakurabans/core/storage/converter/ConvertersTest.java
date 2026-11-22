@@ -104,7 +104,7 @@ class ConvertersTest {
                 checked.add(field.getName());
             }
         }
-        assertThat(checked).hasSizeGreaterThanOrEqualTo(14);
+        assertThat(checked).hasSizeGreaterThanOrEqualTo(13);
     }
 
     private static <E extends Enum<E>> void roundTrip(final EnumCode<E> codes) {

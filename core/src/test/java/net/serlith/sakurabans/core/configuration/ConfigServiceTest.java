@@ -104,7 +104,6 @@ class ConfigServiceTest {
                 """
                 server:
                   name: not a name
-                  role: sideways
                 scopes:
                   default: everywhere
                 enforcement:
@@ -129,7 +128,6 @@ class ConfigServiceTest {
                 .isInstanceOfSatisfying(ConfigException.class, e -> assertThat(e.errors())
                         .extracting(issue -> issue.file() + ": " + issue.path())
                         .contains(
-                                "config.yml: server.role",
                                 "config.yml: enforcement.login-check-timeout",
                                 "config.yml: alts.connection-limiter.limit",
                                 "config.yml: alts.join-notification",

@@ -10,14 +10,17 @@ import net.serlith.sakurabans.core.concurrent.LifecycleState;
 import net.serlith.sakurabans.core.concurrent.SakuraExecutors;
 import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.configuration.ReloadResult;
+import net.serlith.sakurabans.core.enforce.ChannelReceiver;
 import net.serlith.sakurabans.core.enforce.ChatGate;
 import net.serlith.sakurabans.core.enforce.LoginGate;
 import net.serlith.sakurabans.core.message.MessageService;
+import net.serlith.sakurabans.core.messaging.ProxyChannel;
 import net.serlith.sakurabans.core.notify.NotificationService;
 import net.serlith.sakurabans.core.platform.LatePlatform;
 import net.serlith.sakurabans.core.platform.Platform;
 import net.serlith.sakurabans.core.punish.ExpirySweeper;
 import net.serlith.sakurabans.core.punish.SakuraPunishmentService;
+import net.serlith.sakurabans.core.scope.ServerNameDetector;
 import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.util.BuildConstants;
 
@@ -36,7 +39,8 @@ public final class SakuraBansCore {
 
     public record Services(NotificationService notifications, ExpirySweeper sweeper,
             SakuraPunishmentService punishments, LoginGate loginGate, ChatGate chatGate,
-            SakuraCommands commands, SakuraApi api) {
+            SakuraCommands commands, ServerNameDetector serverNames, ProxyChannel channel,
+            ChannelReceiver channelReceiver, SakuraApi api) {
     }
 
     public SakuraBansCore(final ComponentLogger logger, final Lifecycle lifecycle,
@@ -57,7 +61,9 @@ public final class SakuraBansCore {
         this.lifecycle.advance(LifecycleState.CREATED, LifecycleState.STARTING);
         try {
             this.platform.bind(platform);
+            this.services.serverNames().load();
             this.storage.start();
+            this.services.channel().load();
             this.services.notifications().start();
             this.services.sweeper().start();
             SakuraBans.register(this.services.api());
@@ -116,6 +122,18 @@ public final class SakuraBansCore {
 
     public SakuraPunishmentService punishments() {
         return this.services.punishments();
+    }
+
+    public ServerNameDetector serverNames() {
+        return this.services.serverNames();
+    }
+
+    public ProxyChannel channel() {
+        return this.services.channel();
+    }
+
+    public ChannelReceiver channelReceiver() {
+        return this.services.channelReceiver();
     }
 
     public SakuraBansApi api() {

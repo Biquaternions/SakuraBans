@@ -75,6 +75,12 @@ public interface PlayerDenyEvent extends Cancellable {
         /** Joining, because of a ban. */
         LOGIN_BANNED,
 
+        /**
+         * Joining, because the ban check timed out or failed ({@code login-check-timeout}). There
+         * is no punishment; cancelling lets the player in unchecked.
+         */
+        LOGIN_CHECK_FAILED,
+
         /** Joining, because of a lockdown. */
         LOGIN_LOCKDOWN,
 
@@ -83,6 +89,12 @@ public interface PlayerDenyEvent extends Cancellable {
 
         /** Switching to a server (proxy only), because of a ban in that server's scope. */
         SERVER_SWITCH_BANNED,
+
+        /**
+         * Switching to a server (proxy only), because the ban check timed out or failed. There is
+         * no punishment; cancelling lets the switch through unchecked.
+         */
+        SERVER_SWITCH_CHECK_FAILED,
 
         /** Chatting, because of a mute. */
         CHAT_MUTED,

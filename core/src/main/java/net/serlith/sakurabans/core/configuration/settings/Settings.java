@@ -27,10 +27,11 @@ public record Settings(
         Players players,
         Commands commands) {
 
-    public record Server(@Nullable String name, List<String> categories, ServerRole role) {
+    public record Server(@Nullable String name, List<String> categories) {
     }
 
-    public record Scopes(DefaultScope defaultScope, boolean requirePermissions) {
+    public record Scopes(DefaultScope defaultScope, boolean requirePermissions,
+            Map<String, Set<String>> categories) {
     }
 
     public sealed interface DefaultScope {
@@ -43,7 +44,7 @@ public record Settings(
     }
 
     public record Enforcement(AddressStrictness addressStrictness, boolean compositeByDefault,
-            Set<String> muteCommandBlacklist, boolean enforceServerSwitch,
+            Set<String> muteCommandBlacklist, boolean denyBannedJoins, boolean enforceServerSwitch,
             Duration loginCheckTimeout) {
     }
 

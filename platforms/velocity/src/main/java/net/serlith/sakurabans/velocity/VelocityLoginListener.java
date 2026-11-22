@@ -5,8 +5,15 @@ import com.velocitypowered.api.event.ResultedEvent;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.connection.DisconnectEvent;
 import com.velocitypowered.api.event.connection.LoginEvent;
+import com.velocitypowered.api.event.player.ServerPostConnectEvent;
 import com.velocitypowered.api.event.player.ServerPreConnectEvent;
 import com.velocitypowered.api.proxy.Player;
+import com.velocitypowered.api.proxy.ProxyServer;
+import com.velocitypowered.api.proxy.server.RegisteredServer;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import net.kyori.adventure.text.Component;
 import net.serlith.sakurabans.core.enforce.LoginDecision;
 import net.serlith.sakurabans.core.enforce.LoginGate;
 import net.serlith.sakurabans.core.model.LoginAttempt;
@@ -14,9 +21,12 @@ import org.jspecify.annotations.Nullable;
 
 final class VelocityLoginListener {
 
+    private final ProxyServer proxy;
     private final LoginGate gate;
+    private final Map<UUID, Component> notices = new ConcurrentHashMap<>();
 
-    VelocityLoginListener(final LoginGate gate) {
+    VelocityLoginListener(final ProxyServer proxy, final LoginGate gate) {
+        this.proxy = proxy;
         this.gate = gate;
     }
 
@@ -47,19 +57,38 @@ final class VelocityLoginListener {
         final String server = event.getOriginalServer().getServerInfo().getName();
         return EventTask.resumeWhenComplete(this.gate.checkServer(attempt(player, server), server)
                 .thenAccept(decision -> {
-                    if (decision instanceof LoginDecision.Denied denied) {
-                        event.setResult(ServerPreConnectEvent.ServerResult.denied());
-                        if (player.getCurrentServer().isEmpty()) {
-                            player.disconnect(denied.screen());
-                        } else {
-                            player.sendMessage(denied.screen());
-                        }
+                    if (!(decision instanceof LoginDecision.Denied denied)) {
+                        return;
                     }
+                    if (player.getCurrentServer().isPresent()) {
+                        event.setResult(ServerPreConnectEvent.ServerResult.denied());
+                        player.sendMessage(denied.screen());
+                        return;
+                    }
+                    final RegisteredServer fallback = denied.fallback()
+                            .flatMap(this.proxy::getServer)
+                            .orElse(null);
+                    if (fallback == null) {
+                        event.setResult(ServerPreConnectEvent.ServerResult.denied());
+                        player.disconnect(denied.screen());
+                        return;
+                    }
+                    event.setResult(ServerPreConnectEvent.ServerResult.allowed(fallback));
+                    this.notices.put(player.getUniqueId(), denied.screen());
                 }));
     }
 
     @Subscribe
+    void onServerPostConnect(final ServerPostConnectEvent event) {
+        final Component notice = this.notices.remove(event.getPlayer().getUniqueId());
+        if (notice != null) {
+            event.getPlayer().sendMessage(notice);
+        }
+    }
+
+    @Subscribe
     void onDisconnect(final DisconnectEvent event) {
+        this.notices.remove(event.getPlayer().getUniqueId());
         this.gate.quit(event.getPlayer().getUniqueId());
     }
 

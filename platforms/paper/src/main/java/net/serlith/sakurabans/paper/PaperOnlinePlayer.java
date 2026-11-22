@@ -5,9 +5,11 @@ import java.net.InetSocketAddress;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.audience.ForwardingAudience;
 import net.kyori.adventure.text.Component;
+import net.serlith.sakurabans.core.messaging.ProxyChannel;
 import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerKickEvent;
@@ -65,5 +67,16 @@ final class PaperOnlinePlayer implements OnlinePlayer, ForwardingAudience.Single
     public void disconnect(final Component reason) {
         this.scheduler.runFor(this.player,
                 () -> this.player.kick(reason, PlayerKickEvent.Cause.PLUGIN));
+    }
+
+    @Override
+    public CompletableFuture<Boolean> connect(final String server) {
+        return CompletableFuture.completedFuture(false);
+    }
+
+    @Override
+    public void sendChannelMessage(final byte[] data) {
+        this.scheduler.runFor(this.player, () -> this.player.sendPluginMessage(
+                this.scheduler.plugin(), ProxyChannel.NAME, data));
     }
 }

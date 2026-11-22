@@ -4,6 +4,7 @@ import java.net.InetAddress;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
 
@@ -22,5 +23,9 @@ public interface OnlinePlayer extends Audience {
     Optional<Locale> locale();
 
     void disconnect(Component reason);
+
+    CompletableFuture<Boolean> connect(String server);
+
+    void sendChannelMessage(byte[] data);
 
 }

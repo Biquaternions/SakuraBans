@@ -17,7 +17,6 @@ import net.serlith.sakurabans.api.model.EndKind;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.api.wave.BanWave;
-import net.serlith.sakurabans.core.platform.PlatformType;
 import net.serlith.sakurabans.core.storage.converter.DurationMillisConverter;
 import net.serlith.sakurabans.core.storage.converter.EnumCode;
 import net.serlith.sakurabans.core.storage.converter.EnumCodeConverter;
@@ -28,10 +27,6 @@ import net.serlith.sakurabans.core.storage.converter.UuidBytesConverter;
 import org.jooq.DataType;
 import org.jooq.impl.SQLDataType;
 
-/**
- * Converted column types (DESIGN 7.1). The enum codes are part of the schema: never change an
- * existing code, only add new ones.
- */
 public final class SbTypes {
 
     public static final EnumCode<PunishmentType> PUNISHMENT_TYPE_CODES =
@@ -145,11 +140,6 @@ public final class SbTypes {
                     AppealOutcome.REVOKE, 1,
                     AppealOutcome.VOID, 2));
 
-    public static final EnumCode<PlatformType> PLATFORM_CODES =
-            EnumCode.of(PlatformType.class, Map.of(
-                    PlatformType.PAPER, 0,
-                    PlatformType.VELOCITY, 1));
-
     public static final DataType<UUID> UUID =
             SQLDataType.BINARY(16).asConvertedDataType(new UuidBytesConverter());
     public static final DataType<InetAddress> INET =
@@ -174,7 +164,6 @@ public final class SbTypes {
     public static final DataType<BanWave.Status> WAVE_STATUS = enumType(WAVE_STATUS_CODES);
     public static final DataType<Appeal.Status> APPEAL_STATUS = enumType(APPEAL_STATUS_CODES);
     public static final DataType<AppealOutcome> APPEAL_OUTCOME = enumType(APPEAL_OUTCOME_CODES);
-    public static final DataType<PlatformType> PLATFORM = enumType(PLATFORM_CODES);
 
     private SbTypes() {
     }
