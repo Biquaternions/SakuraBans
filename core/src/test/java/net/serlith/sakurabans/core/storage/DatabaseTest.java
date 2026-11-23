@@ -5,7 +5,9 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import net.serlith.sakurabans.core.RecordingLogger;
 import net.serlith.sakurabans.core.TestConfig;
@@ -61,6 +63,22 @@ public abstract class DatabaseTest {
     final void closeDatabase() {
         this.storage.stop();
         this.executors.close();
+    }
+
+    /** For work the code under test starts without waiting (recording a connection, ...). */
+    protected static void eventually(final BooleanSupplier condition) {
+        final long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (!condition.getAsBoolean()) {
+            if (System.nanoTime() > deadline) {
+                throw new AssertionError("the condition didn't become true within 5 s");
+            }
+            try {
+                Thread.sleep(5);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(e);
+            }
+        }
     }
 
     protected final boolean onH2() {

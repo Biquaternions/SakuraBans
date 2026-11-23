@@ -3,7 +3,6 @@ package net.serlith.sakurabans.core.storage.dbo.tables;
 import java.io.Serial;
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 import net.serlith.sakurabans.core.storage.dbo.Indexes;
 import net.serlith.sakurabans.core.storage.dbo.Keys;
 import net.serlith.sakurabans.core.storage.dbo.SbTable;
@@ -29,9 +28,6 @@ public final class SbSyncMessages extends SbTable<SbSyncMessagesRecord> {
 
     public final TableField<SbSyncMessagesRecord, Instant> CREATED_AT = createField(
             DSL.name("created_at"), SbTypes.INSTANT.nullable(false), this, "");
-
-    public final TableField<SbSyncMessagesRecord, UUID> ORIGIN = createField(
-            DSL.name("origin"), SbTypes.UUID.nullable(false), this, "");
 
     public final TableField<SbSyncMessagesRecord, byte[]> PAYLOAD = createField(
             DSL.name("payload"), SQLDataType.VARBINARY(4096).nullable(false), this, "");

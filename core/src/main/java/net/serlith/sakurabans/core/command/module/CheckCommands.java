@@ -3,6 +3,7 @@ package net.serlith.sakurabans.core.command.module;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import net.serlith.sakurabans.api.model.AddressRangeVictim;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.punish.PunishmentQuery;
 import net.serlith.sakurabans.core.command.CommandActor;
@@ -86,16 +87,19 @@ public final class CheckCommands implements CommandModule {
                                 this.replies.punishment(actor, punishment)),
                         () -> this.runner.send(actor, MessageKey.REVOKE_FAILURE_NOT_FOUND)));
             }
-            if (applicability == null) {
-                this.runner.send(actor, target instanceof ResolvedTarget.Unknown unknown
-                        ? MessageKey.COMMAND_UNKNOWN_TARGET : MessageKey.COMMAND_RANGE_UNSUPPORTED,
+            final PunishmentQuery.Builder query = PunishmentQuery.builder().types(spec.type())
+                    .activeOnly(true).pageSize(HistoryCommands.PAGE_SIZE);
+            if (target instanceof ResolvedTarget.Range(AddressRangeVictim range1)) {
+                query.victim(range1);
+            } else if (applicability != null) {
+                query.applicableTo(applicability);
+            } else {
+                this.runner.send(actor, MessageKey.COMMAND_UNKNOWN_TARGET,
                         Placeholder.unparsed("input", HistoryCommands.targetName(target)));
                 return CompletableFuture.completedFuture(null);
             }
             final String name = HistoryCommands.targetName(target);
-            return this.punishments.query(PunishmentQuery.builder().types(spec.type())
-                            .applicableTo(applicability).activeOnly(true)
-                            .pageSize(HistoryCommands.PAGE_SIZE).build())
+            return this.punishments.query(query.build())
                     .thenAccept(page -> {
                         if (page.total() == 0) {
                             this.runner.send(actor, MessageKey.CHECK_NONE,

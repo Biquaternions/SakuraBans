@@ -39,7 +39,9 @@ pool:
 
 sync:
   # How several servers on one database tell each other about punishments: NONE, or SQL
-  # (polling a table, for networks).
+  # (polling a table, for networks; needs MARIADB, MYSQL or POSTGRESQL). Without it, a mute or
+  # unmute from another server reaches a player within about a minute, and a ban from another
+  # server when the player next joins.
   mode: NONE
-  # How often SQL sync checks for news.
+  # How often SQL sync checks for news: 250ms to 30s.
   poll-interval: 2s

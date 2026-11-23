@@ -26,6 +26,8 @@ class ChatGateTest extends ServiceTest {
     @BeforeEach
     void join() {
         this.loginGate.check(new LoginAttempt(STEVE, "Steve", this.home, null)).join();
+        // The gate loads mutes without waiting for them.
+        eventually(() -> this.mutes.loaded(STEVE));
         this.steve = this.platform.join(STEVE, "Steve", this.home);
     }
 

@@ -14,7 +14,7 @@ import org.incendo.cloud.parser.standard.StringParser;
 
 public final class SakuraCommands {
 
-    static final String ROOT = "sakurabans";
+    public static final String ROOT = "sakurabans";
 
     private final List<CommandModule> modules;
     private final CommandRegistrar registrar;

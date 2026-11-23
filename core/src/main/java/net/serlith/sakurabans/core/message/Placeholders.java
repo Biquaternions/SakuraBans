@@ -118,7 +118,7 @@ public final class Placeholders {
         };
     }
 
-    private static MessageKey typeKey(final PunishmentType type) {
+    public static MessageKey typeKey(final PunishmentType type) {
         return switch (type) {
             case BAN -> MessageKey.TYPE_BAN;
             case MUTE -> MessageKey.TYPE_MUTE;

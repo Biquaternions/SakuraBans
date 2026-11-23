@@ -237,9 +237,11 @@ public final class PunishCommands implements CommandModule {
                 yield AddressVictim.of(found.address());
             }
             case ResolvedTarget.Range range -> {
-                // Ranges are only matched at login from S30 on; refuse instead of misleading.
-                this.runner.send(actor, MessageKey.COMMAND_RANGE_UNSUPPORTED);
-                yield null;
+                if (!actor.hasPermission(Permissions.range(type))) {
+                    this.runner.send(actor, MessageKey.COMMAND_RANGE_NO_PERMISSION);
+                    yield null;
+                }
+                yield range.range();
             }
             case ResolvedTarget.PunishmentId id -> {
                 this.runner.send(actor, MessageKey.COMMAND_ID_NOT_ALLOWED);

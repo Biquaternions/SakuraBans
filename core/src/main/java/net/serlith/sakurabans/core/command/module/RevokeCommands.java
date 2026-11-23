@@ -53,6 +53,8 @@ public final class RevokeCommands implements CommandModule {
     private static final List<Spec> SPECS = List.of(
             new Spec("unban", PunishmentType.BAN, MessageKey.COMMAND_DESCRIPTION_UNBAN,
                     MessageKey.REVOKE_BAN),
+            new Spec("pardon", PunishmentType.BAN, MessageKey.COMMAND_DESCRIPTION_PARDON,
+                    MessageKey.REVOKE_BAN),
             new Spec("unmute", PunishmentType.MUTE, MessageKey.COMMAND_DESCRIPTION_UNMUTE,
                     MessageKey.REVOKE_MUTE),
             new Spec("unwarn", PunishmentType.WARN, MessageKey.COMMAND_DESCRIPTION_UNWARN,

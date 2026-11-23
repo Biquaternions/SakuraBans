@@ -33,10 +33,10 @@ public record SakuraApi(PunishmentService punishments, PlayerService players,
 
     public static SakuraApi create(final PunishmentService punishments,
             final PlayerService players, final ScopeService scopes, final EventBus events,
-            final IntegrationRegistry integrations) {
+            final IntegrationRegistry integrations, final AllowListService allowList) {
         return new SakuraApi(punishments, players, scopes, events, integrations,
                 Unsupported.service(TemplateService.class, "S31"),
-                Unsupported.service(AllowListService.class, "S28"),
+                allowList,
                 Unsupported.service(MessageFormatter.class, "S37a"),
                 Unsupported.service(AuthorizationService.class, "S33"),
                 Unsupported.service(KindService.class, "S31a"),

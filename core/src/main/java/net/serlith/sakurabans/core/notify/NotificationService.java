@@ -1,13 +1,16 @@
 package net.serlith.sakurabans.core.notify;
 
+import java.time.Duration;
 import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.JoinConfiguration;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.serlith.sakurabans.api.event.EventPriority;
@@ -17,6 +20,7 @@ import net.serlith.sakurabans.api.event.Subscription;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Visibility;
+import net.serlith.sakurabans.api.player.AltEntry;
 import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.event.SakuraEventBus;
 import net.serlith.sakurabans.core.event.SakuraPunishmentRevokedEvent;
@@ -30,6 +34,8 @@ import net.serlith.sakurabans.core.player.NameCache;
 import org.jspecify.annotations.Nullable;
 
 public final class NotificationService {
+
+    private static final Duration ALT_NOTICE_REPEAT = Duration.ofMinutes(30);
 
     private final Platform platform;
     private final MessageService messages;
@@ -113,6 +119,27 @@ public final class NotificationService {
                         Placeholder.unparsed("name", name))));
     }
 
+    public void joinedWithAlts(final UUID uuid, final String name, final List<AltEntry> alts,
+            final int limit) {
+        if (!this.throttle.tryAcquire("alts:" + uuid, ALT_NOTICE_REPEAT)) {
+            return;
+        }
+        this.async(() -> this.send(Permissions.ALTS_NOTIFY, (locale, showAddresses) -> {
+            final List<Component> names = new ArrayList<>();
+            for (final AltEntry alt : alts.subList(0, Math.min(limit, alts.size()))) {
+                names.add(this.messages.render(alt.activePunishments().isEmpty()
+                                ? MessageKey.NOTIFY_ALTS_NAME
+                                : MessageKey.NOTIFY_ALTS_PUNISHED_NAME, locale,
+                        Placeholder.unparsed("name", alt.account().name())));
+            }
+            return this.messages.render(MessageKey.NOTIFY_ALTS_JOIN, locale,
+                    Placeholder.unparsed("name", name),
+                    Placeholder.unparsed("count", Integer.toString(alts.size())),
+                    Placeholder.component("alts", Component.join(JoinConfiguration.commas(true),
+                            names)));
+        }));
+    }
+
     public void attemptedChat(final OnlinePlayer player, final Punishment mute,
             final String message) {
         if (!this.throttle.tryAcquire("chat:" + player.uuid(),
@@ -151,7 +178,9 @@ public final class NotificationService {
 
     private void send(final List<String> permissions, final Renderer renderer) {
         final boolean censor = this.config.settings().display().censorIpAddresses();
-        for (final OnlinePlayer player : this.platform.onlinePlayers()) {
+        final boolean players = this.config.settings().notifications().sendToPlayers();
+        for (final OnlinePlayer player : players ? this.platform.onlinePlayers()
+                : List.<OnlinePlayer>of()) {
             if (permissions.stream().allMatch(player::hasPermission)) {
                 player.sendMessage(renderer.render(
                         player.locale().orElseGet(this.messages::defaultLocale),

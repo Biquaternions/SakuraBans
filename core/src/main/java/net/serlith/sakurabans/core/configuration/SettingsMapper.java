@@ -29,11 +29,14 @@ import net.serlith.sakurabans.core.configuration.file.StorageConfig;
 import net.serlith.sakurabans.core.configuration.settings.Settings;
 import net.serlith.sakurabans.core.configuration.settings.StorageSettings;
 import net.serlith.sakurabans.core.configuration.settings.StorageType;
+import net.serlith.sakurabans.core.configuration.settings.SyncMode;
 import net.serlith.sakurabans.core.util.Durations;
 import org.jspecify.annotations.Nullable;
 
 final class SettingsMapper {
 
+    private static final Duration MIN_POLL = Duration.ofMillis(250);
+    private static final Duration MAX_POLL = Duration.ofSeconds(30);
     private static final Pattern TABLE_PREFIX = Pattern.compile("[a-z][a-z0-9_]{0,15}");
     private static final Pattern SQL_NAME = Pattern.compile("[a-z_][a-z0-9_]{0,62}");
     private static final Duration MAX_LOGIN_TIMEOUT = Duration.ofSeconds(30);
@@ -102,7 +105,8 @@ final class SettingsMapper {
                 "notifications.attempt-throttle", "must not be negative");
         return new Settings(server, scopes, enforcementSettings, alts, reasons, exemption,
                 warnings, display, new Settings.Lockdown(config.lockdown().persist()),
-                new Settings.Notifications(config.notifications().attemptThrottle()),
+                new Settings.Notifications(config.notifications().attemptThrottle(),
+                        config.notifications().sendToPlayers()),
                 new Settings.Players(config.players().remoteLookup()),
                 this.commands(config.commands()));
     }
@@ -186,6 +190,11 @@ final class SettingsMapper {
                 : Optional.of(config.schema());
         schema.ifPresent(name -> this.check(SQL_NAME.matcher(name).matches(), "schema",
                 "must be a lower-case SQL name"));
+        this.check(config.sync().mode() != SyncMode.SQL || config.type() != StorageType.H2,
+                "sync.mode", "SQL sync needs a shared database (MARIADB, MYSQL or POSTGRESQL)");
+        this.check(config.sync().pollInterval().compareTo(MIN_POLL) >= 0
+                        && config.sync().pollInterval().compareTo(MAX_POLL) <= 0,
+                "sync.poll-interval", "must be from 250ms to 30s");
         final var pool = config.pool();
         this.check(pool.maximumSize() >= 1, "pool.maximum-size", "must be at least 1");
         this.check(pool.minimumIdle() >= 0 && pool.minimumIdle() <= pool.maximumSize(),

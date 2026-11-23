@@ -1,5 +1,7 @@
 package net.serlith.sakurabans.core.sync;
 
+import java.time.Instant;
+import java.util.concurrent.CompletableFuture;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 
 public final class SyncService {
@@ -20,4 +22,15 @@ public final class SyncService {
         }
     }
 
+    public void start(final SyncPacketHandler handler) {
+        this.transport.start(handler);
+    }
+
+    public void stop() {
+        this.transport.stop();
+    }
+
+    public CompletableFuture<Integer> cleanup(final Instant now) {
+        return this.transport.cleanup(now);
+    }
 }

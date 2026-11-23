@@ -2,7 +2,6 @@ package net.serlith.sakurabans.core.storage.dbo.records;
 
 import java.io.Serial;
 import java.time.Instant;
-import java.util.UUID;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import org.jooq.impl.UpdatableRecordImpl;
 
@@ -30,15 +29,6 @@ public final class SbSyncMessagesRecord extends UpdatableRecordImpl<SbSyncMessag
 
     public SbSyncMessagesRecord createdAt(final Instant value) {
         this.set(SakuraTables.SYNC_MESSAGES.CREATED_AT, value);
-        return this;
-    }
-
-    public UUID origin() {
-        return this.get(SakuraTables.SYNC_MESSAGES.ORIGIN);
-    }
-
-    public SbSyncMessagesRecord origin(final UUID value) {
-        this.set(SakuraTables.SYNC_MESSAGES.ORIGIN, value);
         return this;
     }
 

@@ -1,6 +1,7 @@
 package net.serlith.sakurabans.core.player;
 
 import java.net.InetAddress;
+import java.time.InstantSource;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -17,9 +18,14 @@ import net.serlith.sakurabans.core.storage.repository.PlayerRepository;
 public final class SakuraPlayerService implements PlayerService {
 
     private final PlayerRepository players;
+    private final InstantSource clock;
+    private final AltLookup alts;
 
-    public SakuraPlayerService(final PlayerRepository players) {
+    public SakuraPlayerService(final PlayerRepository players, final InstantSource clock,
+            final AltLookup alts) {
         this.players = players;
+        this.clock = clock;
+        this.alts = alts;
     }
 
     @Override
@@ -50,14 +56,13 @@ public final class SakuraPlayerService implements PlayerService {
     @Override
     public CompletableFuture<List<AltEntry>> alts(final UUID uuid,
             final AddressStrictness strictness) {
-        return CompletableFuture.failedFuture(
-                new UnsupportedOperationException("alts aren't supported yet (S28)"));
+        return this.alts.alts(uuid, strictness);
     }
 
-    /** The audit entry for it comes with S37e. */
     @Override
     public CompletableFuture<Boolean> forgetAddress(final UUID uuid, final InetAddress address,
             final Actor actor) {
-        return this.players.forgetAddress(uuid, address);
+        return this.players.forget(uuid, address, actor, this.clock.instant())
+                .thenApply(removed -> removed > 0);
     }
 }

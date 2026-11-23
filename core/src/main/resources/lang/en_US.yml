@@ -66,6 +66,10 @@ screen:
     <red><bold>You were kicked.</bold></red>
 
     <gray>Reason:</gray> <white><reason></white>
+  connection_limit: |-
+    <red><bold>Too many accounts joined from your address recently.</bold></red>
+
+    <gray>Please try again later.</gray>
   check_failed: |-
     <red><bold>We couldn't check your account.</bold></red>
 
@@ -96,6 +100,10 @@ notify:
   unwarn: '<prefix><silent><white><revoker></white> <green>removed a warning of</green> <white><victim></white>'
   attempt_join: '<prefix><gray><name> tried to join but is banned (<duration>, by <operator>):</gray> <reason>'
   attempt_chat: '<prefix><gray><name> tried to chat but is muted:</gray> <message>'
+  alts:
+    join: '<prefix><white><name></white> <gray>joined with <count> known alts:</gray> <alts>'
+    name: '<white><name></white>'
+    punished_name: '<red><name></red>'
 
 # Commands. Captions (command.caption.*) are the errors of the command framework; their
 # placeholders are the framework's variables.
@@ -145,6 +153,9 @@ command:
     warn: 'Warn a player'
     kick: 'Kick a player'
     unban: 'Lift a ban'
+    pardon: 'Lift a ban (same as unban)'
+    allow: 'Accounts and addresses that address bans don''t reach'
+    unlink: 'Forget addresses of an account'
     unmute: 'Lift a mute'
     unwarn: 'Remove a warning'
     checkban: 'Show active bans'
@@ -160,10 +171,11 @@ command:
     iphistory: 'Addresses a player joined from'
     namehistory: 'Names a player used'
     lastuuid: 'The last account that used a name'
+    ipreport: 'Online players who share an address'
   invalid: '<prefix><red>That doesn''t work: <details></red>'
   unknown_target: '<prefix><red>Nobody is known as <input>.</red>'
   id_not_allowed: '<prefix><red>Name a player or an address here, not a punishment id.</red>'
-  range_unsupported: '<prefix><red>Address ranges aren''t supported yet.</red>'
+  range_no_permission: '<prefix><red>You can''t punish address ranges.</red>'
   no_address: '<prefix><red>No address is known for <name>.</red>'
   address_no_permission: '<prefix><red>You can''t punish addresses.</red>'
   scope_no_permission: '<prefix><red>You can''t punish in <scope>.</red>'
@@ -233,9 +245,11 @@ list:
     ended: '<green>○</green>'
     instant: '<yellow>●</yellow>'
 alts:
-  none: '<prefix><gray>No other account joined from <name>''s addresses.</gray>'
-  header: '<prefix><white><name></white><gray> shares addresses with <count> accounts:</gray>'
-  entry: '<gray> - </gray><white><name></white> <gray>(last seen <last_seen>)</gray>'
+  none: '<prefix><gray>No alts are known for <name>.</gray>'
+  header: '<prefix><white><name></white><gray> has <count> known alts (<strictness>):</gray>'
+  entry: '<gray> - </gray><white><name></white> <gray>(last seen <last_seen>; via <addresses>)</gray><punished><source>'
+  punished: ' <red>[<types>]</red>'
+  source: ' <dark_gray>(<source>, score <score>)</dark_gray>'
 iphistory:
   none: '<prefix><gray>No addresses are known for <name>.</gray>'
   header: '<prefix><gray>Addresses of</gray> <white><name></white><gray>:</gray>'
@@ -247,3 +261,21 @@ namehistory:
 lastuuid:
   result: '<prefix><white><name></white><gray> was last used by</gray> <white><uuid></white>'
   none: '<prefix><gray>Nobody has used the name <name> here.</gray>'
+allow:
+  added: '<prefix><green>Allow-listed <white><target></white>: address punishments no longer reach it.</green>'
+  already: '<prefix><yellow><target> is already allow-listed.</yellow>'
+  removed: '<prefix><green>Removed <white><target></white> from the allow list.</green>'
+  not_listed: '<prefix><yellow><target> isn''t allow-listed.</yellow>'
+  target: '<prefix><red>Name a player or an address.</red>'
+  list:
+    empty: '<prefix><gray>The allow list is empty.</gray>'
+    header: '<prefix><white>Allow list</white> <gray>(<count>)</gray>'
+    entry: '<gray>-</gray> <white><target></white> <gray>by <operator>, <added>: <note></gray>'
+unlink:
+  done: '<prefix><green>Forgot <count> address(es) of <white><name></white>.</green>'
+  none: '<prefix><yellow>No such address is recorded for <name>.</yellow>'
+  not_address: '<prefix><red>''<input>'' is not an address.</red>'
+ipreport:
+  none: '<prefix><gray>No two online players share an address.</gray>'
+  header: '<prefix><gray>Online players sharing an address (<count>):</gray>'
+  entry: '<gray> - </gray><white><address></white><gray>:</gray> <names>'

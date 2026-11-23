@@ -99,6 +99,16 @@ class ConfigServiceTest {
     }
 
     @Test
+    void sqlSyncNeedsSharedDatabase() throws Exception {
+        this.write(ConfigFiles.STORAGE, "sync:\n  mode: SQL\n  poll-interval: 1m\n");
+
+        assertThatThrownBy(this.service()::load)
+                .isInstanceOfSatisfying(ConfigException.class, e -> assertThat(e.errors())
+                        .extracting(issue -> issue.file() + ": " + issue.path())
+                        .contains("storage.yml: sync.mode", "storage.yml: sync.poll-interval"));
+    }
+
+    @Test
     void everyErrorIsReportedWithItsPath() throws Exception {
         this.write(ConfigFiles.CONFIG,
                 """

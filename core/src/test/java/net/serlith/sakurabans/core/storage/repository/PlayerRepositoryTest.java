@@ -6,7 +6,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.AddressRecord;
+import net.serlith.sakurabans.api.model.ConsoleOperator;
 import net.serlith.sakurabans.api.model.NameRecord;
 import net.serlith.sakurabans.api.model.PlayerProfileView;
 import net.serlith.sakurabans.core.storage.DatabaseTest;
@@ -18,6 +20,7 @@ class PlayerRepositoryTest extends DatabaseTest {
 
     private static final UUID STEVE = UUID.fromString("8667ba71-b85a-4004-af54-457a9734eed7");
     private static final UUID ALEX = UUID.fromString("ec561538-f3fd-461d-aff5-086b22154bce");
+    private static final Actor ACTOR = Actor.of(ConsoleOperator.INSTANCE, "console");
 
     private PlayerRepository players;
     private InetAddress home;
@@ -101,8 +104,10 @@ class PlayerRepositoryTest extends DatabaseTest {
     void forgettingAnAddressRemovesItEverywhere() {
         this.players.recordConnection(STEVE, "Steve", this.now.get(), this.home, null).join();
 
-        Assertions.assertThat(this.players.forgetAddress(STEVE, this.home).join()).isTrue();
-        Assertions.assertThat(this.players.forgetAddress(STEVE, this.home).join()).isFalse();
+        Assertions.assertThat(this.players.forget(STEVE, this.home, ACTOR, this.now.get()).join())
+                .isOne();
+        Assertions.assertThat(this.players.forget(STEVE, this.home, ACTOR, this.now.get()).join())
+                .isZero();
         Assertions.assertThat(this.players.addresses(STEVE).join()).isEmpty();
         final Optional<InetAddress> last =
                 this.players.profile(STEVE).join().orElseThrow().lastAddress();

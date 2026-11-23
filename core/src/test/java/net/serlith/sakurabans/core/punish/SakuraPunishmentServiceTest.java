@@ -88,7 +88,7 @@ class SakuraPunishmentServiceTest extends ServiceTest {
         Assertions.assertThat(steve.disconnectReason()).hasValueSatisfying(screen ->
                 Assertions.assertThat(plain(screen)).contains("You are banned", "Mod"));
         Assertions.assertThat(this.published)
-                .containsExactly(new SyncPacket.PunishmentEnforcePacket(ban.id()));
+                .containsExactly(SyncPacket.PunishmentEnforcePacket.of(ban.id()));
         Assertions.assertThat(this.events).hasSize(2);
         Assertions.assertThat(this.events.get(0)).isInstanceOf(PunishmentCreateEvent.class);
         Assertions.assertThat(this.events.get(1)).isInstanceOfSatisfying(
@@ -115,8 +115,10 @@ class SakuraPunishmentServiceTest extends ServiceTest {
                 success -> Assertions.assertThat(success.superseded()).hasValueSatisfying(old ->
                         Assertions.assertThat(old.end().orElseThrow().kind())
                                 .isEqualTo(EndKind.SUPERSEDED)));
-        Assertions.assertThat(this.published).hasSize(2)
-                .first().isEqualTo(new SyncPacket.PunishmentRevokePacket(first.id()));
+        // One packet: the new punishment, naming the one it replaced.
+        Assertions.assertThat(this.published).singleElement()
+                .isEqualTo(new SyncPacket.PunishmentEnforcePacket(
+                        ((PunishResult.Success) replaced).punishment().id(), first.id()));
     }
 
     @Test
@@ -303,7 +305,8 @@ class SakuraPunishmentServiceTest extends ServiceTest {
                         }));
         Assertions.assertThat(this.service.cachedMute(STEVE)).isEmpty();
         Assertions.assertThat(this.published)
-                .containsExactly(new SyncPacket.PunishmentRevokePacket(mute.id()));
+                .containsExactly(
+                        new SyncPacket.PunishmentRevokePacket(mute.id(), Visibility.SILENT));
         Assertions.assertThat(this.events).hasSize(2);
         Assertions.assertThat(this.events.get(0)).isInstanceOf(PunishmentRevokeEvent.class);
         Assertions.assertThat(this.events.get(1)).isInstanceOfSatisfying(

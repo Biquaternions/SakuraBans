@@ -3,6 +3,8 @@ package net.serlith.sakurabans.core.bootstrap;
 import java.time.InstantSource;
 import java.util.List;
 import java.util.UUID;
+import net.serlith.sakurabans.core.alts.AltService;
+import net.serlith.sakurabans.core.alts.SakuraAllowListService;
 import net.serlith.sakurabans.core.command.CommandRegistrar;
 import net.serlith.sakurabans.core.command.CommandRunner;
 import net.serlith.sakurabans.core.command.Pager;
@@ -10,6 +12,7 @@ import net.serlith.sakurabans.core.command.PunishFlags;
 import net.serlith.sakurabans.core.command.Replies;
 import net.serlith.sakurabans.core.command.SakuraCommands;
 import net.serlith.sakurabans.core.command.ScopeAccess;
+import net.serlith.sakurabans.core.command.module.AllowCommands;
 import net.serlith.sakurabans.core.command.module.AltCommands;
 import net.serlith.sakurabans.core.command.module.CheckCommands;
 import net.serlith.sakurabans.core.command.module.HistoryCommands;
@@ -20,12 +23,14 @@ import net.serlith.sakurabans.core.command.parser.TargetParser;
 import net.serlith.sakurabans.core.concurrent.Lifecycle;
 import net.serlith.sakurabans.core.concurrent.SakuraExecutors;
 import net.serlith.sakurabans.core.configuration.ConfigService;
+import net.serlith.sakurabans.core.configuration.settings.SyncMode;
 import net.serlith.sakurabans.core.enforce.ChannelReceiver;
 import net.serlith.sakurabans.core.enforce.ChatGate;
 import net.serlith.sakurabans.core.enforce.CommandBlacklist;
 import net.serlith.sakurabans.core.enforce.EnforcementMessages;
 import net.serlith.sakurabans.core.enforce.LocalEnforcer;
 import net.serlith.sakurabans.core.enforce.LoginGate;
+import net.serlith.sakurabans.core.enforce.SyncReceiver;
 import net.serlith.sakurabans.core.event.SakuraEventBus;
 import net.serlith.sakurabans.core.integration.SakuraIntegrationRegistry;
 import net.serlith.sakurabans.core.message.Formats;
@@ -39,6 +44,7 @@ import net.serlith.sakurabans.core.player.NameCache;
 import net.serlith.sakurabans.core.player.TargetResolver;
 import net.serlith.sakurabans.core.player.UuidResolver;
 import net.serlith.sakurabans.core.punish.ActionCheck;
+import net.serlith.sakurabans.core.punish.ActiveRangeCache;
 import net.serlith.sakurabans.core.punish.ExpirySweeper;
 import net.serlith.sakurabans.core.punish.MuteCache;
 import net.serlith.sakurabans.core.punish.PunishmentFactory;
@@ -48,6 +54,7 @@ import net.serlith.sakurabans.core.scope.ServerNameDetector;
 import net.serlith.sakurabans.core.storage.Lease;
 import net.serlith.sakurabans.core.storage.SchemaManager;
 import net.serlith.sakurabans.core.storage.StorageService;
+import net.serlith.sakurabans.core.storage.repository.AllowListRepository;
 import net.serlith.sakurabans.core.storage.repository.AuditRepository;
 import net.serlith.sakurabans.core.storage.repository.MetaRepository;
 import net.serlith.sakurabans.core.storage.repository.PlayerRepository;
@@ -55,6 +62,8 @@ import net.serlith.sakurabans.core.storage.repository.PunishmentMapper;
 import net.serlith.sakurabans.core.storage.repository.PunishmentRepository;
 import net.serlith.sakurabans.core.storage.repository.ScopeRepository;
 import net.serlith.sakurabans.core.storage.repository.VictimRepository;
+import net.serlith.sakurabans.core.sync.PacketCodec;
+import net.serlith.sakurabans.core.sync.SqlPollingTransport;
 import net.serlith.sakurabans.core.sync.SyncService;
 import net.serlith.sakurabans.core.sync.SyncTransport;
 
@@ -86,6 +95,10 @@ final class CoreComponents {
     private final SakuraIntegrationRegistry integrations;
     private final SakuraEventBus events;
     private final SyncService sync;
+    private final SakuraAllowListService allowList;
+    private final AltService altService;
+    private final ActiveRangeCache ranges;
+    private final SyncReceiver syncReceiver;
     private final NameCache names;
     private final UuidResolver uuids;
     private final TargetResolver targets;
@@ -128,15 +141,23 @@ final class CoreComponents {
         this.players = new PlayerRepository(this.storage);
         this.scopes = new ScopeRepository(this.storage);
         this.victims = new VictimRepository(this.storage);
+        this.sync = new SyncService(SyncTransport.enabledWhen(
+                () -> this.config.storage().sync().mode() == SyncMode.SQL,
+                new SqlPollingTransport(this.storage,
+                        new PacketCodec(this.instanceId, environment.logger()), this.executors,
+                        this.config, clock, environment.logger())),
+                environment.logger());
+        // The allow list is what limits address strictness, so the queries read it (plan S28).
+        this.allowList = new SakuraAllowListService(new AllowListRepository(this.storage),
+                this.sync, this.config, clock);
         this.punishments = new PunishmentRepository(this.storage,
-                new PunishmentMapper(Long::toString));
+                new PunishmentMapper(Long::toString), this.allowList);
         this.audit = new AuditRepository(this.storage);
         this.formats = new Formats(this.messages, this.config);
         this.placeholders = new Placeholders(this.messages, this.formats);
 
         this.integrations = new SakuraIntegrationRegistry();
         this.events = new SakuraEventBus(environment.logger());
-        this.sync = new SyncService(SyncTransport.NONE, environment.logger());
         this.names = new NameCache();
         this.uuids = new UuidResolver(this.integrations, this.platform, this.config,
                 environment.logger());
@@ -146,7 +167,12 @@ final class CoreComponents {
         this.scopeService = new SakuraScopeService(this.config, this.platform,
                 environment.proxy(), this.serverNames, environment.logger());
 
-        this.mutes = new MuteCache(this.punishments, this.scopeService, this.config, clock);
+        this.altService = new AltService(this.players, this.punishments, this.allowList,
+                this.integrations, clock, environment.logger());
+        this.ranges = new ActiveRangeCache(this.punishments, this.players, this.allowList,
+                clock);
+        this.mutes = new MuteCache(this.punishments, this.scopeService, this.config, clock,
+                this.ranges);
         this.notifications = new NotificationService(this.platform, this.messages,
                 this.placeholders, this.names, this.config, this.events, new Throttle(clock),
                 this.executors.worker(), clock);
@@ -154,9 +180,9 @@ final class CoreComponents {
         this.enforcementMessages =
                 new EnforcementMessages(this.messages, this.placeholders, this.names, clock);
         this.channel = new ProxyChannel(this.meta, environment.logger());
-        this.enforcer = new LocalEnforcer(this.platform, this.scopeService, this.players,
-                this.mutes, this.enforcementMessages, this.config, this.channel,
-                environment.logger());
+        this.enforcer = new LocalEnforcer(this.platform, this.scopeService, this.punishments,
+                this.mutes, this.enforcementMessages, this.config, this.channel, clock,
+                this.ranges, environment.logger());
         this.channelReceiver = new ChannelReceiver(this.channel, this.scopeService,
                 this.serverNames, this.punishments, this.enforcer, clock, environment.logger());
         this.punishmentService = new SakuraPunishmentService(this.lifecycle,
@@ -164,11 +190,16 @@ final class CoreComponents {
                 new PunishmentFactory(this.scopeService, this.config, this.players, this.platform,
                         clock),
                 this.mutes, this.enforcer, ActionCheck.ALLOW_ALL, this.events, this.sync);
+        this.syncReceiver = new SyncReceiver(this.punishments, this.enforcer, this.mutes,
+                this.scopeService, this.platform, this.events, this.config, clock,
+                this.allowList, environment.logger());
         this.sweeper = new ExpirySweeper(this.lease, this.punishments, this.mutes, this.enforcer,
-                this.events, this.executors, this.platform, clock, environment.logger());
+                this.sync, this.events, this.executors, this.platform, clock,
+                environment.logger());
         this.loginGate = new LoginGate(this.lifecycle, this.config, this.scopeService,
                 this.punishments, this.players, this.names, this.mutes, this.enforcementMessages,
-                this.notifications, this.events, clock, environment.logger());
+                this.notifications, this.events, clock, this.allowList, this.altService,
+                this.ranges, environment.logger());
         this.chatGate = new ChatGate(this.mutes, new CommandBlacklist(this.config),
                 this.enforcementMessages, this.notifications, this.events, environment.logger());
 
@@ -193,7 +224,10 @@ final class CoreComponents {
                 new HistoryCommands(registrar, runner, pager, targetParser, this.targets,
                         this.punishmentService),
                 new AltCommands(registrar, runner, replies, this.formats, targetParser,
-                        this.targets, this.players)),
+                        this.targets, this.players, clock, this.altService, this.platform,
+                        this.config),
+                new AllowCommands(registrar, runner, replies, this.formats, targetParser,
+                        this.targets, this.allowList, this.names, this.placeholders)),
                 registrar, runner, this.messages);
     }
 
@@ -279,6 +313,26 @@ final class CoreComponents {
 
     ServerNameDetector serverNames() {
         return this.serverNames;
+    }
+
+    ActiveRangeCache ranges() {
+        return this.ranges;
+    }
+
+    AltService altService() {
+        return this.altService;
+    }
+
+    SakuraAllowListService allowList() {
+        return this.allowList;
+    }
+
+    SyncService sync() {
+        return this.sync;
+    }
+
+    SyncReceiver syncReceiver() {
+        return this.syncReceiver;
     }
 
     ProxyChannel channel() {

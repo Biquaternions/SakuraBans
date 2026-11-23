@@ -35,6 +35,16 @@ class RevokeCommandsTest extends CommandTest {
     }
 
     @Test
+    void pardonIsUnbanUnderVanillasName() {
+        this.run(this.console, "ban Steve one");
+
+        this.run(this.console, "pardon Steve appealed");
+
+        Assertions.assertThat(this.active(PunishmentType.BAN)).isZero();
+        Assertions.assertThat(this.console.last()).contains("Unbanned Steve (1)");
+    }
+
+    @Test
     void unwarnRemovesOnlyTheNewestWarning() {
         this.run(this.console, "warn Steve one");
         this.run(this.console, "warn Steve two");

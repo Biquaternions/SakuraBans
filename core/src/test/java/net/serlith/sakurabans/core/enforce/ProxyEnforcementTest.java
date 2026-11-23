@@ -165,6 +165,21 @@ class ProxyEnforcementTest extends ServiceTest {
     }
 
     @Test
+    void proxiesRecordTheAddressOnlyOnServersThatAllowIt() {
+        this.loginGate.check(this.steve()).join();
+        eventually(() -> this.players.profile(STEVE).join().isPresent());
+        Assertions.assertThat(this.players.addresses(STEVE).join()).as("not at login").isEmpty();
+
+        this.loginGate.connected(new LoginAttempt(STEVE, "Steve", this.home, "limbo"));
+        this.loginGate.connected(new LoginAttempt(STEVE, "Steve", this.home, "lobby"));
+
+        eventually(() -> !this.players.addresses(STEVE).join().isEmpty());
+        Assertions.assertThat(this.players.addresses(STEVE).join()).singleElement()
+                .satisfies(record -> Assertions.assertThat(record.lastServer())
+                        .contains("lobby"));
+    }
+
+    @Test
     void serverBansKickOnlyPlayersOnThatServer() {
         final FakeOnlinePlayer onSurvival = this.platform.join(STEVE, "Steve", this.home, null,
                 "survival");

@@ -3,6 +3,7 @@ package net.serlith.sakurabans.core.command;
 import java.util.List;
 import java.util.UUID;
 import net.serlith.sakurabans.core.ServiceTest;
+import net.serlith.sakurabans.core.command.module.AllowCommands;
 import net.serlith.sakurabans.core.command.module.AltCommands;
 import net.serlith.sakurabans.core.command.module.CheckCommands;
 import net.serlith.sakurabans.core.command.module.HistoryCommands;
@@ -47,7 +48,11 @@ public abstract class CommandTest extends ServiceTest {
                 new HistoryCommands(registrar, runner, pager, targetParser, targets,
                         this.service),
                 new AltCommands(registrar, runner, replies, new Formats(this.messages,
-                        this.config), targetParser, targets, this.players)),
+                        this.config), targetParser, targets, this.players, this.clock,
+                        this.altService, this.platform, this.config),
+                new AllowCommands(registrar, runner, replies, new Formats(this.messages,
+                        this.config), targetParser, targets, this.allowList, this.names,
+                        this.placeholders)),
                 registrar, runner, this.messages).install(this.manager);
     }
 

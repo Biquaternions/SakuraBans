@@ -257,8 +257,6 @@ class PunishmentRepositoryTest extends DatabaseTest {
                 Applicability.of(STEVE, this.home, AddressStrictness.NORMAL),
                 List.of(ServerScope.of("lobby")), this.now.get()).join())
                 .as("other scopes don't apply").isEmpty();
-        Assertions.assertThatThrownBy(() -> this.applicable(STEVE, null, AddressStrictness.STERN))
-                .hasCauseInstanceOf(UnsupportedOperationException.class);
     }
 
     private List<Punishment> applicable(final UUID uuid, final @Nullable InetAddress address,

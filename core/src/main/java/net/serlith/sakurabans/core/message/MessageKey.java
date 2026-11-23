@@ -43,6 +43,8 @@ public record MessageKey(String key) {
     public static final MessageKey SCREEN_BAN_TEMPORARY = new MessageKey("screen.ban_temporary");
     public static final MessageKey SCREEN_KICK = new MessageKey("screen.kick");
     public static final MessageKey SCREEN_CHECK_FAILED = new MessageKey("screen.check_failed");
+    public static final MessageKey SCREEN_CONNECTION_LIMIT =
+            new MessageKey("screen.connection_limit");
 
     public static final MessageKey VICTIM_MUTED = new MessageKey("victim.muted");
     public static final MessageKey VICTIM_MUTED_TEMPORARY =
@@ -137,6 +139,12 @@ public record MessageKey(String key) {
             new MessageKey("command.description.kick");
     public static final MessageKey COMMAND_DESCRIPTION_UNBAN =
             new MessageKey("command.description.unban");
+    public static final MessageKey COMMAND_DESCRIPTION_PARDON =
+            new MessageKey("command.description.pardon");
+    public static final MessageKey COMMAND_DESCRIPTION_ALLOW =
+            new MessageKey("command.description.allow");
+    public static final MessageKey COMMAND_DESCRIPTION_UNLINK =
+            new MessageKey("command.description.unlink");
     public static final MessageKey COMMAND_DESCRIPTION_UNMUTE =
             new MessageKey("command.description.unmute");
     public static final MessageKey COMMAND_DESCRIPTION_UNWARN =
@@ -172,8 +180,8 @@ public record MessageKey(String key) {
             new MessageKey("command.unknown_target");
     public static final MessageKey COMMAND_ID_NOT_ALLOWED =
             new MessageKey("command.id_not_allowed");
-    public static final MessageKey COMMAND_RANGE_UNSUPPORTED =
-            new MessageKey("command.range_unsupported");
+    public static final MessageKey COMMAND_RANGE_NO_PERMISSION =
+            new MessageKey("command.range_no_permission");
     public static final MessageKey COMMAND_NO_ADDRESS = new MessageKey("command.no_address");
     public static final MessageKey COMMAND_ADDRESS_NO_PERMISSION =
             new MessageKey("command.address_no_permission");
@@ -261,6 +269,31 @@ public record MessageKey(String key) {
     public static final MessageKey NAMEHISTORY_ENTRY = new MessageKey("namehistory.entry");
     public static final MessageKey LASTUUID_RESULT = new MessageKey("lastuuid.result");
     public static final MessageKey LASTUUID_NONE = new MessageKey("lastuuid.none");
+
+    public static final MessageKey ALLOW_ADDED = new MessageKey("allow.added");
+    public static final MessageKey ALLOW_ALREADY = new MessageKey("allow.already");
+    public static final MessageKey ALLOW_REMOVED = new MessageKey("allow.removed");
+    public static final MessageKey ALLOW_NOT_LISTED = new MessageKey("allow.not_listed");
+    public static final MessageKey ALLOW_TARGET = new MessageKey("allow.target");
+    public static final MessageKey ALLOW_LIST_EMPTY = new MessageKey("allow.list.empty");
+    public static final MessageKey ALLOW_LIST_HEADER = new MessageKey("allow.list.header");
+    public static final MessageKey ALLOW_LIST_ENTRY = new MessageKey("allow.list.entry");
+    public static final MessageKey UNLINK_DONE = new MessageKey("unlink.done");
+    public static final MessageKey UNLINK_NONE = new MessageKey("unlink.none");
+    public static final MessageKey UNLINK_NOT_ADDRESS = new MessageKey("unlink.not_address");
+
+    public static final MessageKey NOTIFY_ALTS_JOIN = new MessageKey("notify.alts.join");
+    public static final MessageKey NOTIFY_ALTS_NAME = new MessageKey("notify.alts.name");
+    public static final MessageKey NOTIFY_ALTS_PUNISHED_NAME =
+            new MessageKey("notify.alts.punished_name");
+
+    public static final MessageKey ALTS_PUNISHED = new MessageKey("alts.punished");
+    public static final MessageKey ALTS_SOURCE = new MessageKey("alts.source");
+    public static final MessageKey IPREPORT_NONE = new MessageKey("ipreport.none");
+    public static final MessageKey IPREPORT_HEADER = new MessageKey("ipreport.header");
+    public static final MessageKey IPREPORT_ENTRY = new MessageKey("ipreport.entry");
+    public static final MessageKey COMMAND_DESCRIPTION_IPREPORT =
+            new MessageKey("command.description.ipreport");
 
     private static final List<MessageKey> ALL = Arrays.stream(MessageKey.class.getDeclaredFields())
             .filter(field -> Modifier.isStatic(field.getModifiers())

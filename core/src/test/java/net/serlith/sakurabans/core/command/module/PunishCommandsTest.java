@@ -138,7 +138,7 @@ class PunishCommandsTest extends CommandTest {
 
         this.console.clear();
         this.run(this.console, "ban 10.0.0.0/8 spam");
-        Assertions.assertThat(this.console.last()).contains("ranges aren't supported");
+        Assertions.assertThat(this.console.last()).contains("Banned 10.0.0.0/8");
     }
 
     @Test

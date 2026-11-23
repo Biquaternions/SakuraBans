@@ -43,6 +43,9 @@ class LoginGateTest extends ServiceTest {
     void lettersInAndRecordsTheConnection() {
         Assertions.assertThat(this.login(STEVE, "Steve", "lobby"))
                 .isInstanceOf(LoginDecision.Allowed.class);
+        // The gate records the connection and loads mutes without waiting for either.
+        eventually(() -> this.players.profile(STEVE).join().isPresent()
+                && this.mutes.loaded(STEVE));
 
         Assertions.assertThat(this.players.profile(STEVE).join()).hasValueSatisfying(profile ->
                 Assertions.assertThat(profile.lastAddress()).contains(this.home));

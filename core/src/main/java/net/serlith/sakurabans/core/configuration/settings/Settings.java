@@ -83,7 +83,7 @@ public record Settings(
     public record Lockdown(boolean persist) {
     }
 
-    public record Notifications(Duration attemptThrottle) {
+    public record Notifications(Duration attemptThrottle, boolean sendToPlayers) {
     }
 
     public record Players(boolean remoteLookup) {

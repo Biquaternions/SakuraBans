@@ -24,6 +24,10 @@ public final class Permissions {
     public static final String ALTS_IPHISTORY = ROOT + "alts.iphistory";
     public static final String ALTS_NAMEHISTORY = ROOT + "alts.namehistory";
     public static final String ALTS_LASTUUID = ROOT + "alts.lastuuid";
+    public static final String ALTS_UNLINK = ROOT + "alts.unlink";
+    public static final String ALTS_NOTIFY = ROOT + "alts.notify";
+    public static final String ALTS_IPREPORT = ROOT + "alts.ipreport";
+    public static final String ADMIN_ALLOW = ROOT + "admin.allow";
 
     private Permissions() {
     }

@@ -160,10 +160,8 @@ public final class SakuraPunishmentService implements PunishmentService {
             local = before.thenCompose(ignored -> this.enforcer.created(punishment));
         }
         if (options.enforcement() == Enforcement.GLOBAL) {
-            if (superseded != null) {
-                this.sync.publish(new SyncPacket.PunishmentRevokePacket(superseded.id()));
-            }
-            this.sync.publish(new SyncPacket.PunishmentEnforcePacket(punishment.id()));
+            this.sync.publish(new SyncPacket.PunishmentEnforcePacket(punishment.id(),
+                    superseded == null ? null : superseded.id()));
         }
         return local.thenApplyAsync(ignored -> {
             this.events.post(new SakuraPunishmentCreatedEvent(punishment, superseded, false));
@@ -250,7 +248,8 @@ public final class SakuraPunishmentService implements PunishmentService {
             final List<CompletableFuture<Void>> local = new ArrayList<>();
             for (final Punishment punishment : revoked) {
                 local.add(this.enforcer.ended(punishment));
-                this.sync.publish(new SyncPacket.PunishmentRevokePacket(punishment.id()));
+                this.sync.publish(new SyncPacket.PunishmentRevokePacket(punishment.id(),
+                        request.visibility()));
             }
             return CompletableFuture.allOf(local.toArray(CompletableFuture[]::new))
                     .thenApplyAsync(ignored -> {

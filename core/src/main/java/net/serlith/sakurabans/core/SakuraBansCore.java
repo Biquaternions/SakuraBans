@@ -4,6 +4,7 @@ import java.time.Duration;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.serlith.sakurabans.api.SakuraBans;
 import net.serlith.sakurabans.api.SakuraBansApi;
+import net.serlith.sakurabans.core.alts.SakuraAllowListService;
 import net.serlith.sakurabans.core.command.SakuraCommands;
 import net.serlith.sakurabans.core.concurrent.Lifecycle;
 import net.serlith.sakurabans.core.concurrent.LifecycleState;
@@ -13,15 +14,18 @@ import net.serlith.sakurabans.core.configuration.ReloadResult;
 import net.serlith.sakurabans.core.enforce.ChannelReceiver;
 import net.serlith.sakurabans.core.enforce.ChatGate;
 import net.serlith.sakurabans.core.enforce.LoginGate;
+import net.serlith.sakurabans.core.enforce.SyncReceiver;
 import net.serlith.sakurabans.core.message.MessageService;
 import net.serlith.sakurabans.core.messaging.ProxyChannel;
 import net.serlith.sakurabans.core.notify.NotificationService;
 import net.serlith.sakurabans.core.platform.LatePlatform;
 import net.serlith.sakurabans.core.platform.Platform;
+import net.serlith.sakurabans.core.punish.ActiveRangeCache;
 import net.serlith.sakurabans.core.punish.ExpirySweeper;
 import net.serlith.sakurabans.core.punish.SakuraPunishmentService;
 import net.serlith.sakurabans.core.scope.ServerNameDetector;
 import net.serlith.sakurabans.core.storage.StorageService;
+import net.serlith.sakurabans.core.sync.SyncService;
 import net.serlith.sakurabans.core.util.BuildConstants;
 
 public final class SakuraBansCore {
@@ -40,7 +44,8 @@ public final class SakuraBansCore {
     public record Services(NotificationService notifications, ExpirySweeper sweeper,
             SakuraPunishmentService punishments, LoginGate loginGate, ChatGate chatGate,
             SakuraCommands commands, ServerNameDetector serverNames, ProxyChannel channel,
-            ChannelReceiver channelReceiver, SakuraApi api) {
+            ChannelReceiver channelReceiver, SyncService sync, SyncReceiver syncReceiver,
+            SakuraAllowListService allowList, ActiveRangeCache ranges, SakuraApi api) {
     }
 
     public SakuraBansCore(final ComponentLogger logger, final Lifecycle lifecycle,
@@ -64,6 +69,9 @@ public final class SakuraBansCore {
             this.services.serverNames().load();
             this.storage.start();
             this.services.channel().load();
+            this.services.allowList().reload().join();
+            this.services.ranges().reload().join();
+            this.services.sync().start(this.services.syncReceiver());
             this.services.notifications().start();
             this.services.sweeper().start();
             SakuraBans.register(this.services.api());
@@ -92,6 +100,7 @@ public final class SakuraBansCore {
             return;
         }
         SakuraBans.unregister(this.services.api());
+        this.services.sync().stop();
         this.services.sweeper().stop();
         this.services.notifications().stop();
         if (!this.executors.shutdown(SHUTDOWN_TIMEOUT)) {

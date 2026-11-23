@@ -23,8 +23,10 @@ import net.serlith.sakurabans.core.fake.FakePlatform;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
 import net.serlith.sakurabans.core.scope.ServerNameDetector;
 import net.serlith.sakurabans.core.storage.DatabaseTest;
+import net.serlith.sakurabans.core.storage.repository.AltPolicy;
 import net.serlith.sakurabans.core.storage.repository.InsertOutcome;
 import net.serlith.sakurabans.core.storage.repository.NewPunishment;
+import net.serlith.sakurabans.core.storage.repository.PlayerRepository;
 import net.serlith.sakurabans.core.storage.repository.PunishmentMapper;
 import net.serlith.sakurabans.core.storage.repository.PunishmentRepository;
 import org.assertj.core.api.Assertions;
@@ -56,7 +58,9 @@ class MuteCacheTest extends DatabaseTest {
                         new ServerNameDetector(this.dir, this.config, Runnable::run,
                                 this.log.logger()),
                         this.log.logger());
-        this.cache = new MuteCache(this.punishments, scopes, this.config, this.clock);
+        this.cache = new MuteCache(this.punishments, scopes, this.config, this.clock,
+                new ActiveRangeCache(this.punishments, new PlayerRepository(this.storage),
+                        AltPolicy.NONE, this.clock));
     }
 
     private Punishment mute(final Victim victim, final Scope scope,

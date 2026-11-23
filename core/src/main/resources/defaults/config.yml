@@ -76,7 +76,8 @@ alts:
   # How long recorded addresses count for alt detection: a duration, or never.
   record-expiration: never
   join-notification:
-    # Whether staff are told about a joining player's alts.
+    # Whether staff (sakurabans.alts.notify) are told about a joining player's alts, at the
+    # configured address strictness. At most once per player per 30 minutes.
     enabled: true
     # Only when one of the alts has an active punishment.
     only-if-punished: true
@@ -85,9 +86,11 @@ alts:
     # The most alts listed in one notice.
     limit: 20
   connection-limiter:
-    # Whether joins from one address are limited.
+    # Whether joins from one address are limited (counted in the database, so across the
+    # network). Allow-listed accounts and addresses aren't limited.
     enabled: false
-    # The most joins from one address within the window.
+    # The most other accounts that may have joined from the address within the window; an
+    # account that joined from it recently is never turned away.
     limit: 5
     window: 10m
 
@@ -138,6 +141,10 @@ notifications:
   # The shortest time between two "tried to join while banned" or "tried to chat while muted"
   # notices about the same player.
   attempt-throttle: 30s
+  # Whether this instance sends staff notices to its players (the console always gets them).
+  # With SakuraBans on the proxy and on the backends and sync on, both would tell the same staff
+  # member: turn this off on one side (the proxy reaches players on every server).
+  send-to-players: true
 
 players:
   # Whether a name SakuraBans has never seen (for example /ban on someone who never joined) is
@@ -149,8 +156,9 @@ players:
 commands:
   # The labels of each command; the first is its name, the rest are aliases. A command left out
   # uses its own name; an empty list ([]) disables it. Changes need a restart.
-  # Commands: sakurabans, ban, tempban, ipban, mute, tempmute, ipmute, warn, kick, unban, unmute,
-  # unwarn, checkban, checkmute, checkwarn, history, staffhistory, warns, banlist, mutelist,
-  # warnlist, alts, iphistory, namehistory, lastuuid.
+  # Commands: sakurabans, ban, tempban, ipban, mute, tempmute, ipmute, warn, kick, unban, pardon
+  # (unban under vanilla's name), unmute, unwarn, checkban, checkmute, checkwarn, history,
+  # staffhistory, warns, banlist, mutelist, warnlist, alts, iphistory, namehistory, lastuuid,
+  # ipreport.
   labels:
     sakurabans: [sakurabans, sb]

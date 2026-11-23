@@ -2,13 +2,19 @@ package net.serlith.sakurabans.core.storage.repository;
 
 import java.net.InetAddress;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import net.serlith.sakurabans.api.audit.AuditAction;
+import net.serlith.sakurabans.api.audit.SubjectType;
+import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.AddressRecord;
 import net.serlith.sakurabans.api.model.NameRecord;
 import net.serlith.sakurabans.api.model.PlayerProfileView;
@@ -18,8 +24,11 @@ import net.serlith.sakurabans.core.model.SakuraPlayerProfileView;
 import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import net.serlith.sakurabans.core.storage.dbo.records.SbPlayersRecord;
+import net.serlith.sakurabans.core.storage.dbo.tables.SbPlayerAddresses;
+import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
+import org.jooq.impl.DSL;
 import org.jspecify.annotations.Nullable;
 
 public final class PlayerRepository {
@@ -129,20 +138,82 @@ public final class PlayerRepository {
                 .fetch(row -> toProfile(row.into(SakuraTables.PLAYERS))));
     }
 
-    public CompletableFuture<Boolean> forgetAddress(final UUID uuid, final InetAddress address) {
+    public CompletableFuture<Integer> forget(final UUID uuid, final @Nullable InetAddress address,
+            final Actor actor, final Instant at) {
         return this.storage.write(configuration -> {
             final DSLContext dsl = configuration.dsl();
-            final int deleted = dsl.deleteFrom(SakuraTables.PLAYER_ADDRESSES)
-                    .where(SakuraTables.PLAYER_ADDRESSES.UUID.eq(uuid))
-                    .and(SakuraTables.PLAYER_ADDRESSES.ADDRESS.eq(address))
-                    .execute();
+            final SbPlayerAddresses known = SakuraTables.PLAYER_ADDRESSES;
+            final Condition which = address == null
+                    ? known.UUID.eq(uuid)
+                    : known.UUID.eq(uuid).and(known.ADDRESS.eq(address));
+            final List<InetAddress> removed = dsl.select(known.ADDRESS).from(known).where(which)
+                    .fetch(known.ADDRESS);
+            if (removed.isEmpty()) {
+                return 0;
+            }
+            dsl.deleteFrom(known).where(which).execute();
+            final Condition last = address == null
+                    ? SakuraTables.PLAYERS.LAST_ADDRESS.isNotNull()
+                    : SakuraTables.PLAYERS.LAST_ADDRESS.eq(address);
             dsl.update(SakuraTables.PLAYERS)
                     .setNull(SakuraTables.PLAYERS.LAST_ADDRESS)
                     .where(SakuraTables.PLAYERS.UUID.eq(uuid))
-                    .and(SakuraTables.PLAYERS.LAST_ADDRESS.eq(address))
+                    .and(last)
                     .execute();
-            return deleted > 0;
+            for (final InetAddress forgotten : removed) {
+                AuditRepository.append(dsl, at, actor, AuditAction.FORGET_ADDRESS,
+                        SubjectType.PLAYER, uuid.toString(), forgotten.getHostAddress(), null);
+            }
+            return removed.size();
         });
+    }
+
+    public record Link(PlayerProfileView account, List<InetAddress> shared) {
+    }
+
+    public CompletableFuture<List<Link>> links(final UUID uuid, final AltPolicy policy,
+            final Instant now) {
+        if (policy.allowedAccounts().contains(uuid)) {
+            return CompletableFuture.completedFuture(List.of());
+        }
+        final SbPlayerAddresses mine = SakuraTables.PLAYER_ADDRESSES.as("sb_mine");
+        final SbPlayerAddresses others = SakuraTables.PLAYER_ADDRESSES.as("sb_others");
+        final List<Condition> conditions = new ArrayList<>(List.of(mine.UUID.eq(uuid),
+                others.UUID.ne(uuid), ApplicabilityConditions.counts(mine, policy, now),
+                ApplicabilityConditions.counts(others, policy, now)));
+        if (!policy.allowedAccounts().isEmpty()) {
+            conditions.add(others.UUID.notIn(policy.allowedAccounts()));
+        }
+        return this.storage.read(dsl -> {
+            final Map<UUID, PlayerProfileView> accounts = new LinkedHashMap<>();
+            final Map<UUID, List<InetAddress>> shared = new HashMap<>();
+            dsl.select(SakuraTables.PLAYERS.fields()).select(others.ADDRESS)
+                    .from(mine)
+                    .join(others).on(others.ADDRESS.eq(mine.ADDRESS))
+                    .join(SakuraTables.PLAYERS).on(SakuraTables.PLAYERS.UUID.eq(others.UUID))
+                    .where(DSL.and(conditions))
+                    .orderBy(SakuraTables.PLAYERS.LAST_SEEN.desc(), others.ADDRESS)
+                    .fetch()
+                    .forEach(row -> {
+                        final PlayerProfileView account =
+                                toProfile(row.into(SakuraTables.PLAYERS));
+                        accounts.putIfAbsent(account.uuid(), account);
+                        shared.computeIfAbsent(account.uuid(), ignored -> new ArrayList<>())
+                                .add(row.get(others.ADDRESS));
+                    });
+            final List<Link> links = new ArrayList<>();
+            accounts.forEach((id, account) ->
+                    links.add(new Link(account, List.copyOf(shared.get(id)))));
+            return List.copyOf(links);
+        });
+    }
+
+    public CompletableFuture<Set<UUID>> seenAt(final InetAddress address, final Instant since) {
+        final SbPlayerAddresses known = SakuraTables.PLAYER_ADDRESSES;
+        return this.storage.read(dsl -> dsl.selectDistinct(known.UUID).from(known)
+                .where(known.ADDRESS.eq(address))
+                .and(known.LAST_SEEN.ge(since))
+                .fetchSet(known.UUID));
     }
 
     private static PlayerProfileView toProfile(final SbPlayersRecord row) {

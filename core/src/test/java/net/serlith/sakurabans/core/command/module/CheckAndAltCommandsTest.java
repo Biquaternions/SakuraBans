@@ -52,7 +52,7 @@ class CheckAndAltCommandsTest extends CommandTest {
         this.run(this.console, "alts Alex");
 
         Assertions.assertThat(this.console.texts().getFirst())
-                .contains("Alex shares addresses with 1 accounts");
+                .contains("Alex has 1 known alts (normal)");
         Assertions.assertThat(this.console.texts().get(1)).contains("Steve2");
     }
 

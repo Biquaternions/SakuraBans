@@ -5,6 +5,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.UnaryOperator;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.serlith.sakurabans.api.model.AddressStrictness;
@@ -104,15 +105,14 @@ public final class HistoryCommands implements CommandModule {
         final CommandActor actor = context.sender();
         final int page = context.<Integer>optional("page").orElse(1);
         return this.targets.resolve(context.get("target")).thenCompose(target -> {
-            final Optional<PunishmentQuery.Applicability> applicability =
-                    this.applicability(actor, target);
-            if (applicability.isEmpty()) {
+            final Optional<UnaryOperator<PunishmentQuery.Builder>> filter =
+                    this.filter(actor, target);
+            if (filter.isEmpty()) {
                 return CompletableFuture.completedFuture(null);
             }
             final String name = targetName(target);
-            return this.punishments.query(PunishmentQuery.builder()
-                            .applicableTo(applicability.get()).page(page).pageSize(PAGE_SIZE)
-                            .build())
+            return this.punishments.query(filter.get().apply(PunishmentQuery.builder())
+                            .page(page).pageSize(PAGE_SIZE).build())
                     .thenAccept(found -> this.pager.punishments(actor,
                             MessageKey.HISTORY_HEADER, Placeholder.unparsed("name", name), found,
                             this.label("history") + " " + name));
@@ -171,14 +171,14 @@ public final class HistoryCommands implements CommandModule {
                     new ResolvedTarget.Player(self.get(), actor.name(), null));
         }
         return target.thenCompose(found -> {
-            final Optional<PunishmentQuery.Applicability> applicability =
-                    this.applicability(actor, found);
-            if (applicability.isEmpty()) {
+            final Optional<UnaryOperator<PunishmentQuery.Builder>> filter =
+                    this.filter(actor, found);
+            if (filter.isEmpty()) {
                 return CompletableFuture.completedFuture(null);
             }
             final String name = targetName(found);
-            return this.punishments.query(PunishmentQuery.builder().types(PunishmentType.WARN)
-                            .applicableTo(applicability.get()).activeOnly(true)
+            return this.punishments.query(filter.get().apply(PunishmentQuery.builder())
+                            .types(PunishmentType.WARN).activeOnly(true)
                             .page(page).pageSize(PAGE_SIZE).build())
                     .thenAccept(result -> this.pager.punishments(actor,
                             MessageKey.WARNS_HEADER, Placeholder.unparsed("name", name), result,
@@ -197,23 +197,22 @@ public final class HistoryCommands implements CommandModule {
                         result, this.label(spec.name())));
     }
 
-    private Optional<PunishmentQuery.Applicability> applicability(final CommandActor actor,
+    /** What a target's history is: what names it, or (a range) that exact range. */
+    private Optional<UnaryOperator<PunishmentQuery.Builder>> filter(final CommandActor actor,
             final ResolvedTarget target) {
         return switch (target) {
-            case ResolvedTarget.Player player -> Optional.of(PunishmentQuery.Applicability.of(
-                    player.uuid(), null, AddressStrictness.LENIENT));
-            case ResolvedTarget.Address address -> Optional.of(
+            case ResolvedTarget.Player player -> Optional.of(query -> query.applicableTo(
+                    PunishmentQuery.Applicability.of(player.uuid(), null,
+                            AddressStrictness.LENIENT)));
+            case ResolvedTarget.Address address -> Optional.of(query -> query.applicableTo(
                     PunishmentQuery.Applicability.of(null, address.address(),
-                            AddressStrictness.LENIENT));
+                            AddressStrictness.LENIENT)));
             case ResolvedTarget.Unknown unknown -> {
                 this.runner.send(actor, MessageKey.COMMAND_UNKNOWN_TARGET,
                         Placeholder.unparsed("input", PunishCommands.inputText(unknown.input())));
                 yield Optional.empty();
             }
-            case ResolvedTarget.Range range -> {
-                this.runner.send(actor, MessageKey.COMMAND_RANGE_UNSUPPORTED);
-                yield Optional.empty();
-            }
+            case ResolvedTarget.Range range -> Optional.of(query -> query.victim(range.range()));
             case ResolvedTarget.PunishmentId id -> {
                 this.runner.send(actor, MessageKey.COMMAND_ID_NOT_ALLOWED);
                 yield Optional.empty();

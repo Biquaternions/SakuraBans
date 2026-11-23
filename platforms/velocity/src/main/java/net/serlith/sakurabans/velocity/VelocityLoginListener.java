@@ -80,6 +80,9 @@ final class VelocityLoginListener {
 
     @Subscribe
     void onServerPostConnect(final ServerPostConnectEvent event) {
+        final Player player = event.getPlayer();
+        player.getCurrentServer().ifPresent(connection -> this.gate.connected(
+                attempt(player, connection.getServerInfo().getName())));
         final Component notice = this.notices.remove(event.getPlayer().getUniqueId());
         if (notice != null) {
             event.getPlayer().sendMessage(notice);

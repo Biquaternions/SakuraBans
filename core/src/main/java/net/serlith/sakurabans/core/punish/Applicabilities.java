@@ -12,11 +12,7 @@ public final class Applicabilities {
     }
 
     public static Applicability of(final UUID uuid, final @Nullable InetAddress address,
-            final AddressStrictness configured) {
-        final AddressStrictness strictness = switch (configured) {
-            case LENIENT, NORMAL -> configured;
-            case STERN, STRICT -> AddressStrictness.NORMAL;
-        };
+            final AddressStrictness strictness) {
         return Applicability.of(uuid, address, strictness);
     }
 }

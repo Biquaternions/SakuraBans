@@ -12,6 +12,8 @@ import net.serlith.sakurabans.api.event.SakuraEvent;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
 import net.serlith.sakurabans.api.model.PlayerOperator;
+import net.serlith.sakurabans.core.alts.AltService;
+import net.serlith.sakurabans.core.alts.SakuraAllowListService;
 import net.serlith.sakurabans.core.concurrent.Lifecycle;
 import net.serlith.sakurabans.core.concurrent.LifecycleState;
 import net.serlith.sakurabans.core.enforce.ChannelReceiver;
@@ -22,6 +24,7 @@ import net.serlith.sakurabans.core.enforce.LocalEnforcer;
 import net.serlith.sakurabans.core.enforce.LoginGate;
 import net.serlith.sakurabans.core.event.SakuraEventBus;
 import net.serlith.sakurabans.core.fake.FakePlatform;
+import net.serlith.sakurabans.core.integration.SakuraIntegrationRegistry;
 import net.serlith.sakurabans.core.message.Formats;
 import net.serlith.sakurabans.core.message.MessageService;
 import net.serlith.sakurabans.core.message.Placeholders;
@@ -30,6 +33,7 @@ import net.serlith.sakurabans.core.notify.NotificationService;
 import net.serlith.sakurabans.core.notify.Throttle;
 import net.serlith.sakurabans.core.player.NameCache;
 import net.serlith.sakurabans.core.punish.ActionCheck;
+import net.serlith.sakurabans.core.punish.ActiveRangeCache;
 import net.serlith.sakurabans.core.punish.ExpirySweeper;
 import net.serlith.sakurabans.core.punish.MuteCache;
 import net.serlith.sakurabans.core.punish.PunishmentFactory;
@@ -38,6 +42,7 @@ import net.serlith.sakurabans.core.scope.SakuraScopeService;
 import net.serlith.sakurabans.core.scope.ServerNameDetector;
 import net.serlith.sakurabans.core.storage.DatabaseTest;
 import net.serlith.sakurabans.core.storage.Lease;
+import net.serlith.sakurabans.core.storage.repository.AllowListRepository;
 import net.serlith.sakurabans.core.storage.repository.MetaRepository;
 import net.serlith.sakurabans.core.storage.repository.PlayerRepository;
 import net.serlith.sakurabans.core.storage.repository.PunishmentMapper;
@@ -83,6 +88,11 @@ public abstract class ServiceTest extends DatabaseTest {
     protected LoginGate loginGate;
     protected ChatGate chatGate;
     protected ExpirySweeper sweeper;
+    protected SyncService syncService;
+    protected SakuraAllowListService allowList;
+    protected AltService altService;
+    protected ActiveRangeCache ranges;
+    protected final SakuraIntegrationRegistry integrations = new SakuraIntegrationRegistry();
     protected InetAddress home;
 
     protected boolean proxy() {
@@ -114,10 +124,19 @@ public abstract class ServiceTest extends DatabaseTest {
         this.scopes = new SakuraScopeService(this.config, this.platform, this.proxy(),
                 this.serverNames, this.log.logger());
         this.players = new PlayerRepository(this.storage);
-        this.punishments =
-                new PunishmentRepository(this.storage, new PunishmentMapper(Long::toString));
+        this.syncService = new SyncService(this.published::add, this.log.logger());
+        this.allowList = new SakuraAllowListService(new AllowListRepository(this.storage),
+                this.syncService, this.config, this.clock);
+        this.allowList.reload().join();
+        this.punishments = new PunishmentRepository(this.storage,
+                new PunishmentMapper(Long::toString), this.allowList);
+        this.altService = new AltService(this.players, this.punishments, this.allowList,
+                this.integrations, this.clock, this.log.logger());
         this.lease = new Lease(this.storage, UUID.randomUUID(), this.clock);
-        this.mutes = new MuteCache(this.punishments, this.scopes, this.config, this.clock);
+        this.ranges = new ActiveRangeCache(this.punishments, this.players, this.allowList,
+                this.clock);
+        this.mutes = new MuteCache(this.punishments, this.scopes, this.config, this.clock,
+                this.ranges);
         this.enforcementMessages =
                 new EnforcementMessages(this.messages, this.placeholders, this.names, this.clock);
         this.notifications = new NotificationService(this.platform, this.messages,
@@ -126,8 +145,9 @@ public abstract class ServiceTest extends DatabaseTest {
         this.notifications.start();
         this.channel = new ProxyChannel(new MetaRepository(this.storage), this.log.logger());
         this.channel.load();
-        this.enforcer = new LocalEnforcer(this.platform, this.scopes, this.players, this.mutes,
-                this.enforcementMessages, this.config, this.channel, this.log.logger());
+        this.enforcer = new LocalEnforcer(this.platform, this.scopes, this.punishments, this.mutes,
+                this.enforcementMessages, this.config, this.channel, this.clock,
+                this.ranges, this.log.logger());
         this.channelReceiver = new ChannelReceiver(this.channel, this.scopes, this.serverNames,
                 this.punishments, this.enforcer, this.clock, this.log.logger());
         this.service = new SakuraPunishmentService(this.lifecycle, this.executors.worker(),
@@ -135,15 +155,16 @@ public abstract class ServiceTest extends DatabaseTest {
                 new PunishmentFactory(this.scopes, this.config, this.players, this.platform,
                         this.clock),
                 this.mutes, this.enforcer, (actor, action) -> this.actionCheck.check(actor, action),
-                this.bus, new SyncService(this.published::add, this.log.logger()));
+                this.bus, this.syncService);
         this.loginGate = new LoginGate(this.lifecycle, this.config, this.scopes,
                 this.punishments, this.players, this.names, this.mutes,
                 this.enforcementMessages, this.notifications, this.bus, this.clock,
-                this.log.logger());
+                this.allowList, this.altService, this.ranges, this.log.logger());
         this.chatGate = new ChatGate(this.mutes, new CommandBlacklist(this.config),
                 this.enforcementMessages, this.notifications, this.bus, this.log.logger());
         this.sweeper = new ExpirySweeper(this.lease, this.punishments, this.mutes, this.enforcer,
-                this.bus, this.executors, this.platform, this.clock, this.log.logger());
+                this.syncService, this.bus, this.executors, this.platform, this.clock,
+                this.log.logger());
         this.lifecycle.advance(LifecycleState.NEW, LifecycleState.CREATED);
         this.lifecycle.advance(LifecycleState.CREATED, LifecycleState.STARTING);
         this.lifecycle.advance(LifecycleState.STARTING, LifecycleState.RUNNING);

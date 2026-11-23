@@ -57,7 +57,7 @@ class LoginQueryPlanIT extends DatabaseTest {
                 PunishmentRepository.activeApplicableQuery(dsl, PunishmentType.BAN,
                         Applicability.of(player, address, AddressStrictness.NORMAL),
                         List.of(GlobalScope.INSTANCE, ServerScope.of("lobby")),
-                        this.now.get())));
+                        this.now.get(), AltPolicy.NONE)));
         final List<String> plan = this.read(dsl -> dsl.connectionResult(connection ->
                 this.container == ContainerDatabase.POSTGRESQL
                         ? postgresPlan(connection, sql)
