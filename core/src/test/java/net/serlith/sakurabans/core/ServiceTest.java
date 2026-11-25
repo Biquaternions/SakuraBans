@@ -19,7 +19,6 @@ import net.serlith.sakurabans.core.admin.SakuraMessageTemplateService;
 import net.serlith.sakurabans.core.admin.SakuraSettingsService;
 import net.serlith.sakurabans.core.alts.AltService;
 import net.serlith.sakurabans.core.alts.SakuraAllowListService;
-import net.serlith.sakurabans.core.appeal.SakuraAppealService;
 import net.serlith.sakurabans.core.auth.SakuraAuthorizationService;
 import net.serlith.sakurabans.core.concurrent.Lifecycle;
 import net.serlith.sakurabans.core.concurrent.LifecycleState;
@@ -62,9 +61,7 @@ import net.serlith.sakurabans.core.storage.DatabaseTest;
 import net.serlith.sakurabans.core.storage.DisplayIdCodec;
 import net.serlith.sakurabans.core.storage.Lease;
 import net.serlith.sakurabans.core.storage.repository.AllowListRepository;
-import net.serlith.sakurabans.core.storage.repository.AppealRepository;
 import net.serlith.sakurabans.core.storage.repository.AuditRepository;
-import net.serlith.sakurabans.core.storage.repository.BanWaveRepository;
 import net.serlith.sakurabans.core.storage.repository.KindRepository;
 import net.serlith.sakurabans.core.storage.repository.LockdownRepository;
 import net.serlith.sakurabans.core.storage.repository.MetaRepository;
@@ -78,7 +75,6 @@ import net.serlith.sakurabans.core.sync.SyncPacket;
 import net.serlith.sakurabans.core.sync.SyncService;
 import net.serlith.sakurabans.core.template.SakuraTemplateService;
 import net.serlith.sakurabans.core.template.TemplateActions;
-import net.serlith.sakurabans.core.wave.SakuraBanWaveService;
 import org.junit.jupiter.api.BeforeEach;
 
 /**
@@ -133,8 +129,6 @@ public abstract class ServiceTest extends DatabaseTest {
     protected LockdownService lockdowns;
     protected SakuraSettingsService settingsService;
     protected SakuraMessageTemplateService messageTemplates;
-    protected SakuraBanWaveService banWaves;
-    protected SakuraAppealService appeals;
     protected SakuraPlayerDataService playerData;
     protected TemplateRepository templateRepository;
     protected SakuraTemplateService templates;
@@ -185,7 +179,7 @@ public abstract class ServiceTest extends DatabaseTest {
         this.punishments = new PunishmentRepository(this.storage,
                 new PunishmentMapper(this.displayIds::display), this.allowList, this.kinds);
         this.altService = new AltService(this.players, this.punishments, this.allowList,
-                this.integrations, this.clock, this.log.logger());
+                this.clock);
         this.lease = new Lease(this.storage, UUID.randomUUID(), this.clock);
         this.ranges = new ActiveRangeCache(this.punishments, this.players, this.allowList,
                 this.clock);
@@ -224,8 +218,8 @@ public abstract class ServiceTest extends DatabaseTest {
         this.templateRepository = new TemplateRepository(this.storage, this.allowList);
         this.templates = new SakuraTemplateService(this.templateRepository,
                 new MetaRepository(this.storage), new TemplateFiles(this.dir), this.kinds,
-                this.integrations, (actor, action) -> this.actionCheck.check(actor, action),
-                this.syncService, this.bus, this.clock, this.log.logger());
+                (actor, action) -> this.actionCheck.check(actor, action), this.syncService,
+                this.bus, this.clock, this.log.logger());
         this.templates.reload().join();
         this.templateActions = new TemplateActions(this.bus, this.templates, this.platform,
                 this.names, this.log.logger());
@@ -239,12 +233,6 @@ public abstract class ServiceTest extends DatabaseTest {
                         this.clock, this.templates, this.kinds),
                 this.mutes, this.enforcer, (actor, action) -> this.actionCheck.check(actor, action),
                 this.limits, this.exemption, this.bus, this.syncService, this.displayIds);
-        this.banWaves = new SakuraBanWaveService(new BanWaveRepository(this.storage),
-                this.service, (actor, action) -> this.actionCheck.check(actor, action),
-                this.syncService, this.bus, this.clock, this.log.logger());
-        this.appeals = new SakuraAppealService(new AppealRepository(this.storage), this.service,
-                (actor, action) -> this.actionCheck.check(actor, action), this.notifications,
-                this.names, this.syncService, this.bus, this.clock);
         this.playerData = new SakuraPlayerDataService(new PlayerDataRepository(this.storage,
                 new PunishmentMapper(this.displayIds::display)), this.players,
                 new AuditRepository(this.storage), this.allowList, this.mutes, this.names,
@@ -253,8 +241,7 @@ public abstract class ServiceTest extends DatabaseTest {
         this.loginGate = new LoginGate(this.lifecycle, this.config, this.scopes,
                 this.punishments, this.players, this.names, this.mutes,
                 this.enforcementMessages, this.notifications, this.bus, this.clock,
-                this.allowList, this.altService, this.ranges, this.enforcer, this.lockdowns,
-                this.log.logger());
+                this.altService, this.ranges, this.enforcer, this.lockdowns, this.log.logger());
         this.chatGate = new ChatGate(this.mutes, new CommandBlacklist(this.config),
                 this.enforcementMessages, this.notifications, this.bus, this.log.logger());
         this.sweeper = new ExpirySweeper(this.lease, this.punishments, this.mutes, this.enforcer,
@@ -269,9 +256,9 @@ public abstract class ServiceTest extends DatabaseTest {
     protected final SyncReceiver syncReceiver() {
         return new SyncReceiver(this.punishments, this.enforcer, this.mutes, this.scopes,
                 this.platform, this.bus, this.config, this.clock, this.allowList,
-                this.templates, this.kinds, this.lockdowns, this.notifications,
-                this.settingsService, this.messageTemplates, this.banWaves, this.appeals,
-                this.playerData, this.log.logger());
+                this.templates, this.kinds, this.lockdowns, this.settingsService,
+                this.messageTemplates, this.playerData,
+                this.log.logger());
     }
 
     protected static String plain(final Component component) {

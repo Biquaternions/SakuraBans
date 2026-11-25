@@ -35,23 +35,11 @@ public enum AuditAction {
     /** Evidence was detached. */
     EVIDENCE_DETACH,
 
-    /** An entity (kind, template, settings, message, ban wave) was changed. */
+    /** An entity (kind, template, settings, message) was changed. */
     UPDATE,
 
     /** An entity was deleted. */
     DELETE,
-
-    /** A ban wave was scheduled or unscheduled. */
-    SCHEDULE,
-
-    /** A ban wave was released. */
-    RELEASE,
-
-    /** A ban wave was cancelled. */
-    CANCEL,
-
-    /** An appeal was decided. */
-    DECIDE,
 
     /** An address was removed from a player's history. */
     FORGET_ADDRESS,

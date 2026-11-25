@@ -121,12 +121,12 @@ class MessageServiceTest {
     void addressesAreCensoredUnlessAllowed() throws Exception {
         final Victim address = AddressVictim.of(InetAddress.getByName("203.0.113.7"));
 
-        assertThat(this.placeholders.victim(address, uuid -> Optional.empty(), false))
+        assertThat(this.placeholders.victim(address, Locale.US, uuid -> Optional.empty(), false))
                 .isEqualTo("203.0.*.*");
-        assertThat(this.placeholders.victim(address, uuid -> Optional.empty(), true))
+        assertThat(this.placeholders.victim(address, Locale.US, uuid -> Optional.empty(), true))
                 .isEqualTo("203.0.113.7");
-        assertThat(this.placeholders.victim(PlayerVictim.of(STEVE), uuid -> Optional.empty(),
-                true)).isEqualTo(STEVE.toString());
+        assertThat(this.placeholders.victim(PlayerVictim.of(STEVE), Locale.US,
+                uuid -> Optional.empty(), true)).isEqualTo(STEVE.toString());
     }
 
     @Test

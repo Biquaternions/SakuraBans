@@ -15,8 +15,6 @@ import net.serlith.sakurabans.api.auth.Decision;
 import net.serlith.sakurabans.api.event.ChangeType;
 import net.serlith.sakurabans.api.event.EntityChangedEvent;
 import net.serlith.sakurabans.api.event.TemplateStepEvent;
-import net.serlith.sakurabans.api.integration.EvidenceCapturer;
-import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.EvidenceRef;
 import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.Punishment;
@@ -26,11 +24,11 @@ import net.serlith.sakurabans.api.punish.PunishOptions;
 import net.serlith.sakurabans.api.punish.PunishResult;
 import net.serlith.sakurabans.api.punish.RevocationRequest;
 import net.serlith.sakurabans.api.punish.RevocationTarget;
-import net.serlith.sakurabans.api.template.TemplateDefinition;
 import net.serlith.sakurabans.api.template.TemplateInfo;
 import net.serlith.sakurabans.api.template.TemplateStep;
 import net.serlith.sakurabans.core.ServiceTest;
 import net.serlith.sakurabans.core.configuration.TemplateFiles;
+import net.serlith.sakurabans.core.model.TemplateDefinition;
 import net.serlith.sakurabans.core.sync.SyncPacket;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -159,40 +157,19 @@ class SakuraTemplateServiceTest extends ServiceTest {
     }
 
     @Test
-    void evidenceIsCapturedAndRequired() {
+    void evidenceIsRequired() {
         this.create(template("chat", "ban")
-                .captureEvidence(Set.of("hydra:chat-snapshot"))
                 .requiredEvidence(Set.of("hydra:chat-snapshot")).build());
 
         Assertions.assertThat(this.punish(STEVE, "chat")).isInstanceOfSatisfying(
                 PunishResult.Failure.class, failure -> Assertions.assertThat(failure.reason())
                         .isEqualTo(PunishResult.Failure.Reason.EVIDENCE_REQUIRED));
 
-        this.integrations.register(new EvidenceCapturer() {
-            @Override
-            public String type() {
-                return "hydra:chat-snapshot";
-            }
-
-            @Override
-            public CompletableFuture<EvidenceRef> capture(final UUID target, final Actor actor) {
-                return CompletableFuture.completedFuture(
-                        EvidenceRef.of("hydra:chat-snapshot:" + target));
-            }
-        });
-        this.integrations.register(new EvidenceCapturer() {
-            @Override
-            public String type() {
-                return "hydra:chat-snapshot";
-            }
-
-            @Override
-            public CompletableFuture<EvidenceRef> capture(final UUID target, final Actor actor) {
-                throw new IllegalStateException("broken capturer");
-            }
-        });
-
-        Assertions.assertThat(this.punish(STEVE, "chat")).isInstanceOfSatisfying(
+        final PunishResult withEvidence = this.service.punish(DraftPunishment.builder(
+                PunishmentType.BAN, PlayerVictim.of(STEVE), MODERATOR).template("chat")
+                .evidence(List.of(EvidenceRef.of("hydra:chat-snapshot:" + STEVE))).build(),
+                PunishOptions.defaults()).join();
+        Assertions.assertThat(withEvidence).isInstanceOfSatisfying(
                 PunishResult.Success.class, success -> Assertions.assertThat(
                         success.punishment().evidence()).singleElement().satisfies(evidence ->
                         Assertions.assertThat(evidence.ref().uri())

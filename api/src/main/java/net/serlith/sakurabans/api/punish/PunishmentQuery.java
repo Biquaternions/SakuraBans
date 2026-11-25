@@ -312,6 +312,8 @@ public interface PunishmentQuery {
 
         /**
          * Restricts to one victim. Can't be combined with {@link #applicableTo(Applicability)}.
+         * An {@code AddressVictim} or {@code CompositeVictim} also finds its erased form (an
+         * {@code ErasedAddressVictim} with the hash of that address).
          *
          * @param victim the victim, or {@code null} for any
          * @return this builder

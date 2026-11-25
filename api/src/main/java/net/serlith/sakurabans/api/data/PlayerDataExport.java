@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import net.serlith.sakurabans.api.allow.AllowEntry;
-import net.serlith.sakurabans.api.appeal.Appeal;
 import net.serlith.sakurabans.api.audit.AuditEntry;
 import net.serlith.sakurabans.api.model.AddressRecord;
 import net.serlith.sakurabans.api.model.NameRecord;
@@ -72,13 +71,6 @@ public interface PlayerDataExport {
      * @return the entries
      */
     List<AllowEntry> allowEntries();
-
-    /**
-     * Its appeals.
-     *
-     * @return the appeals
-     */
-    List<Appeal> appeals();
 
     /**
      * Audit entries about it or by it.

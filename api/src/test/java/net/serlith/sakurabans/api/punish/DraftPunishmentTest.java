@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.UUID;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
+import net.serlith.sakurabans.api.model.ErasedAddressVictim;
 import net.serlith.sakurabans.api.model.EvidenceRef;
 import net.serlith.sakurabans.api.model.Lengths;
 import net.serlith.sakurabans.api.model.PlayerVictim;
@@ -57,6 +58,15 @@ class DraftPunishmentTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> ban().duration(Duration.ofSeconds(-1)).build())
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void anErasedAddressCantBePunishedAgain() {
+        final DraftPunishment.Builder builder = DraftPunishment.builder(PunishmentType.BAN,
+                ErasedAddressVictim.of("0".repeat(64), null), CONSOLE);
+
+        assertThat(builder.validate()).extracting(FieldError::path, FieldError::code)
+                .containsExactly(tuple("victim", Code.NOT_ALLOWED));
     }
 
     @Test

@@ -5,6 +5,7 @@ import java.util.UUID;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import net.serlith.sakurabans.core.storage.dbo.VictimKind;
 import org.jooq.impl.UpdatableRecordImpl;
+import org.jspecify.annotations.Nullable;
 
 public final class SbVictimsRecord extends UpdatableRecordImpl<SbVictimsRecord> {
 
@@ -42,11 +43,11 @@ public final class SbVictimsRecord extends UpdatableRecordImpl<SbVictimsRecord> 
         return this;
     }
 
-    public byte[] address() {
+    public byte @Nullable [] address() {
         return this.get(SakuraTables.VICTIMS.ADDRESS);
     }
 
-    public SbVictimsRecord address(final byte[] value) {
+    public SbVictimsRecord address(final byte @Nullable [] value) {
         this.set(SakuraTables.VICTIMS.ADDRESS, value);
         return this;
     }
@@ -57,6 +58,15 @@ public final class SbVictimsRecord extends UpdatableRecordImpl<SbVictimsRecord> 
 
     public SbVictimsRecord prefixLength(final Short value) {
         this.set(SakuraTables.VICTIMS.PREFIX_LENGTH, value);
+        return this;
+    }
+
+    public byte[] addressHash() {
+        return this.get(SakuraTables.VICTIMS.ADDRESS_HASH);
+    }
+
+    public SbVictimsRecord addressHash(final byte[] value) {
+        this.set(SakuraTables.VICTIMS.ADDRESS_HASH, value);
         return this;
     }
 }

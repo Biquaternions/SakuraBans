@@ -72,8 +72,7 @@ public interface Kind extends Versioned {
     boolean permanentOnly();
 
     /**
-     * Evidence types its punishments must have (captured by an
-     * {@link net.serlith.sakurabans.api.integration.EvidenceCapturer} if missing).
+     * Evidence types its punishments must have.
      *
      * @return the evidence types, possibly empty
      */

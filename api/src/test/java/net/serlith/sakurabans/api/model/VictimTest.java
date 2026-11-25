@@ -140,4 +140,23 @@ class VictimTest {
         assertThatThrownBy(() -> CompositeVictim.of(UUID_A, null))
                 .isInstanceOf(NullPointerException.class);
     }
+
+    @Test
+    void anErasedAddressKeepsItsHashInLowerCase() {
+        final String hash = "AB".repeat(32);
+
+        final ErasedAddressVictim erased = ErasedAddressVictim.of(hash, UUID_A);
+
+        assertThat(erased.hash()).isEqualTo("ab".repeat(32));
+        assertThat(erased.uuid()).contains(UUID_A);
+        assertThat(ErasedAddressVictim.of(hash, null).uuid()).isEmpty();
+        assertThat(erased).isEqualTo(ErasedAddressVictim.of("ab".repeat(32), UUID_A));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "abc", "zz"})
+    void anErasedAddressNeedsSixtyFourHexDigits(final String prefix) {
+        assertThatThrownBy(() -> ErasedAddressVictim.of(prefix + "0".repeat(60), null))
+                .isInstanceOf(net.serlith.sakurabans.api.validation.ValidationException.class);
+    }
 }

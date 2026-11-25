@@ -14,11 +14,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
-import net.serlith.sakurabans.api.template.TemplateDefinition;
 import net.serlith.sakurabans.api.template.TemplateInfo;
 import net.serlith.sakurabans.api.template.TemplateStep;
 import net.serlith.sakurabans.api.validation.FieldError;
 import net.serlith.sakurabans.api.validation.ValidationException;
+import net.serlith.sakurabans.core.model.TemplateDefinition;
 import net.serlith.sakurabans.core.util.Durations;
 import org.jspecify.annotations.Nullable;
 import org.spongepowered.configurate.ConfigurationNode;
@@ -33,7 +33,7 @@ public final class TemplateFiles {
             DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(ZoneOffset.UTC);
     private static final Set<String> KEYS = Set.of("kind", "reason", "ladder", "ladder-expiry",
             "address-shared", "permission-required", "actions", "step-actions", "groups",
-            "required-evidence", "capture-evidence");
+            "required-evidence");
 
     private final Path dataDirectory;
 
@@ -148,8 +148,6 @@ public final class TemplateFiles {
         final Boolean permissionRequired = flag(node.node("permission-required"), path, errors);
         final List<String> required =
                 strings(node.node("required-evidence"), path + ".required-evidence", errors);
-        final List<String> capture =
-                strings(node.node("capture-evidence"), path + ".capture-evidence", errors);
         if (errors.size() > before) {
             return Optional.empty();
         }
@@ -161,8 +159,7 @@ public final class TemplateFiles {
                 .permissionRequired(Boolean.TRUE.equals(permissionRequired))
                 .actions(actions)
                 .groups(groups)
-                .requiredEvidence(Set.copyOf(required))
-                .captureEvidence(Set.copyOf(capture));
+                .requiredEvidence(Set.copyOf(required));
         final List<FieldError> problems = builder.validate();
         if (!problems.isEmpty()) {
             report(errors, path, problems);
@@ -273,8 +270,6 @@ public final class TemplateFiles {
         });
         node.node("required-evidence").setList(String.class,
                 template.requiredEvidence().stream().sorted().toList());
-        node.node("capture-evidence").setList(String.class,
-                template.captureEvidence().stream().sorted().toList());
     }
 
     private static String describe(final Exception e) {

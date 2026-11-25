@@ -58,14 +58,6 @@ public interface TemplateInfo extends Versioned {
     Set<String> requiredEvidence();
 
     /**
-     * Evidence types captured automatically when a punishment from this template is created,
-     * through the registered {@link net.serlith.sakurabans.api.integration.EvidenceCapturer}s.
-     *
-     * @return the types, possibly empty
-     */
-    Set<String> captureEvidence();
-
-    /**
      * How long a punishment counts towards the ladder (LiteBans' {@code expire_ladder}): older
      * ones are left out when the step is counted.
      *

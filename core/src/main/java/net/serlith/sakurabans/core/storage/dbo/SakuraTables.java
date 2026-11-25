@@ -5,10 +5,7 @@ import java.util.List;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbActivePunishments;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbAllowedAddresses;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbAllowedPlayers;
-import net.serlith.sakurabans.core.storage.dbo.tables.SbAppeals;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbAuditLog;
-import net.serlith.sakurabans.core.storage.dbo.tables.SbBanWaveEntries;
-import net.serlith.sakurabans.core.storage.dbo.tables.SbBanWaves;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbKinds;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbLockdowns;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbMessageOverrides;
@@ -52,9 +49,6 @@ public final class SakuraTables {
     public static SbAllowedAddresses ALLOWED_ADDRESSES;
     public static SbLockdowns LOCKDOWNS;
     public static SbSyncMessages SYNC_MESSAGES;
-    public static SbBanWaves BAN_WAVES;
-    public static SbBanWaveEntries BAN_WAVE_ENTRIES;
-    public static SbAppeals APPEALS;
     public static SbSettingOverrides SETTING_OVERRIDES;
     public static SbMessageOverrides MESSAGE_OVERRIDES;
 
@@ -99,9 +93,6 @@ public final class SakuraTables {
         ALLOWED_ADDRESSES = new SbAllowedAddresses(tablePrefix);
         LOCKDOWNS = new SbLockdowns(tablePrefix);
         SYNC_MESSAGES = new SbSyncMessages(tablePrefix);
-        BAN_WAVES = new SbBanWaves(tablePrefix);
-        BAN_WAVE_ENTRIES = new SbBanWaveEntries(tablePrefix);
-        APPEALS = new SbAppeals(tablePrefix);
         SETTING_OVERRIDES = new SbSettingOverrides(tablePrefix);
         MESSAGE_OVERRIDES = new SbMessageOverrides(tablePrefix);
         SakuraTables.database = new SakuraDatabase(schemaName, new SakuraCatalog(), all());
@@ -145,9 +136,6 @@ public final class SakuraTables {
                 ALLOWED_ADDRESSES,
                 LOCKDOWNS,
                 SYNC_MESSAGES,
-                BAN_WAVES,
-                BAN_WAVE_ENTRIES,
-                APPEALS,
                 SETTING_OVERRIDES,
                 MESSAGE_OVERRIDES);
     }

@@ -72,6 +72,10 @@ public final class MuteCache {
         final Set<Scope> scopes = this.scopes.localScopes();
         return this.punishments.activeApplicable(PunishmentType.MUTE,
                         Applicabilities.of(uuid, address, strictness), scopes, now)
+                .thenCompose(mutes -> address == null
+                        ? CompletableFuture.completedFuture(mutes)
+                        : this.punishments.restoreErased(mutes, uuid, address)
+                                .thenApply(restored -> restored.orElse(mutes)))
                 .thenCompose(mutes -> this.ranges.matching(PunishmentType.MUTE, uuid, address,
                                 strictness, scopes, now)
                         .thenAccept(ranged -> {
@@ -129,6 +133,12 @@ public final class MuteCache {
                 loads.add(this.load(uuid, entry.address()));
             }
         });
+        return CompletableFuture.allOf(loads.toArray(CompletableFuture[]::new));
+    }
+
+    public CompletableFuture<Void> reloadAll() {
+        final List<CompletableFuture<Void>> loads = new ArrayList<>();
+        this.entries.forEach((uuid, entry) -> loads.add(this.load(uuid, entry.address())));
         return CompletableFuture.allOf(loads.toArray(CompletableFuture[]::new));
     }
 

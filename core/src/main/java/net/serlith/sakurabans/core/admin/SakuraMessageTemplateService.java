@@ -22,11 +22,7 @@ import net.serlith.sakurabans.api.admin.AdminResult;
 import net.serlith.sakurabans.api.audit.SubjectType;
 import net.serlith.sakurabans.api.auth.Action;
 import net.serlith.sakurabans.api.event.ChangeType;
-import net.serlith.sakurabans.api.message.MessageField;
-import net.serlith.sakurabans.api.message.MessageSnapshot;
-import net.serlith.sakurabans.api.message.MessageTemplateService;
 import net.serlith.sakurabans.api.model.Actor;
-import net.serlith.sakurabans.api.settings.ValueOrigin;
 import net.serlith.sakurabans.api.validation.FieldError;
 import net.serlith.sakurabans.core.event.SakuraEventBus;
 import net.serlith.sakurabans.core.event.SakuraOverridesChangedEvents;
@@ -34,14 +30,13 @@ import net.serlith.sakurabans.core.message.MessageKey;
 import net.serlith.sakurabans.core.message.MessageService;
 import net.serlith.sakurabans.core.model.ApiValues;
 import net.serlith.sakurabans.core.model.SakuraAdminResult;
-import net.serlith.sakurabans.core.model.SakuraSettings;
 import net.serlith.sakurabans.core.punish.ActionCheck;
 import net.serlith.sakurabans.core.storage.repository.OverrideRepository;
 import net.serlith.sakurabans.core.sync.SyncPacket;
 import net.serlith.sakurabans.core.sync.SyncService;
 import org.jspecify.annotations.Nullable;
 
-public final class SakuraMessageTemplateService implements MessageTemplateService {
+public final class SakuraMessageTemplateService {
 
     private static final Pattern TAG = Pattern.compile("<([a-z_]+)>");
     private static final int MAX_TEXT = 4096;
@@ -82,7 +77,6 @@ public final class SakuraMessageTemplateService implements MessageTemplateServic
                         true)));
     }
 
-    @Override
     public List<MessageField> schema() {
         final List<MessageField> cached = this.schema.get();
         if (cached != null) {
@@ -92,7 +86,7 @@ public final class SakuraMessageTemplateService implements MessageTemplateServic
         final List<MessageField> fields = new ArrayList<>();
         for (final MessageKey key : MessageKey.all()) {
             final String text = english.getOrDefault(key.key(), "");
-            fields.add(new SakuraSettings.Message(key.key(), placeholders(text), text,
+            fields.add(new MessageField(key.key(), placeholders(text), text,
                     key.key()));
         }
         final List<MessageField> all = List.copyOf(fields);
@@ -112,7 +106,6 @@ public final class SakuraMessageTemplateService implements MessageTemplateServic
         return List.copyOf(names);
     }
 
-    @Override
     public MessageSnapshot messages(final Locale locale) {
         final Map<String, String> texts = new LinkedHashMap<>();
         final Map<String, ValueOrigin> origins = new LinkedHashMap<>();
@@ -124,10 +117,9 @@ public final class SakuraMessageTemplateService implements MessageTemplateServic
                     : this.messages.fileText(key.key(), locale).isPresent()
                             ? ValueOrigin.FILE : ValueOrigin.DEFAULT);
         }
-        return new SakuraSettings.Messages(this.version.get(), locale, texts, origins);
+        return new MessageSnapshot(this.version.get(), locale, texts, origins);
     }
 
-    @Override
     public CompletableFuture<AdminResult<MessageSnapshot>> update(final Locale locale,
             final Map<String, String> patch, final long expectedVersion, final Actor actor) {
         final Map<String, @Nullable String> changes = new HashMap<>();
@@ -146,7 +138,6 @@ public final class SakuraMessageTemplateService implements MessageTemplateServic
         return this.change(locale, changes, errors, expectedVersion, actor);
     }
 
-    @Override
     public CompletableFuture<AdminResult<MessageSnapshot>> reset(final Locale locale,
             final Set<String> keys, final long expectedVersion, final Actor actor) {
         final Map<String, @Nullable String> changes = new HashMap<>();
@@ -159,7 +150,6 @@ public final class SakuraMessageTemplateService implements MessageTemplateServic
         return this.change(locale, changes, errors, expectedVersion, actor);
     }
 
-    @Override
     public Component preview(final String text, final Map<String, String> sample) {
         final List<TagResolver> resolvers = new ArrayList<>();
         sample.forEach((name, value) -> resolvers.add(Placeholder.unparsed(name, value)));

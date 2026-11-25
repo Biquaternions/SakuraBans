@@ -2,11 +2,9 @@ package net.serlith.sakurabans.api.event;
 
 import java.util.Locale;
 import java.util.Optional;
-import net.serlith.sakurabans.api.appeal.Appeal;
 import net.serlith.sakurabans.api.kind.Kind;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.template.TemplateInfo;
-import net.serlith.sakurabans.api.wave.BanWave;
 
 /**
  * After an administrative entity was created, changed or deleted, so UIs can refresh and caches
@@ -16,8 +14,7 @@ import net.serlith.sakurabans.api.wave.BanWave;
  */
 public sealed interface EntityChangedEvent extends SyncedEvent permits
         EntityChangedEvent.KindChanged, EntityChangedEvent.TemplateChanged,
-        EntityChangedEvent.SettingsChanged, EntityChangedEvent.MessagesChanged,
-        EntityChangedEvent.BanWaveChanged, EntityChangedEvent.AppealChanged {
+        EntityChangedEvent.SettingsChanged, EntityChangedEvent.MessagesChanged {
 
     /**
      * How it changed.
@@ -90,31 +87,5 @@ public sealed interface EntityChangedEvent extends SyncedEvent permits
          * @return the locale
          */
         Locale locale();
-    }
-
-    /**
-     * A ban wave changed (including its status).
-     */
-    non-sealed interface BanWaveChanged extends EntityChangedEvent {
-
-        /**
-         * The wave as it is now.
-         *
-         * @return the wave, or empty if deleted
-         */
-        Optional<BanWave> wave();
-    }
-
-    /**
-     * An appeal was submitted or decided.
-     */
-    non-sealed interface AppealChanged extends EntityChangedEvent {
-
-        /**
-         * The appeal as it is now.
-         *
-         * @return the appeal
-         */
-        Appeal appeal();
     }
 }

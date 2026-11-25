@@ -30,7 +30,7 @@ class LayeringTest {
             List.of("configuration", "message", "storage"),
             List.of("permission", "event", "sync", "player", "scope", "messaging"),
             List.of("punish", "kind", "auth", "audit", "alts", "template", "limit", "notify",
-                    "admin", "wave", "appeal", "data"),
+                    "admin", "data"),
             List.of("enforce", "importer"),
             List.of("command"),
             List.of("", "bootstrap"));

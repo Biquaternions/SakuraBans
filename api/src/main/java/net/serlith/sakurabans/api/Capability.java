@@ -18,21 +18,6 @@ public enum Capability {
     /** Voiding punishments that were a mistake. */
     VOID,
 
-    /** Creating, updating and deleting templates through the API. */
-    TEMPLATE_EDITING,
-
-    /** Reading and overriding network-wide settings through the API. */
-    SETTINGS_EDITING,
-
-    /** Reading and overriding message templates through the API. */
-    MESSAGE_EDITING,
-
-    /** Ban waves. */
-    BAN_WAVES,
-
-    /** Appeals. */
-    APPEALS,
-
     /** Player summaries, staff statistics and histograms. */
     STATS,
 

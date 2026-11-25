@@ -85,14 +85,6 @@ alts:
     threshold: 2
     # The most alts listed in one notice.
     limit: 20
-  connection-limiter:
-    # Whether joins from one address are limited (counted in the database, so across the
-    # network). Allow-listed accounts and addresses aren't limited.
-    enabled: false
-    # The most other accounts that may have joined from the address within the window; an
-    # account that joined from it recently is never turned away.
-    limit: 5
-    window: 10m
 
 reasons:
   # The reason used when none is given.
@@ -174,7 +166,7 @@ commands:
   # Commands: sakurabans, ban, tempban, ipban, mute, tempmute, ipmute, warn, kick, unban, pardon
   # (unban under vanilla's name), unmute, unwarn, checkban, checkmute, checkwarn, history,
   # staffhistory, warns, banlist, mutelist, warnlist, alts, iphistory, namehistory, lastuuid,
-  # ipreport, lockdown, staffrollback, prunehistory, banwave, appeal, appeals.
+  # ipreport, lockdown, staffrollback, prunehistory.
   labels:
     sakurabans: [sakurabans, sb]
   # Punish commands for punishment kinds: the kind's id, its base type (ban, mute, warn or kick)

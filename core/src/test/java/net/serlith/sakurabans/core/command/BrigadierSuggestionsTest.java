@@ -5,7 +5,7 @@ import com.mojang.brigadier.suggestion.Suggestion;
 import java.util.List;
 import java.util.UUID;
 import net.serlith.sakurabans.api.model.PunishmentType;
-import net.serlith.sakurabans.api.template.TemplateDefinition;
+import net.serlith.sakurabans.core.model.TemplateDefinition;
 import net.serlith.sakurabans.core.permission.Permissions;
 import org.assertj.core.api.Assertions;
 import org.incendo.cloud.Command;

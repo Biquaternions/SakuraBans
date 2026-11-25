@@ -34,6 +34,7 @@ public final class PunishFlags {
     public static final String TEMPLATE = "template";
     public static final String REASON = "reason";
     public static final String DURATION = "duration";
+    public static final String VOID = "void";
 
     private final ScopeParser scopes;
 
@@ -137,6 +138,11 @@ public final class PunishFlags {
         return CommandFlag.<CommandActor>builder(DURATION).withAliases("d")
                 .withComponent(DurationParser.descriptor())
                 .build();
+    }
+
+    // No flag permission: the revoke command checks the void permission and replies itself.
+    public CommandFlag<Void> voidFlag() {
+        return CommandFlag.<CommandActor>builder(VOID).build();
     }
 
     public CommandFlag<Void> skip(final PunishmentType type) {

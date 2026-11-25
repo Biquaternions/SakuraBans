@@ -8,6 +8,7 @@ import net.serlith.sakurabans.api.model.CategoryScope;
 import net.serlith.sakurabans.api.model.CompositeVictim;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
 import net.serlith.sakurabans.api.model.CustomOperator;
+import net.serlith.sakurabans.api.model.ErasedAddressVictim;
 import net.serlith.sakurabans.api.model.GlobalScope;
 import net.serlith.sakurabans.api.model.Operator;
 import net.serlith.sakurabans.api.model.PlayerOperator;
@@ -36,6 +37,8 @@ public final class ApiValues {
                     CompositeVictim.of(composite.uuid(), composite.address());
             case AddressRangeVictim range ->
                     AddressRangeVictim.of(range.network(), range.prefixLength());
+            case ErasedAddressVictim erased ->
+                    ErasedAddressVictim.of(erased.hash(), erased.uuid().orElse(null));
         };
     }
 

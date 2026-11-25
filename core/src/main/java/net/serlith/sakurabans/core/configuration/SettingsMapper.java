@@ -237,15 +237,11 @@ final class SettingsMapper {
         this.check(join.threshold() >= 1, "alts.join-notification.threshold",
                 "must be at least 1");
         this.check(join.limit() >= 1, "alts.join-notification.limit", "must be at least 1");
-        final var limiter = alts.connectionLimiter();
-        this.check(limiter.limit() >= 1, "alts.connection-limiter.limit", "must be at least 1");
         return new Settings.Alts(alts.registerOnConnection(), Set.copyOf(servers),
                 this.durationOrNever("alts.record-expiration", alts.recordExpiration())
                         .orElse(null),
                 new Settings.JoinNotification(join.enabled(), join.onlyIfPunished(),
-                        join.threshold(), join.limit()),
-                new Settings.ConnectionLimiter(limiter.enabled(), limiter.limit(),
-                        limiter.window()));
+                        join.threshold(), join.limit()));
     }
 
     private Settings.Reasons reasons(final ReasonsSection reasons) {

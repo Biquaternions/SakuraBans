@@ -18,6 +18,7 @@ import net.serlith.sakurabans.api.event.ChangeType;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.Operator;
 import net.serlith.sakurabans.api.model.Visibility;
+import net.serlith.sakurabans.core.model.SakuraPlayerData;
 import net.serlith.sakurabans.core.model.ValueCodec;
 
 public final class PacketCodec {
@@ -32,7 +33,6 @@ public final class PacketCodec {
     private static final int EXPUNGED = 6;
     private static final int EVIDENCE = 7;
     private static final int LOCKDOWN = 8;
-    private static final int BROADCAST = 9;
     private static final int ROLLED_BACK = 10;
     private static final int ERASED = 11;
 
@@ -96,18 +96,16 @@ public final class PacketCodec {
                 case SyncPacket.LockdownChangedPacket lockdown -> out.writeByte(LOCKDOWN);
                 case SyncPacket.PlayerDataErasedPacket erased -> {
                     out.writeByte(ERASED);
-                    out.writeLong(erased.uuid().getMostSignificantBits());
-                    out.writeLong(erased.uuid().getLeastSignificantBits());
-                    for (final long count : new long[] {erased.names(), erased.addresses(),
-                            erased.expunged(), erased.anonymised(), erased.issued(),
-                            erased.other()}) {
+                    final SakuraPlayerData.Erase result = erased.result();
+                    out.writeLong(result.uuid().getMostSignificantBits());
+                    out.writeLong(result.uuid().getLeastSignificantBits());
+                    for (final long count : new long[] {result.namesRemoved(),
+                            result.addressesRemoved(), result.allowedAddressesRemoved(),
+                            result.victimAddressesCleared(), result.evidenceRemoved(),
+                            result.punishmentsKept(), result.namesRedacted()}) {
                         out.writeLong(count);
                     }
                     ValueCodec.writeActor(out, erased.actor());
-                }
-                case SyncPacket.BroadcastPacket broadcast -> {
-                    out.writeByte(BROADCAST);
-                    out.writeUTF(broadcast.text());
                 }
                 case SyncPacket.PunishmentsRolledBackPacket rolledBack -> {
                     out.writeByte(ROLLED_BACK);
@@ -162,10 +160,10 @@ public final class PacketCodec {
                         ValueCodec.readPunishment(in)));
                 case LOCKDOWN -> Optional.of(new SyncPacket.LockdownChangedPacket());
                 case ERASED -> Optional.of(new SyncPacket.PlayerDataErasedPacket(
-                        new UUID(in.readLong(), in.readLong()), in.readLong(), in.readLong(),
-                        in.readLong(), in.readLong(), in.readLong(), in.readLong(),
+                        new SakuraPlayerData.Erase(new UUID(in.readLong(), in.readLong()),
+                                in.readLong(), in.readLong(), in.readLong(), in.readLong(),
+                                in.readLong(), in.readLong(), in.readLong()),
                         ValueCodec.readActor(in)));
-                case BROADCAST -> Optional.of(new SyncPacket.BroadcastPacket(in.readUTF()));
                 case ROLLED_BACK -> {
                     final int count = in.readInt();
                     final List<Long> ids = new ArrayList<>(count);

@@ -13,13 +13,11 @@ import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import net.serlith.sakurabans.core.storage.dbo.VictimKind;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbPlayerAddresses;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbVictims;
-import net.serlith.sakurabans.core.util.InetAddresses;
+import net.serlith.sakurabans.core.util.AddressHashes;
 import org.jooq.Condition;
-import org.jooq.Field;
 import org.jooq.Record1;
 import org.jooq.Select;
 import org.jooq.impl.DSL;
-import org.jooq.impl.SQLDataType;
 import org.jspecify.annotations.Nullable;
 
 final class ApplicabilityConditions {
@@ -50,19 +48,19 @@ final class ApplicabilityConditions {
                 && !policy.allowedAddresses().contains(address);
         if (addressCounts) {
             branches.add(DSL.select(victims.ID).from(victims)
-                    .where(victims.ADDRESS.eq(InetAddresses.toBytes(address)))
+                    .where(victims.ADDRESS_HASH.eq(AddressHashes.of(address)))
                     .and(victims.KIND.in(VictimKind.ADDRESS, VictimKind.COMPOSITE)));
         }
         if (strictness != AddressStrictness.LENIENT && uuid != null) {
             final SbPlayerAddresses known = SakuraTables.PLAYER_ADDRESSES;
-            branches.add(onAddresses(DSL.select(rules.bytes(known)).from(known)
+            branches.add(onAddresses(DSL.select(known.ADDRESS_HASH).from(known)
                     .where(known.UUID.eq(uuid))
                     .and(rules.counts(known))));
         }
         if (strictness == AddressStrictness.STERN || strictness == AddressStrictness.STRICT) {
             final Select<Record1<UUID>> linked = rules.linked(uuid, addressCounts ? address : null);
             final SbPlayerAddresses theirs = SakuraTables.PLAYER_ADDRESSES.as("sb_theirs");
-            branches.add(onAddresses(DSL.select(rules.bytes(theirs)).from(theirs)
+            branches.add(onAddresses(DSL.select(theirs.ADDRESS_HASH).from(theirs)
                     .where(theirs.UUID.in(linked))
                     .and(rules.counts(theirs))));
             if (strictness == AddressStrictness.STRICT) {
@@ -79,10 +77,10 @@ final class ApplicabilityConditions {
         return union;
     }
 
-    private static Select<Record1<Long>> onAddresses(final Select<Record1<byte[]>> addresses) {
+    private static Select<Record1<Long>> onAddresses(final Select<Record1<byte[]>> hashes) {
         final SbVictims victims = SakuraTables.VICTIMS;
         return DSL.select(victims.ID).from(victims)
-                .where(victims.ADDRESS.in(addresses))
+                .where(victims.ADDRESS_HASH.in(hashes))
                 .and(victims.KIND.in(VictimKind.ADDRESS, VictimKind.COMPOSITE));
     }
 
@@ -102,10 +100,6 @@ final class ApplicabilityConditions {
 
         Condition counts(final SbPlayerAddresses table) {
             return ApplicabilityConditions.counts(table, this.policy, this.now);
-        }
-
-        Field<byte[]> bytes(final SbPlayerAddresses table) {
-            return table.ADDRESS.coerce(SQLDataType.VARBINARY(16));
         }
 
         Select<Record1<UUID>> linked(final @Nullable UUID uuid,

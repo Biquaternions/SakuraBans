@@ -14,7 +14,6 @@ import net.serlith.sakurabans.api.punish.RollbackRequest;
 import net.serlith.sakurabans.core.admin.SakuraMessageTemplateService;
 import net.serlith.sakurabans.core.admin.SakuraSettingsService;
 import net.serlith.sakurabans.core.alts.SakuraAllowListService;
-import net.serlith.sakurabans.core.appeal.SakuraAppealService;
 import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.data.SakuraPlayerDataService;
 import net.serlith.sakurabans.core.event.SakuraEventBus;
@@ -24,7 +23,6 @@ import net.serlith.sakurabans.core.event.SakuraPunishmentRevokedEvent;
 import net.serlith.sakurabans.core.event.SakuraPunishmentsRolledBackEvent;
 import net.serlith.sakurabans.core.kind.SakuraKindService;
 import net.serlith.sakurabans.core.model.SakuraPunishment;
-import net.serlith.sakurabans.core.notify.NotificationService;
 import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import net.serlith.sakurabans.core.platform.Platform;
 import net.serlith.sakurabans.core.punish.Applicabilities;
@@ -36,7 +34,6 @@ import net.serlith.sakurabans.core.sync.SyncPacket;
 import net.serlith.sakurabans.core.sync.SyncPacketHandler;
 import net.serlith.sakurabans.core.template.SakuraTemplateService;
 import net.serlith.sakurabans.core.util.Futures;
-import net.serlith.sakurabans.core.wave.SakuraBanWaveService;
 
 public final class SyncReceiver implements SyncPacketHandler {
 
@@ -54,11 +51,8 @@ public final class SyncReceiver implements SyncPacketHandler {
     private final SakuraTemplateService templates;
     private final SakuraKindService kinds;
     private final LockdownService lockdowns;
-    private final NotificationService notifications;
     private final SakuraSettingsService settings;
     private final SakuraMessageTemplateService messageTemplates;
-    private final SakuraBanWaveService banWaves;
-    private final SakuraAppealService appeals;
     private final SakuraPlayerDataService playerData;
     private final ComponentLogger logger;
 
@@ -67,9 +61,8 @@ public final class SyncReceiver implements SyncPacketHandler {
             final SakuraEventBus events, final ConfigService config, final InstantSource clock,
             final SakuraAllowListService allowList, final SakuraTemplateService templates,
             final SakuraKindService kinds, final LockdownService lockdowns,
-            final NotificationService notifications, final SakuraSettingsService settings,
+            final SakuraSettingsService settings,
             final SakuraMessageTemplateService messageTemplates,
-            final SakuraBanWaveService banWaves, final SakuraAppealService appeals,
             final SakuraPlayerDataService playerData, final ComponentLogger logger) {
         this.punishments = punishments;
         this.enforcer = enforcer;
@@ -83,11 +76,8 @@ public final class SyncReceiver implements SyncPacketHandler {
         this.templates = templates;
         this.kinds = kinds;
         this.lockdowns = lockdowns;
-        this.notifications = notifications;
         this.settings = settings;
         this.messageTemplates = messageTemplates;
-        this.banWaves = banWaves;
-        this.appeals = appeals;
         this.playerData = playerData;
         this.logger = logger;
     }
@@ -103,10 +93,6 @@ public final class SyncReceiver implements SyncPacketHandler {
             case SyncPacket.PunishmentExpungedPacket expunged -> this.expunged(expunged);
             case SyncPacket.EvidenceChangedPacket evidence -> this.evidence(evidence);
             case SyncPacket.LockdownChangedPacket _ -> this.lockdowns.reload();
-            case SyncPacket.BroadcastPacket broadcast -> {
-                this.notifications.broadcast(broadcast.text());
-                yield CompletableFuture.completedFuture(null);
-            }
             case SyncPacket.PunishmentsRolledBackPacket rolledBack -> this.rolledBack(rolledBack);
             case SyncPacket.PlayerDataErasedPacket erased -> this.playerData.erased(erased);
             case SyncPacket.EntityChangedPacket changed -> switch (changed.entity()) {
@@ -114,8 +100,6 @@ public final class SyncReceiver implements SyncPacketHandler {
                 case KIND -> this.kinds.changed(changed);
                 case SETTINGS -> this.settings.changed(changed);
                 case MESSAGE -> this.messageTemplates.changed(changed);
-                case BAN_WAVE -> this.banWaves.changed(changed);
-                case APPEAL -> this.appeals.changed(changed);
                 default -> CompletableFuture.completedFuture(null);
             };
         };

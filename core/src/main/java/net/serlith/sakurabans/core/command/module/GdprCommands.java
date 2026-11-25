@@ -148,15 +148,16 @@ public final class GdprCommands implements CommandModule {
                 final EraseResult erased = ok.value();
                 this.runner.send(actor, MessageKey.GDPR_ERASED,
                         Placeholder.unparsed("name", name(player)),
-                        Placeholder.unparsed("names", Long.toString(erased.namesDeleted())),
+                        Placeholder.unparsed("names", Long.toString(erased.namesRemoved())),
                         Placeholder.unparsed("addresses",
-                                Long.toString(erased.addressesDeleted())),
-                        Placeholder.unparsed("expunged",
-                                Long.toString(erased.punishmentsExpunged())),
-                        Placeholder.unparsed("anonymised",
-                                Long.toString(erased.punishmentsAnonymised())),
-                        Placeholder.unparsed("issued", Long.toString(erased.issuedAnonymised())),
-                        Placeholder.unparsed("other", Long.toString(erased.otherDeleted())));
+                                Long.toString(erased.addressesRemoved())),
+                        Placeholder.unparsed("allowed",
+                                Long.toString(erased.allowedAddressesRemoved())),
+                        Placeholder.unparsed("cleared",
+                                Long.toString(erased.victimAddressesCleared())),
+                        Placeholder.unparsed("evidence", Long.toString(erased.evidenceRemoved())),
+                        Placeholder.unparsed("redacted", Long.toString(erased.namesRedacted())),
+                        Placeholder.unparsed("kept", Long.toString(erased.punishmentsKept())));
             });
         });
     }
@@ -197,15 +198,6 @@ public final class GdprCommands implements CommandModule {
             final JsonObject object = new JsonObject();
             object.addProperty("addedAt", entry.addedAt().toString());
             object.addProperty("note", entry.note().orElse(null));
-            return object;
-        }));
-        json.add("appeals", array(export.appeals(), appeal -> {
-            final JsonObject object = new JsonObject();
-            object.addProperty("id", appeal.id());
-            object.addProperty("punishment", appeal.punishmentId());
-            object.addProperty("message", appeal.message());
-            object.addProperty("createdAt", appeal.createdAt().toString());
-            object.addProperty("status", appeal.status().name());
             return object;
         }));
         json.add("audit", array(export.auditEntries(), entry -> {

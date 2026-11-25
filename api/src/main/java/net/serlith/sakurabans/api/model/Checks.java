@@ -12,6 +12,7 @@ final class Checks {
 
     private static final Pattern IDENTIFIER = Pattern.compile("[a-z0-9_-]+");
     private static final Pattern SOURCE = Pattern.compile("[a-z0-9_.:-]+");
+    private static final Pattern HASH = Pattern.compile("[0-9a-f]+");
     static final Pattern EVIDENCE_URL = Pattern.compile("https?://\\S+");
     static final Pattern EVIDENCE_REFERENCE =
             Pattern.compile("([a-z0-9_-]+):([a-z0-9_-]+):([A-Za-z0-9_.-]+)");
@@ -38,6 +39,16 @@ final class Checks {
         } catch (final UnknownHostException e) {
             throw error(path, Code.INVALID_FORMAT, "not an IPv4 or IPv6 address");
         }
+    }
+
+    static String hash(final String value, final String path) {
+        Objects.requireNonNull(value, path);
+        final String lower = value.toLowerCase(Locale.ROOT);
+        if (lower.length() != ErasedAddressVictim.HASH_LENGTH || !HASH.matcher(lower).matches()) {
+            throw error(path, Code.INVALID_FORMAT, "must be "
+                    + ErasedAddressVictim.HASH_LENGTH + " hexadecimal digits");
+        }
+        return lower;
     }
 
     static String identifier(final String value, final String path) {

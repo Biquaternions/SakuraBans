@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.AddressVictim;
 import net.serlith.sakurabans.api.model.Punishment;
@@ -19,6 +20,7 @@ import net.serlith.sakurabans.api.punish.PunishmentQuery;
 import net.serlith.sakurabans.api.punish.RevocationRequest;
 import net.serlith.sakurabans.api.punish.RevocationTarget;
 import net.serlith.sakurabans.api.punish.RevokeResult;
+import net.serlith.sakurabans.api.punish.VoidResult;
 import net.serlith.sakurabans.api.validation.ValidationException;
 import net.serlith.sakurabans.core.command.CommandActor;
 import net.serlith.sakurabans.core.command.CommandModule;
@@ -30,6 +32,7 @@ import net.serlith.sakurabans.core.command.ScopeAccess;
 import net.serlith.sakurabans.core.command.parser.ScopeFilter;
 import net.serlith.sakurabans.core.command.parser.TargetParser;
 import net.serlith.sakurabans.core.message.MessageKey;
+import net.serlith.sakurabans.core.model.ApiValues;
 import net.serlith.sakurabans.core.model.ResolvedTarget;
 import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.player.TargetResolver;
@@ -40,7 +43,6 @@ import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.parser.flag.FlagContext;
-import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.permission.Permission;
 import org.jspecify.annotations.Nullable;
 
@@ -104,6 +106,7 @@ public final class RevokeCommands implements CommandModule {
                 .flag(this.flags.silent(type))
                 .flag(this.flags.hide(type))
                 .flag(this.flags.scopeFilter())
+                .flag(this.flags.voidFlag())
                 // Last: it takes the rest of the line.
                 .flag(this.flags.reason())
                 .futureHandler(context -> this.runner.run(context.sender(),
@@ -122,6 +125,11 @@ public final class RevokeCommands implements CommandModule {
         final String reason = flags.<String>getValue(PunishFlags.REASON).map(String::strip)
                 .filter(text -> !text.isEmpty()).orElse(null);
         final boolean ownOnly = !actor.hasPermission(Permissions.revoke(spec.type()));
+        final boolean voiding = flags.isPresent(PunishFlags.VOID);
+        if (voiding && !actor.hasPermission(Permissions.voidPunishment(spec.type()))) {
+            this.runner.send(actor, MessageKey.ERROR_NO_PERMISSION);
+            return CompletableFuture.completedFuture(null);
+        }
         final RevocationRequest.Builder template;
         try {
             // Validates the reason now; the target is replaced per punishment below.
@@ -142,8 +150,10 @@ public final class RevokeCommands implements CommandModule {
                 .thenCompose(target -> this.revocationTargets(actor, spec.type(), target, scope))
                 .thenCompose(found -> found
                         .flatMap(value -> this.permitted(actor, value))
-                        .map(value -> this.revokeAll(actor, spec, value, reason, visibility,
-                                ownOnly))
+                        .map(value -> voiding
+                                ? this.voidAll(actor, value, reason, ownOnly)
+                                : this.revokeAll(actor, spec, value, reason, visibility,
+                                        ownOnly))
                         .orElseGet(() -> CompletableFuture.completedFuture(null))
                 );
     }
@@ -264,6 +274,63 @@ public final class RevokeCommands implements CommandModule {
                         Placeholder.unparsed("scopes", this.formatAll(found.skipped())));
             }
         });
+    }
+
+    private CompletableFuture<Void> voidAll(final CommandActor actor, final Found found,
+            final @Nullable String reason, final boolean ownOnly) {
+        final Actor issuer = actor.asActor();
+        final List<Punishment> candidates = ownOnly
+                ? found.punishments().stream().filter(punishment -> ApiValues.sameOperator(
+                        punishment.operator(), issuer.operator())).toList()
+                : found.punishments();
+        if (candidates.isEmpty()) {
+            this.runner.send(actor, MessageKey.REVOKE_FAILURE_NOT_OWN);
+            return CompletableFuture.completedFuture(null);
+        }
+        final List<CompletableFuture<VoidResult>> results = candidates.stream()
+                .map(punishment -> this.punishments.voidPunishment(punishment.id(), issuer,
+                        reason))
+                .toList();
+        return Futures.allOf(results).thenAccept(all -> {
+            boolean voided = false;
+            Punishment failed = null;
+            VoidResult.Failure firstFailure = null;
+            for (int i = 0; i < all.size(); i++) {
+                switch (all.get(i)) {
+                    case VoidResult.Success success -> {
+                        voided = true;
+                        this.runner.send(actor, MessageKey.VOID_DONE,
+                                this.replies.punishment(actor, success.punishment()));
+                    }
+                    case VoidResult.Failure failure -> {
+                        if (firstFailure == null) {
+                            firstFailure = failure;
+                            failed = candidates.get(i);
+                        }
+                    }
+                }
+            }
+            if (!voided && firstFailure != null && failed != null) {
+                this.runner.send(actor, voidFailureKey(firstFailure.reason()),
+                        this.replies.punishment(actor, failed));
+                return;
+            }
+            if (!found.skipped().isEmpty()) {
+                this.runner.send(actor, MessageKey.REVOKE_SKIPPED_SCOPES,
+                        Placeholder.unparsed("scopes", this.formatAll(found.skipped())));
+            }
+        });
+    }
+
+    private static MessageKey voidFailureKey(final VoidResult.Failure.Reason reason) {
+        return switch (reason) {
+            case NOT_FOUND -> MessageKey.EDIT_FAILURE_NOT_FOUND;
+            case ALREADY_VOIDED -> MessageKey.EDIT_FAILURE_ALREADY_VOIDED;
+            case EXEMPT -> MessageKey.EDIT_FAILURE_EXEMPT;
+            case CANCELLED -> MessageKey.EDIT_FAILURE_CANCELLED;
+            case CONFLICT -> MessageKey.EDIT_FAILURE_CONFLICT;
+            case FORBIDDEN -> MessageKey.EDIT_FAILURE_FORBIDDEN;
+        };
     }
 
     private static MessageKey failureKey(final RevokeResult.Failure.Reason reason) {

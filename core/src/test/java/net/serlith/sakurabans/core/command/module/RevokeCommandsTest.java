@@ -88,6 +88,73 @@ class RevokeCommandsTest extends CommandTest {
         Assertions.assertThat(this.active(PunishmentType.BAN)).isZero();
     }
 
+    private Punishment newest() {
+        return this.service.query(PunishmentQuery.builder().build()).join().items().getFirst();
+    }
+
+    @Test
+    void theVoidFlagVoidsInsteadOfRevoking() {
+        this.run(this.console, "ban Steve -r one");
+        final Punishment ban = this.newest();
+
+        this.run(this.console, "unban Steve --void -r wrong person");
+
+        Assertions.assertThat(this.active(PunishmentType.BAN)).isZero();
+        final Punishment voided = this.service.byId(ban.id()).join().orElseThrow();
+        Assertions.assertThat(voided.end().orElseThrow().kind()).isEqualTo(EndKind.VOIDED);
+        Assertions.assertThat(voided.voiding().orElseThrow().reason()).contains("wrong person");
+        Assertions.assertThat(this.console.last()).contains("Voided");
+
+        this.run(this.console, "unban #" + ban.id() + " --void");
+        Assertions.assertThat(this.console.last()).contains("already voided");
+    }
+
+    @Test
+    void theVoidFlagNeedsTheVoidPermission() {
+        final FakeCommandActor mod = FakeCommandActor.player(MOD, "Mod",
+                Permissions.revoke(PunishmentType.MUTE));
+        this.run(this.console, "mute Steve -r spam");
+
+        this.run(mod, "unmute Steve --void");
+
+        Assertions.assertThat(mod.last()).contains("don't have permission");
+        Assertions.assertThat(this.active(PunishmentType.MUTE)).isOne();
+        Assertions.assertThat(this.newest().voiding()).isEmpty();
+    }
+
+    @Test
+    void theOwnPermissionOnlyVoidsOwnPunishments() {
+        final FakeCommandActor mod = FakeCommandActor.player(MOD, "Mod",
+                Permissions.punish(PunishmentType.WARN), Permissions.revokeOwn(PunishmentType.WARN),
+                Permissions.voidPunishment(PunishmentType.WARN));
+        this.run(this.console, "warn Steve -r by console");
+
+        this.run(mod, "unwarn Steve --void");
+        Assertions.assertThat(mod.last()).contains("only lift punishments you issued");
+        Assertions.assertThat(this.newest().voiding()).isEmpty();
+
+        this.run(mod, "warn Steve -r by mod");
+        this.run(mod, "unwarn Steve --void");
+        Assertions.assertThat(this.active(PunishmentType.WARN)).isOne();
+        Assertions.assertThat(this.service.query(PunishmentQuery.builder().build()).join()
+                        .items())
+                .allSatisfy(warn -> Assertions.assertThat(warn.voiding().isPresent())
+                        .isEqualTo(warn.reason().equals("by mod")));
+    }
+
+    @Test
+    void anEndedPunishmentCanBeVoidedById() {
+        this.run(this.console, "ban Steve -r one");
+        final Punishment ban = this.newest();
+        this.run(this.console, "unban Steve");
+
+        this.run(this.console, "unban #" + ban.id() + " --void -r mistake");
+
+        final Punishment voided = this.service.byId(ban.id()).join().orElseThrow();
+        Assertions.assertThat(voided.voiding().orElseThrow().reason()).contains("mistake");
+        Assertions.assertThat(this.console.last()).contains("Voided");
+    }
+
     @Test
     void nothingToLiftIsSaid() {
         this.run(this.console, "unmute Steve");

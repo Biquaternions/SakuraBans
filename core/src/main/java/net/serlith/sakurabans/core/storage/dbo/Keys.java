@@ -3,10 +3,7 @@ package net.serlith.sakurabans.core.storage.dbo;
 import net.serlith.sakurabans.core.storage.dbo.records.SbActivePunishmentsRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbAllowedAddressesRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbAllowedPlayersRecord;
-import net.serlith.sakurabans.core.storage.dbo.records.SbAppealsRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbAuditLogRecord;
-import net.serlith.sakurabans.core.storage.dbo.records.SbBanWaveEntriesRecord;
-import net.serlith.sakurabans.core.storage.dbo.records.SbBanWavesRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbKindsRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbLockdownsRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbMessageOverridesRecord;
@@ -73,7 +70,7 @@ public final class Keys {
                     new TableField[] {
                             SakuraTables.VICTIMS.KIND,
                             SakuraTables.VICTIMS.UUID,
-                            SakuraTables.VICTIMS.ADDRESS,
+                            SakuraTables.VICTIMS.ADDRESS_HASH,
                             SakuraTables.VICTIMS.PREFIX_LENGTH
                     }, true);
 
@@ -161,18 +158,6 @@ public final class Keys {
     public static final UniqueKey<SbSyncMessagesRecord> SYNC_MESSAGES_PK =
             Internal.createUniqueKey(SakuraTables.SYNC_MESSAGES, name("sync_messages_pk"),
                     new TableField[] {SakuraTables.SYNC_MESSAGES.ID}, true);
-
-    public static final UniqueKey<SbBanWavesRecord> BAN_WAVES_PK =
-            Internal.createUniqueKey(SakuraTables.BAN_WAVES, name("ban_waves_pk"),
-                    new TableField[] {SakuraTables.BAN_WAVES.ID}, true);
-
-    public static final UniqueKey<SbBanWaveEntriesRecord> BAN_WAVE_ENTRIES_PK =
-            Internal.createUniqueKey(SakuraTables.BAN_WAVE_ENTRIES, name("ban_wave_entries_pk"),
-                    new TableField[] {SakuraTables.BAN_WAVE_ENTRIES.ID}, true);
-
-    public static final UniqueKey<SbAppealsRecord> APPEALS_PK =
-            Internal.createUniqueKey(SakuraTables.APPEALS, name("appeals_pk"),
-                    new TableField[] {SakuraTables.APPEALS.ID}, true);
 
     public static final UniqueKey<SbSettingOverridesRecord> SETTING_OVERRIDES_PK =
             Internal.createUniqueKey(SakuraTables.SETTING_OVERRIDES, name("setting_overrides_pk"),
@@ -287,30 +272,6 @@ public final class Keys {
                     new TableField[] {SakuraTables.LOCKDOWNS.SCOPE_ID},
                     SCOPES_PK,
                     new TableField[] {SakuraTables.SCOPES.ID},
-                    true, QOM.ForeignKeyRule.CASCADE, QOM.ForeignKeyRule.NO_ACTION);
-
-    public static final ForeignKey<SbBanWaveEntriesRecord, SbBanWavesRecord>
-            BAN_WAVE_ENTRIES_WAVE_FK = Internal.createForeignKey(
-                    SakuraTables.BAN_WAVE_ENTRIES, name("ban_wave_entries_wave_fk"),
-                    new TableField[] {SakuraTables.BAN_WAVE_ENTRIES.WAVE_ID},
-                    BAN_WAVES_PK,
-                    new TableField[] {SakuraTables.BAN_WAVES.ID},
-                    true, QOM.ForeignKeyRule.CASCADE, QOM.ForeignKeyRule.NO_ACTION);
-
-    public static final ForeignKey<SbBanWaveEntriesRecord, SbPunishmentsRecord>
-            BAN_WAVE_ENTRIES_PUNISHMENT_FK = Internal.createForeignKey(
-                    SakuraTables.BAN_WAVE_ENTRIES, name("ban_wave_entries_punishment_fk"),
-                    new TableField[] {SakuraTables.BAN_WAVE_ENTRIES.PUNISHMENT_ID},
-                    PUNISHMENTS_PK,
-                    new TableField[] {SakuraTables.PUNISHMENTS.ID},
-                    true, QOM.ForeignKeyRule.SET_NULL, QOM.ForeignKeyRule.NO_ACTION);
-
-    public static final ForeignKey<SbAppealsRecord, SbPunishmentsRecord>
-            APPEALS_PUNISHMENT_FK = Internal.createForeignKey(
-                    SakuraTables.APPEALS, name("appeals_punishment_fk"),
-                    new TableField[] {SakuraTables.APPEALS.PUNISHMENT_ID},
-                    PUNISHMENTS_PK,
-                    new TableField[] {SakuraTables.PUNISHMENTS.ID},
                     true, QOM.ForeignKeyRule.CASCADE, QOM.ForeignKeyRule.NO_ACTION);
 
     private Keys() {

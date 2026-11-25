@@ -5,6 +5,7 @@ import net.serlith.sakurabans.api.model.AddressRangeVictim;
 import net.serlith.sakurabans.api.model.AddressVictim;
 import net.serlith.sakurabans.api.model.CategoryScope;
 import net.serlith.sakurabans.api.model.CompositeVictim;
+import net.serlith.sakurabans.api.model.ErasedAddressVictim;
 import net.serlith.sakurabans.api.model.GlobalScope;
 import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.Punishment;
@@ -34,6 +35,8 @@ public final class AuditValues {
                     + composite.address().getHostAddress();
             case AddressRangeVictim range -> range.network().getHostAddress() + "/"
                     + range.prefixLength();
+            case ErasedAddressVictim erased -> erased.uuid().map(uuid -> uuid + "@").orElse("")
+                    + "erased:" + erased.hash();
         };
     }
 

@@ -13,7 +13,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** /sb info, edit, void, delete and evidence (plan S35). */
+/** /sb info, edit, delete and evidence (plan S35). */
 class EditCommandsTest extends CommandTest {
 
     private Punishment ban;
@@ -74,12 +74,7 @@ class EditCommandsTest extends CommandTest {
     }
 
     @Test
-    void voidAndDeleteNeedTheirStepsAndPermissions() {
-        this.run(this.console, "sb void " + this.ban.id() + " -r wrong person");
-        Assertions.assertThat(this.current().voiding()).isPresent();
-        this.run(this.console, "sb void " + this.ban.id());
-        Assertions.assertThat(this.console.last()).contains("already voided");
-
+    void deleteNeedsConfirmation() {
         this.run(this.console, "sb delete " + this.ban.id());
         Assertions.assertThat(this.console.last()).contains("--confirm");
         Assertions.assertThat(this.service.byId(this.ban.id()).join()).isPresent();

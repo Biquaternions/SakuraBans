@@ -15,10 +15,6 @@ import net.serlith.sakurabans.api.audit.SubjectType;
 import net.serlith.sakurabans.api.auth.Action;
 import net.serlith.sakurabans.api.event.ChangeType;
 import net.serlith.sakurabans.api.model.Actor;
-import net.serlith.sakurabans.api.settings.SettingField;
-import net.serlith.sakurabans.api.settings.SettingsService;
-import net.serlith.sakurabans.api.settings.SettingsSnapshot;
-import net.serlith.sakurabans.api.settings.ValueOrigin;
 import net.serlith.sakurabans.api.validation.FieldError;
 import net.serlith.sakurabans.core.configuration.ConfigIssue;
 import net.serlith.sakurabans.core.configuration.ConfigService;
@@ -28,14 +24,13 @@ import net.serlith.sakurabans.core.event.SakuraEventBus;
 import net.serlith.sakurabans.core.event.SakuraOverridesChangedEvents;
 import net.serlith.sakurabans.core.model.ApiValues;
 import net.serlith.sakurabans.core.model.SakuraAdminResult;
-import net.serlith.sakurabans.core.model.SakuraSettings;
 import net.serlith.sakurabans.core.punish.ActionCheck;
 import net.serlith.sakurabans.core.storage.repository.OverrideRepository;
 import net.serlith.sakurabans.core.sync.SyncPacket;
 import net.serlith.sakurabans.core.sync.SyncService;
 import org.jspecify.annotations.Nullable;
 
-public final class SakuraSettingsService implements SettingsService {
+public final class SakuraSettingsService {
 
     static final String ENTITY = "settings";
 
@@ -79,11 +74,10 @@ public final class SakuraSettingsService implements SettingsService {
                 .Settings(packet.change(), packet.id(), packet.version(), packet.actor(), true)));
     }
 
-    @Override
     public List<SettingField> schema() {
         final List<SettingField> fields = new ArrayList<>();
         for (final SettingsSchema.Entry entry : SettingsSchema.ENTRIES) {
-            fields.add(new SakuraSettings.Field(entry.key(), entry.type(),
+            fields.add(new SettingField(entry.key(), entry.type(),
                     this.config.defaultValue(entry.key()).orElse(""), entry.description(),
                     entry.options(), entry.min(), entry.max(),
                     entry.scope() == SettingsSchema.Scope.NETWORK, entry.editable(),
@@ -92,7 +86,6 @@ public final class SakuraSettingsService implements SettingsService {
         return List.copyOf(fields);
     }
 
-    @Override
     public SettingsSnapshot settings() {
         final Map<String, Object> values = new LinkedHashMap<>();
         final Map<String, ValueOrigin> origins = new LinkedHashMap<>();
@@ -102,10 +95,9 @@ public final class SakuraSettingsService implements SettingsService {
             origins.put(entry.key(), overrides.containsKey(entry.key()) ? ValueOrigin.OVERRIDE
                     : this.config.inFile(entry.key()) ? ValueOrigin.FILE : ValueOrigin.DEFAULT);
         }
-        return new SakuraSettings.Snapshot(this.version.get(), values, origins);
+        return new SettingsSnapshot(this.version.get(), values, origins);
     }
 
-    @Override
     public CompletableFuture<AdminResult<SettingsSnapshot>> update(
             final Map<String, Object> patch, final long expectedVersion, final Actor actor) {
         final Map<String, @Nullable String> changes = new HashMap<>();
@@ -122,7 +114,6 @@ public final class SakuraSettingsService implements SettingsService {
         return this.change(changes, errors, expectedVersion, actor);
     }
 
-    @Override
     public CompletableFuture<AdminResult<SettingsSnapshot>> reset(final Set<String> keys,
             final long expectedVersion, final Actor actor) {
         final Map<String, @Nullable String> changes = new HashMap<>();

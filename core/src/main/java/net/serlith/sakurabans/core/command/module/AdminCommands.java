@@ -46,15 +46,12 @@ import net.serlith.sakurabans.core.message.Placeholders;
 import net.serlith.sakurabans.core.model.Lockdown;
 import net.serlith.sakurabans.core.model.ResolvedTarget;
 import net.serlith.sakurabans.core.model.TargetInput;
-import net.serlith.sakurabans.core.notify.NotificationService;
 import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.platform.Platform;
 import net.serlith.sakurabans.core.player.TargetResolver;
 import net.serlith.sakurabans.core.punish.SakuraPunishmentService;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
 import net.serlith.sakurabans.core.storage.repository.PunishmentRepository;
-import net.serlith.sakurabans.core.sync.SyncPacket;
-import net.serlith.sakurabans.core.sync.SyncService;
 import net.serlith.sakurabans.core.util.BuildConstants;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
@@ -81,8 +78,6 @@ public final class AdminCommands implements CommandModule {
     private final PunishmentRepository repository;
     private final LockdownService lockdowns;
     private final SakuraScopeService scopes;
-    private final NotificationService notifications;
-    private final SyncService sync;
     private final ConfigService config;
     private final MessageService messages;
     private final Platform platform;
@@ -95,9 +90,9 @@ public final class AdminCommands implements CommandModule {
             final PunishFlags flags, final TargetParser targetParser,
             final TargetResolver targets, final SakuraPunishmentService punishments,
             final PunishmentRepository repository, final LockdownService lockdowns,
-            final SakuraScopeService scopes, final NotificationService notifications,
-            final SyncService sync, final ConfigService config, final MessageService messages,
-            final Platform platform, final ConfirmationTracker confirmations,
+            final SakuraScopeService scopes, final ConfigService config,
+            final MessageService messages, final Platform platform,
+            final ConfirmationTracker confirmations,
             final Executor worker, final InstantSource clock) {
         this.registrar = registrar;
         this.runner = runner;
@@ -111,8 +106,6 @@ public final class AdminCommands implements CommandModule {
         this.repository = repository;
         this.lockdowns = lockdowns;
         this.scopes = scopes;
-        this.notifications = notifications;
-        this.sync = sync;
         this.config = config;
         this.messages = messages;
         this.platform = platform;
@@ -157,12 +150,6 @@ public final class AdminCommands implements CommandModule {
                         .flag(CommandFlag.builder(CONFIRM).build())
                         .futureHandler(context -> this.runner.run(context.sender(),
                                 () -> this.prune(context)))));
-        this.registrar.builder(manager, SakuraCommands.ROOT,
-                        MessageKey.COMMAND_DESCRIPTION_BROADCAST)
-                .ifPresent(root -> manager.command(root.literal("broadcast")
-                        .permission(Permissions.ADMIN_BROADCAST)
-                        .required("message", StringParser.greedyStringParser())
-                        .handler(context -> this.broadcast(context.get("message")))));
         this.registrar.builder(manager, SakuraCommands.ROOT,
                         MessageKey.COMMAND_DESCRIPTION_STATUS)
                 .ifPresent(root -> manager.command(root.literal("status")
@@ -352,11 +339,6 @@ public final class AdminCommands implements CommandModule {
                                 Placeholder.unparsed("total", Integer.toString(ended.size()))));
             });
         });
-    }
-
-    private void broadcast(final String text) {
-        this.notifications.broadcast(text);
-        this.sync.publish(new SyncPacket.BroadcastPacket(text));
     }
 
     private CompletableFuture<?> serverStatus(final CommandActor actor) {

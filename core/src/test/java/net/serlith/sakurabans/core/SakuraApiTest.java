@@ -24,12 +24,11 @@ class SakuraApiTest extends ServiceTest {
                         (uuid, strictness) -> CompletableFuture.completedFuture(List.of())),
                 this.scopes, this.bus, new SakuraIntegrationRegistry(), this.allowList,
                 this.templates, this.kinds, this.authorization,
-                new SakuraAuditService(new AuditRepository(this.storage)), this.settingsService,
-                this.messageTemplates, new SakuraMessageFormatter(this.enforcementMessages,
+                new SakuraAuditService(new AuditRepository(this.storage)),
+                new SakuraMessageFormatter(this.enforcementMessages,
                         new Formats(this.messages, this.config)),
                 new SakuraStatsService(new StatsRepository(this.storage, this.allowList),
-                        this.punishments, this.clock), this.banWaves, this.appeals,
-                this.playerData);
+                        this.punishments, this.clock), this.playerData);
     }
 
     @Test
@@ -50,11 +49,9 @@ class SakuraApiTest extends ServiceTest {
     void onlyFinishedCapabilitiesAreListed() {
         Assertions.assertThat(this.api().capabilities())
                 .containsExactlyInAnyOrder(Capability.SHADOW_MUTE, Capability.CURSORS,
-                        Capability.TEMPLATE_EDITING, Capability.KINDS, Capability.EVIDENCE,
+                        Capability.KINDS, Capability.EVIDENCE,
                         Capability.VOID, Capability.AUDIT, Capability.ROLLBACK,
-                        Capability.SETTINGS_EDITING, Capability.MESSAGE_EDITING,
-                        Capability.STATS, Capability.BAN_WAVES, Capability.APPEALS,
-                        Capability.PLAYER_DATA);
+                        Capability.STATS, Capability.PLAYER_DATA);
         Assertions.assertThat(this.api().punishments()).isSameAs(this.service);
     }
 }

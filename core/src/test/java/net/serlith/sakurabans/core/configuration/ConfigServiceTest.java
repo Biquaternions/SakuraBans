@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -128,9 +129,6 @@ class ConfigServiceTest {
                 enforcement:
                   login-check-timeout: 10x
                 alts:
-                  connection-limiter:
-                    limit: lots
-                    window: 1m
                   join-notification: oops
                 display:
                   timezone: Mars/Olympus
@@ -148,7 +146,6 @@ class ConfigServiceTest {
                         .extracting(issue -> issue.file() + ": " + issue.path())
                         .contains(
                                 "config.yml: enforcement.login-check-timeout",
-                                "config.yml: alts.connection-limiter.limit",
                                 "config.yml: alts.join-notification",
                                 "storage.yml: pool.maximum-size",
                                 "storage.yml: table-prefix"));
@@ -199,6 +196,22 @@ class ConfigServiceTest {
 
         assertThat(this.log.entries("warn")).extracting(RecordingLogger.Entry::format)
                 .anyMatch(text -> text.contains("sever") && text.contains("unknown key"));
+    }
+
+    @Test
+    void addressHashesNeedNoKey() throws Exception {
+        try (InputStream shipped = ConfigFiles.defaultResource(ConfigFiles.STORAGE)) {
+            assertThat(new String(shipped.readAllBytes(), StandardCharsets.UTF_8))
+                    .doesNotContain("address-hash-key");
+        }
+        this.write(ConfigFiles.STORAGE, "address-hash-key: secret\n");
+        final ConfigService service = this.service();
+
+        service.load();
+
+        assertThat(this.log.entries("warn")).extracting(RecordingLogger.Entry::format)
+                .anyMatch(text -> text.contains("address-hash-key")
+                        && text.contains("unknown key"));
     }
 
     @Test

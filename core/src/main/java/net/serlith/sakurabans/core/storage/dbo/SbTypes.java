@@ -7,8 +7,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
-import net.serlith.sakurabans.api.appeal.Appeal;
-import net.serlith.sakurabans.api.appeal.AppealOutcome;
 import net.serlith.sakurabans.api.audit.AuditAction;
 import net.serlith.sakurabans.api.audit.SubjectType;
 import net.serlith.sakurabans.api.kind.AddressMode;
@@ -16,7 +14,6 @@ import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.EndKind;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Visibility;
-import net.serlith.sakurabans.api.wave.BanWave;
 import net.serlith.sakurabans.core.storage.converter.DurationMillisConverter;
 import net.serlith.sakurabans.core.storage.converter.EnumCode;
 import net.serlith.sakurabans.core.storage.converter.EnumCodeConverter;
@@ -96,10 +93,6 @@ public final class SbTypes {
                     entry(AuditAction.EVIDENCE_DETACH, 9),
                     entry(AuditAction.UPDATE, 10),
                     entry(AuditAction.DELETE, 11),
-                    entry(AuditAction.SCHEDULE, 12),
-                    entry(AuditAction.RELEASE, 13),
-                    entry(AuditAction.CANCEL, 14),
-                    entry(AuditAction.DECIDE, 15),
                     entry(AuditAction.FORGET_ADDRESS, 16),
                     entry(AuditAction.EXPORT, 17),
                     entry(AuditAction.ERASE, 18),
@@ -114,31 +107,9 @@ public final class SbTypes {
                     SubjectType.TEMPLATE, 2,
                     SubjectType.SETTINGS, 3,
                     SubjectType.MESSAGE, 4,
-                    SubjectType.BAN_WAVE, 5,
-                    SubjectType.APPEAL, 6,
                     SubjectType.PLAYER, 7,
                     SubjectType.ALLOW_LIST, 8,
                     SubjectType.IMPORT, 9));
-
-    public static final EnumCode<BanWave.Status> WAVE_STATUS_CODES =
-            EnumCode.of(BanWave.Status.class, Map.of(
-                    BanWave.Status.DRAFT, 0,
-                    BanWave.Status.SCHEDULED, 1,
-                    BanWave.Status.RELEASING, 2,
-                    BanWave.Status.RELEASED, 3,
-                    BanWave.Status.CANCELLED, 4));
-
-    public static final EnumCode<Appeal.Status> APPEAL_STATUS_CODES =
-            EnumCode.of(Appeal.Status.class, Map.of(
-                    Appeal.Status.OPEN, 0,
-                    Appeal.Status.ACCEPTED, 1,
-                    Appeal.Status.REJECTED, 2));
-
-    public static final EnumCode<AppealOutcome> APPEAL_OUTCOME_CODES =
-            EnumCode.of(AppealOutcome.class, Map.of(
-                    AppealOutcome.REJECT, 0,
-                    AppealOutcome.REVOKE, 1,
-                    AppealOutcome.VOID, 2));
 
     public static final DataType<UUID> UUID =
             SQLDataType.BINARY(16).asConvertedDataType(new UuidBytesConverter());
@@ -161,9 +132,6 @@ public final class SbTypes {
     public static final DataType<AddressMode> ADDRESS_MODE = enumType(ADDRESS_MODE_CODES);
     public static final DataType<AuditAction> AUDIT_ACTION = enumType(AUDIT_ACTION_CODES);
     public static final DataType<SubjectType> SUBJECT_TYPE = enumType(SUBJECT_TYPE_CODES);
-    public static final DataType<BanWave.Status> WAVE_STATUS = enumType(WAVE_STATUS_CODES);
-    public static final DataType<Appeal.Status> APPEAL_STATUS = enumType(APPEAL_STATUS_CODES);
-    public static final DataType<AppealOutcome> APPEAL_OUTCOME = enumType(APPEAL_OUTCOME_CODES);
 
     private SbTypes() {
     }

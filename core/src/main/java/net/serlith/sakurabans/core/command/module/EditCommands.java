@@ -23,7 +23,6 @@ import net.serlith.sakurabans.api.punish.EditRequest;
 import net.serlith.sakurabans.api.punish.EditResult;
 import net.serlith.sakurabans.api.punish.ExpungeResult;
 import net.serlith.sakurabans.api.punish.PunishmentEdit;
-import net.serlith.sakurabans.api.punish.VoidResult;
 import net.serlith.sakurabans.api.validation.ValidationException;
 import net.serlith.sakurabans.core.command.CommandActor;
 import net.serlith.sakurabans.core.command.CommandModule;
@@ -121,13 +120,6 @@ public final class EditCommands implements CommandModule {
                 .futureHandler(context -> this.run(context, punishment -> this.edit(context,
                         punishment, PunishmentEdit.NewScope.of(context.<Scope>get("scope")),
                         MessageKey.EDIT_WHAT_SCOPE))));
-        this.root(manager, MessageKey.COMMAND_DESCRIPTION_VOID, root -> root.literal("void")
-                .permission(anyType(Permissions::voidPunishment))
-                .required("id", StringParser.stringParser())
-                .flag(CommandFlag.builder("reason").withAliases("r")
-                        .withComponent(StringParser.greedyFlagYieldingStringParser()).build())
-                .futureHandler(context -> this.run(context, punishment -> this.voidIt(context,
-                        punishment))));
         this.root(manager, MessageKey.COMMAND_DESCRIPTION_DELETE, root -> root.literal("delete")
                 .permission(anyType(Permissions::delete))
                 .required("id", StringParser.stringParser())
@@ -277,22 +269,6 @@ public final class EditCommands implements CommandModule {
                 });
     }
 
-    private CompletableFuture<?> voidIt(final CommandContext<CommandActor> context,
-            final Punishment punishment) {
-        final CommandActor actor = context.sender();
-        final String reason = context.flags().<String>getValue("reason").orElse(null);
-        return this.punishments.voidPunishment(punishment.id(), actor.asActor(), reason)
-                .thenAccept(result -> {
-                    switch (result) {
-                        case VoidResult.Success success -> this.runner.send(actor,
-                                MessageKey.VOID_DONE,
-                                this.replies.punishment(actor, success.punishment()));
-                        case VoidResult.Failure failure -> this.failure(actor, punishment,
-                                failure.reason().name());
-                    }
-                });
-    }
-
     private CompletableFuture<?> delete(final CommandContext<CommandActor> context,
             final Punishment punishment) {
         final CommandActor actor = context.sender();
@@ -357,7 +333,6 @@ public final class EditCommands implements CommandModule {
             case "CONFLICT" -> MessageKey.EDIT_FAILURE_CONFLICT;
             case "EVIDENCE_ALREADY_ATTACHED" -> MessageKey.EDIT_FAILURE_EVIDENCE_ALREADY_ATTACHED;
             case "EVIDENCE_NOT_ATTACHED" -> MessageKey.EDIT_FAILURE_EVIDENCE_NOT_ATTACHED;
-            case "ALREADY_VOIDED" -> MessageKey.EDIT_FAILURE_ALREADY_VOIDED;
             default -> MessageKey.EDIT_FAILURE_FORBIDDEN;
         };
         this.runner.send(actor, key, this.replies.punishment(actor, punishment));

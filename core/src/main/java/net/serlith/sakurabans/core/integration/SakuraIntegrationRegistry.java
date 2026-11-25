@@ -5,8 +5,6 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import net.serlith.sakurabans.api.integration.ActionGuard;
-import net.serlith.sakurabans.api.integration.AltSource;
-import net.serlith.sakurabans.api.integration.EvidenceCapturer;
 import net.serlith.sakurabans.api.integration.IntegrationRegistry;
 import net.serlith.sakurabans.api.integration.ProfileSource;
 import net.serlith.sakurabans.api.integration.Registration;
@@ -14,23 +12,11 @@ import net.serlith.sakurabans.api.integration.Registration;
 public final class SakuraIntegrationRegistry implements IntegrationRegistry {
 
     private final List<ActionGuard> guards = new CopyOnWriteArrayList<>();
-    private final List<AltSource> altSources = new CopyOnWriteArrayList<>();
-    private final List<EvidenceCapturer> capturers = new CopyOnWriteArrayList<>();
     private final List<ProfileSource> profileSources = new CopyOnWriteArrayList<>();
 
     @Override
     public Registration register(final ActionGuard guard) {
         return add(this.guards, Preconditions.checkNotNull(guard, "guard"));
-    }
-
-    @Override
-    public Registration register(final AltSource source) {
-        return add(this.altSources, Preconditions.checkNotNull(source, "source"));
-    }
-
-    @Override
-    public Registration register(final EvidenceCapturer capturer) {
-        return add(this.capturers, Preconditions.checkNotNull(capturer, "capturer"));
     }
 
     @Override
@@ -40,14 +26,6 @@ public final class SakuraIntegrationRegistry implements IntegrationRegistry {
 
     public List<ActionGuard> guards() {
         return List.copyOf(this.guards);
-    }
-
-    public List<AltSource> altSources() {
-        return List.copyOf(this.altSources);
-    }
-
-    public List<EvidenceCapturer> capturers() {
-        return List.copyOf(this.capturers);
     }
 
     public List<ProfileSource> profileSources() {

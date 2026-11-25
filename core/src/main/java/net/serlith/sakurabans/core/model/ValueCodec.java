@@ -1,16 +1,10 @@
 package net.serlith.sakurabans.core.model;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.InetAddress;
-import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 import net.serlith.sakurabans.api.model.Actor;
@@ -22,6 +16,7 @@ import net.serlith.sakurabans.api.model.CompositeVictim;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
 import net.serlith.sakurabans.api.model.CustomOperator;
 import net.serlith.sakurabans.api.model.EndKind;
+import net.serlith.sakurabans.api.model.ErasedAddressVictim;
 import net.serlith.sakurabans.api.model.Evidence;
 import net.serlith.sakurabans.api.model.EvidenceRef;
 import net.serlith.sakurabans.api.model.GlobalScope;
@@ -37,10 +32,6 @@ import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.api.model.TemplateRef;
 import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.api.model.Visibility;
-import net.serlith.sakurabans.api.punish.DraftPunishment;
-import net.serlith.sakurabans.api.punish.Enforcement;
-import net.serlith.sakurabans.api.punish.OverridePolicy;
-import net.serlith.sakurabans.api.punish.PunishOptions;
 import net.serlith.sakurabans.api.punish.PunishmentEdit;
 import org.jspecify.annotations.Nullable;
 
@@ -141,6 +132,14 @@ public final class ValueCodec {
                 writeAddress(out, range.network());
                 out.writeByte(range.prefixLength());
             }
+            case ErasedAddressVictim erased -> {
+                out.writeByte(4);
+                out.writeUTF(erased.hash());
+                out.writeBoolean(erased.uuid().isPresent());
+                if (erased.uuid().isPresent()) {
+                    writeUuid(out, erased.uuid().get());
+                }
+            }
         }
     }
 
@@ -150,6 +149,10 @@ public final class ValueCodec {
             case 1 -> AddressVictim.of(readAddress(in));
             case 2 -> CompositeVictim.of(readUuid(in), readAddress(in));
             case 3 -> AddressRangeVictim.of(readAddress(in), in.readUnsignedByte());
+            case 4 -> {
+                final String hash = in.readUTF();
+                yield ErasedAddressVictim.of(hash, in.readBoolean() ? readUuid(in) : null);
+            }
             default -> throw new IllegalArgumentException("unknown victim kind");
         };
     }
@@ -322,74 +325,5 @@ public final class ValueCodec {
         final byte[] bytes = new byte[in.readUnsignedByte()];
         in.readFully(bytes);
         return InetAddress.getByAddress(bytes);
-    }
-
-    /** A draft with its options, as base64 text (ban wave entries, S37c). */
-    public static String encodeDraft(final DraftPunishment draft, final PunishOptions options) {
-        final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        try (DataOutputStream out = new DataOutputStream(bytes)) {
-            out.writeByte(1);
-            out.writeUTF(draft.type().name());
-            writeVictim(out, draft.victim());
-            writeActor(out, draft.actor());
-            writeText(out, draft.kind().orElse(null));
-            out.writeBoolean(draft.scope().isPresent());
-            if (draft.scope().isPresent()) {
-                writeScope(out, draft.scope().get());
-            }
-            writeText(out, draft.reason().orElse(null));
-            out.writeLong(draft.duration().map(Duration::toMillis).orElse(-1L));
-            writeText(out, draft.template().orElse(null));
-            out.writeInt(draft.evidence().size());
-            for (final EvidenceRef ref : draft.evidence()) {
-                out.writeUTF(ref.uri());
-            }
-            out.writeUTF(options.visibility().name());
-            out.writeUTF(options.override().name());
-            out.writeUTF(options.enforcement().name());
-            out.writeBoolean(options.bypassLimits());
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        return Base64.getEncoder().encodeToString(bytes.toByteArray());
-    }
-
-    public record StoredDraft(DraftPunishment draft, PunishOptions options) {
-    }
-
-    public static StoredDraft decodeDraft(final String text) {
-        try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(
-                Base64.getDecoder().decode(text)))) {
-            if (in.readUnsignedByte() != 1) {
-                throw new IllegalArgumentException("unknown draft format");
-            }
-            final DraftPunishment.Builder draft = DraftPunishment.builder(
-                    PunishmentType.valueOf(in.readUTF()), readVictim(in), readActor(in));
-            draft.kind(readText(in));
-            if (in.readBoolean()) {
-                draft.scope(readScope(in));
-            }
-            draft.reason(readText(in));
-            final long duration = in.readLong();
-            if (duration >= 0) {
-                draft.duration(Duration.ofMillis(duration));
-            }
-            draft.template(readText(in));
-            final int evidence = in.readInt();
-            final List<EvidenceRef> refs = new ArrayList<>();
-            for (int i = 0; i < evidence; i++) {
-                refs.add(EvidenceRef.of(in.readUTF()));
-            }
-            draft.evidence(refs);
-            final PunishOptions options = PunishOptions.builder()
-                    .visibility(Visibility.valueOf(in.readUTF()))
-                    .override(OverridePolicy.valueOf(in.readUTF()))
-                    .enforcement(Enforcement.valueOf(in.readUTF()))
-                    .bypassLimits(in.readBoolean())
-                    .build();
-            return new StoredDraft(draft.build(), options);
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-        }
     }
 }

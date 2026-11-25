@@ -36,7 +36,6 @@ import net.serlith.sakurabans.core.sync.SyncService;
 import net.serlith.sakurabans.core.template.SakuraTemplateService;
 import net.serlith.sakurabans.core.template.TemplateActions;
 import net.serlith.sakurabans.core.util.BuildConstants;
-import net.serlith.sakurabans.core.wave.BanWaveScheduler;
 
 public final class SakuraBansCore {
 
@@ -60,7 +59,7 @@ public final class SakuraBansCore {
             TemplateActions templateActions, WarningActions warningActions,
             DisplayIdCodec displayIds, LockdownService lockdowns, WebhookService webhooks,
             SakuraSettingsService settings, SakuraMessageTemplateService messageTemplates,
-            BanWaveScheduler banWaveScheduler, SakuraApi api) {
+            SakuraApi api) {
     }
 
     public SakuraBansCore(final ComponentLogger logger, final Lifecycle lifecycle,
@@ -98,7 +97,6 @@ public final class SakuraBansCore {
             this.services.notifications().start();
             this.services.webhooks().start();
             this.services.sweeper().start();
-            this.services.banWaveScheduler().start();
             SakuraBans.register(this.services.api());
         } catch (final RuntimeException | Error e) {
             this.stop();
@@ -128,7 +126,6 @@ public final class SakuraBansCore {
         this.services.lockdowns().stop();
         this.services.sync().stop();
         this.services.sweeper().stop();
-        this.services.banWaveScheduler().stop();
         this.services.notifications().stop();
         this.services.webhooks().stop();
         this.services.templateActions().stop();

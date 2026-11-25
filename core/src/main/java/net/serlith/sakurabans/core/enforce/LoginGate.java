@@ -21,7 +21,6 @@ import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Scope;
 import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.core.alts.AltService;
-import net.serlith.sakurabans.core.alts.SakuraAllowListService;
 import net.serlith.sakurabans.core.concurrent.Lifecycle;
 import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.configuration.settings.Settings;
@@ -36,7 +35,6 @@ import net.serlith.sakurabans.core.punish.MuteCache;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
 import net.serlith.sakurabans.core.storage.repository.PlayerRepository;
 import net.serlith.sakurabans.core.storage.repository.PunishmentRepository;
-import net.serlith.sakurabans.core.util.Durations;
 import net.serlith.sakurabans.core.util.Futures;
 import org.jspecify.annotations.Nullable;
 
@@ -53,7 +51,6 @@ public final class LoginGate {
     private final NotificationService notifications;
     private final SakuraEventBus events;
     private final InstantSource clock;
-    private final SakuraAllowListService allowList;
     private final AltService alts;
     private final ActiveRangeCache ranges;
     private final LocalEnforcer enforcer;
@@ -64,8 +61,7 @@ public final class LoginGate {
             final SakuraScopeService scopes, final PunishmentRepository punishments,
             final PlayerRepository players, final NameCache names, final MuteCache mutes,
             final EnforcementMessages messages, final NotificationService notifications,
-            final SakuraEventBus events, final InstantSource clock,
-            final SakuraAllowListService allowList, final AltService alts,
+            final SakuraEventBus events, final InstantSource clock, final AltService alts,
             final ActiveRangeCache ranges, final LocalEnforcer enforcer,
             final LockdownService lockdowns, final ComponentLogger logger) {
         this.lifecycle = lifecycle;
@@ -79,7 +75,6 @@ public final class LoginGate {
         this.notifications = notifications;
         this.events = events;
         this.clock = clock;
-        this.allowList = allowList;
         this.alts = alts;
         this.ranges = ranges;
         this.enforcer = enforcer;
@@ -100,14 +95,10 @@ public final class LoginGate {
         }
         return this.bounded(attempt, Denial.LOGIN_CHECK_FAILED, this.locked(attempt,
                         this.scopes.localScopes(), Denial.LOGIN_LOCKDOWN)
-                .thenCompose(locked -> locked.isPresent()
-                        ? CompletableFuture.completedFuture(locked)
-                        : this.limited(attempt, settings))
-                .thenCompose(limited -> {
-                    if (limited.isPresent()) {
-                        return CompletableFuture.completedFuture(limited.get());
+                .thenCompose(locked -> {
+                    if (locked.isPresent()) {
+                        return CompletableFuture.completedFuture(locked.get());
                     }
-                    // Only after the limiter, which would otherwise count this account itself.
                     // A proxy records the address when the player reaches a server.
                     this.record(attempt, settings, !this.scopes.proxy());
                     if (!settings.enforcement().denyBannedJoins()) {
@@ -131,26 +122,6 @@ public final class LoginGate {
         return this.lockdowns.blocking(attempt.uuid(), attempt.name(), scopes)
                 .thenApply(lockdown -> lockdown.map(found -> this.denied(attempt, denial,
                         this.messages.lockdownScreen(found, this.messages.defaultLocale()))));
-    }
-
-    private CompletableFuture<Optional<LoginDecision>> limited(final LoginAttempt attempt,
-            final Settings settings) {
-        final Settings.ConnectionLimiter limiter = settings.alts().connectionLimiter();
-        if (!limiter.enabled() || this.allowList.isAllowed(attempt.uuid())
-                || this.allowList.isAllowed(attempt.address())) {
-            return CompletableFuture.completedFuture(Optional.empty());
-        }
-        return this.players.seenAt(attempt.address(), this.clock.instant().minus(limiter.window()))
-                .thenApply(seen -> {
-                    if (seen.contains(attempt.uuid()) || seen.size() < limiter.limit()) {
-                        return Optional.empty();
-                    }
-                    this.logger.info("{} was turned away: {} other accounts joined from their"
-                            + " address within {}", attempt.name(), seen.size(),
-                            Durations.formatCompact(limiter.window()));
-                    return Optional.of(this.denied(attempt, Denial.LOGIN_CONNECTION_LIMIT,
-                            this.messages.connectionLimit(this.messages.defaultLocale())));
-                });
     }
 
     private void noticeAlts(final LoginAttempt attempt) {
@@ -212,6 +183,7 @@ public final class LoginGate {
         return this.punishments.activeApplicable(PunishmentType.BAN,
                         Applicabilities.of(attempt.uuid(), attempt.address(), strictness),
                         scopes, now)
+                .thenCompose(found -> this.restored(found, attempt))
                 .thenCompose(found -> this.ranges.matching(PunishmentType.BAN, attempt.uuid(),
                                 attempt.address(), strictness, scopes, now)
                         .thenApply(ranged -> {
@@ -219,6 +191,19 @@ public final class LoginGate {
                             all.addAll(ranged);
                             return List.copyOf(all);
                         }));
+    }
+
+    private CompletableFuture<List<Punishment>> restored(final List<Punishment> bans,
+            final LoginAttempt attempt) {
+        return this.punishments.restoreErased(bans, attempt.uuid(), attempt.address())
+                .thenApply(restored -> {
+                    if (restored.isEmpty()) {
+                        return bans;
+                    }
+                    Futures.logged(this.mutes.reloadAll(), this.logger,
+                            "reload mutes after restoring an erased address");
+                    return restored.get();
+                });
     }
 
     private List<Punishment> on(final String server, final List<Punishment> bans) {

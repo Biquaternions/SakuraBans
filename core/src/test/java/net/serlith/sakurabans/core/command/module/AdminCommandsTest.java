@@ -18,7 +18,6 @@ import net.serlith.sakurabans.api.punish.RevocationTarget;
 import net.serlith.sakurabans.core.command.CommandTest;
 import net.serlith.sakurabans.core.command.FakeCommandActor;
 import net.serlith.sakurabans.core.enforce.LoginDecision;
-import net.serlith.sakurabans.core.fake.FakeOnlinePlayer;
 import net.serlith.sakurabans.core.model.Lockdown;
 import net.serlith.sakurabans.core.model.LoginAttempt;
 import net.serlith.sakurabans.core.permission.Permissions;
@@ -26,7 +25,7 @@ import net.serlith.sakurabans.core.sync.SyncPacket;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** /lockdown, /staffrollback, /prunehistory and /sb broadcast|status|reload (plan S36). */
+/** /lockdown, /staffrollback, /prunehistory and /sb status|reload (plan S36). */
 class AdminCommandsTest extends CommandTest {
 
     private Punishment punish(final PunishmentType type, final UUID victim) {
@@ -134,15 +133,7 @@ class AdminCommandsTest extends CommandTest {
     }
 
     @Test
-    void broadcastsStatusAndReload() {
-        final FakeOnlinePlayer steve = this.platform.join(STEVE, "Steve", this.home);
-        this.run(this.console, "sb broadcast <red>Restart in 5 minutes");
-        Assertions.assertThat(steve.messages()).map(AdminCommandsTest::plain)
-                .anySatisfy(text -> Assertions.assertThat(text)
-                        .contains("Restart in 5 minutes"));
-        Assertions.assertThat(this.published).contains(
-                new SyncPacket.BroadcastPacket("<red>Restart in 5 minutes"));
-
+    void statusAndReload() {
         this.punish(PunishmentType.BAN, STEVE);
         this.run(this.console, "sb status");
         Assertions.assertThat(this.console.last()).contains("H2", "Active punishments: 1",

@@ -32,6 +32,7 @@ import net.serlith.sakurabans.api.event.PunishmentRevokedEvent;
 import net.serlith.sakurabans.api.event.PunishmentVoidedEvent;
 import net.serlith.sakurabans.api.event.PunishmentsRolledBackEvent;
 import net.serlith.sakurabans.api.event.Subscription;
+import net.serlith.sakurabans.api.model.ErasedAddressVictim;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Visibility;
@@ -181,6 +182,10 @@ public final class WebhookService {
         final Locale locale = this.messages.defaultLocale();
         final Map<String, String> values =
                 new HashMap<>(ConsoleActions.values(punishment, this.names::name));
+        if (punishment.victim() instanceof ErasedAddressVictim) {
+            values.put("victim", this.placeholders.victim(punishment.victim(), locale,
+                    this.names::name, false));
+        }
         values.put("display_id", punishment.displayId());
         values.put("duration", this.formats.length(punishment, locale));
         values.put("expires", this.formats.expiry(punishment, locale));

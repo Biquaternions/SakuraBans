@@ -83,7 +83,6 @@ public final class SakuraPlayerDataService implements PlayerDataService {
                                                                     names, addresses,
                                                                     data.received(),
                                                                     data.issued(), allowed,
-                                                                    data.appeals(),
                                                                     data.audit())))))));
         });
     }
@@ -92,16 +91,11 @@ public final class SakuraPlayerDataService implements PlayerDataService {
     public CompletableFuture<AdminResult<EraseResult>> erase(final UUID uuid, final Actor actor) {
         return this.allowed(actor, Action.PlayerData.Operation.ERASE, uuid, checked ->
                 this.repository.erase(uuid, checked, this.clock.instant()).thenCompose(erased -> {
-                    final EraseResult result = new SakuraPlayerData.Erase(uuid, erased.names(),
-                            erased.addresses(), erased.expunged(), erased.anonymised(),
-                            erased.issued(), erased.other());
-                    this.sync.publish(new SyncPacket.PlayerDataErasedPacket(uuid,
-                            erased.names(), erased.addresses(), erased.expunged(),
-                            erased.anonymised(), erased.issued(), erased.other(), checked));
+                    this.sync.publish(new SyncPacket.PlayerDataErasedPacket(erased, checked));
                     return this.forget(uuid).thenApply(ignored -> {
-                        this.events.post(new SakuraPlayerDataErasedEvent(result, checked,
+                        this.events.post(new SakuraPlayerDataErasedEvent(erased, checked,
                                 false));
-                        return new SakuraAdminResult.Ok<>(result);
+                        return new SakuraAdminResult.Ok<>((EraseResult) erased);
                     });
                 }));
     }
@@ -109,15 +103,12 @@ public final class SakuraPlayerDataService implements PlayerDataService {
     public CompletableFuture<Void> forget(final UUID uuid) {
         this.names.forget(uuid);
         this.mutes.invalidate(uuid);
-        return this.allowList.reload();
+        return this.mutes.reloadAll().thenCompose(ignored -> this.allowList.reload());
     }
 
     public CompletableFuture<Void> erased(final SyncPacket.PlayerDataErasedPacket packet) {
-        return this.forget(packet.uuid()).thenRun(() -> this.events.post(
-                new SakuraPlayerDataErasedEvent(new SakuraPlayerData.Erase(packet.uuid(),
-                        packet.names(), packet.addresses(), packet.expunged(),
-                        packet.anonymised(), packet.issued(), packet.other()), packet.actor(),
-                        true)));
+        return this.forget(packet.result().uuid()).thenRun(() -> this.events.post(
+                new SakuraPlayerDataErasedEvent(packet.result(), packet.actor(), true)));
     }
 
     private <T> CompletableFuture<AdminResult<T>> allowed(final Actor actor,

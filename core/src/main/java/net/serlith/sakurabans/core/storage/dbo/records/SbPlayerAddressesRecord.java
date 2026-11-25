@@ -61,4 +61,13 @@ public final class SbPlayerAddressesRecord extends UpdatableRecordImpl<SbPlayerA
         this.set(SakuraTables.PLAYER_ADDRESSES.LAST_SERVER, value);
         return this;
     }
+
+    public byte[] addressHash() {
+        return this.get(SakuraTables.PLAYER_ADDRESSES.ADDRESS_HASH);
+    }
+
+    public SbPlayerAddressesRecord addressHash(final byte[] value) {
+        this.set(SakuraTables.PLAYER_ADDRESSES.ADDRESS_HASH, value);
+        return this;
+    }
 }

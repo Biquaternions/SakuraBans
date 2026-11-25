@@ -15,6 +15,7 @@ import net.serlith.sakurabans.api.model.CategoryScope;
 import net.serlith.sakurabans.api.model.CompositeVictim;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
 import net.serlith.sakurabans.api.model.CustomOperator;
+import net.serlith.sakurabans.api.model.ErasedAddressVictim;
 import net.serlith.sakurabans.api.model.GlobalScope;
 import net.serlith.sakurabans.api.model.Operator;
 import net.serlith.sakurabans.api.model.PlayerOperator;
@@ -51,7 +52,7 @@ public final class Placeholders {
         final String revokeReason = punishment.end().flatMap(end -> end.reason()).orElse("");
         return TagResolver.resolver(
                 Placeholder.unparsed("victim",
-                        this.victim(punishment.victim(), names, showAddresses)),
+                        this.victim(punishment.victim(), locale, names, showAddresses)),
                 Placeholder.unparsed("operator", this.operator(punishment.operator(), locale)),
                 Placeholder.unparsed("reason", punishment.reason()),
                 Placeholder.unparsed("duration", this.formats.length(punishment, locale)),
@@ -81,8 +82,8 @@ public final class Placeholders {
         };
     }
 
-    public String victim(final Victim victim, final Function<UUID, Optional<String>> names,
-            final boolean showAddresses) {
+    public String victim(final Victim victim, final Locale locale,
+            final Function<UUID, Optional<String>> names, final boolean showAddresses) {
         return switch (victim) {
             case PlayerVictim player -> name(player.uuid(), names);
             case AddressVictim address -> address(address.address(), showAddresses);
@@ -91,6 +92,12 @@ public final class Placeholders {
             case AddressRangeVictim range -> showAddresses
                     ? range.network().getHostAddress() + "/" + range.prefixLength()
                     : InetAddresses.censor(range.network()) + "/" + range.prefixLength();
+            case ErasedAddressVictim erased -> {
+                final String text =
+                        this.messages.renderPlain(MessageKey.VICTIM_ERASED_ADDRESS, locale);
+                yield erased.uuid().map(uuid -> name(uuid, names) + " (" + text + ")")
+                        .orElse(text);
+            }
         };
     }
 

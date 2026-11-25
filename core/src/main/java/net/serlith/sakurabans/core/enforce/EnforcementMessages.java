@@ -62,10 +62,6 @@ public final class EnforcementMessages {
         return this.render(MessageKey.CHAT_COMMAND_MUTED, mute, locale);
     }
 
-    public Component connectionLimit(final Locale locale) {
-        return this.messages.render(MessageKey.SCREEN_CONNECTION_LIMIT, locale);
-    }
-
     public Component lockdownScreen(final Lockdown lockdown, final Locale locale) {
         return this.messages.render(MessageKey.SCREEN_LOCKDOWN, locale,
                 Placeholder.unparsed("reason", lockdown.reason()));

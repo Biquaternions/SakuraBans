@@ -15,23 +15,6 @@ public interface IntegrationRegistry {
     Registration register(ActionGuard guard);
 
     /**
-     * Registers an alt source, whose results are merged into alt lookups and join notices.
-     *
-     * @param source the source
-     * @return the registration
-     */
-    Registration register(AltSource source);
-
-    /**
-     * Registers an evidence capturer for its {@link EvidenceCapturer#type()}. A later capturer
-     * for the same type replaces the earlier one while it is registered.
-     *
-     * @param capturer the capturer
-     * @return the registration
-     */
-    Registration register(EvidenceCapturer capturer);
-
-    /**
      * Registers a profile source, asked when SakuraBans doesn't know a name or UUID yet.
      *
      * @param source the source

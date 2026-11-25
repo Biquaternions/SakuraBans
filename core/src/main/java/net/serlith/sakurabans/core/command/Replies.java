@@ -32,7 +32,8 @@ public final class Replies {
     }
 
     public String victim(final CommandActor actor, final Victim victim) {
-        return this.placeholders.victim(victim, this.names::name, this.showAddresses(actor));
+        return this.placeholders.victim(victim, this.runner.locale(actor), this.names::name,
+                this.showAddresses(actor));
     }
 
     public boolean showAddresses(final CommandActor actor) {

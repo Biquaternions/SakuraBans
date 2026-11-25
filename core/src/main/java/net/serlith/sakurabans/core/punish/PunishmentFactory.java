@@ -16,6 +16,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import net.serlith.sakurabans.api.model.AddressVictim;
 import net.serlith.sakurabans.api.model.CompositeVictim;
+import net.serlith.sakurabans.api.model.ErasedAddressVictim;
 import net.serlith.sakurabans.api.model.EvidenceRef;
 import net.serlith.sakurabans.api.model.PlayerOperator;
 import net.serlith.sakurabans.api.model.PlayerProfileView;
@@ -27,6 +28,7 @@ import net.serlith.sakurabans.api.punish.DraftPunishment;
 import net.serlith.sakurabans.api.punish.PunishOptions;
 import net.serlith.sakurabans.api.punish.PunishResult.Failure.Reason;
 import net.serlith.sakurabans.api.validation.FieldError.Code;
+import net.serlith.sakurabans.api.validation.ValidationException;
 import net.serlith.sakurabans.api.validation.Validator;
 import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.configuration.settings.Settings;
@@ -71,11 +73,20 @@ public final class PunishmentFactory {
 
     public CompletableFuture<Prepared> prepare(final DraftPunishment draft,
             final PunishOptions options) {
+        if (draft.victim() instanceof ErasedAddressVictim) {
+            try {
+                Validator.create().add("victim", Code.NOT_ALLOWED,
+                        "an erased victim has no address; name the address or player instead")
+                        .throwIfAny();
+            } catch (final ValidationException e) {
+                return CompletableFuture.failedFuture(e);
+            }
+        }
         final String name = draft.template().orElse(null);
         if (name == null) {
             return this.prepare(draft, options, null);
         }
-        return this.templates.resolve(name, draft.victim(), draft.actor()).thenCompose(found -> {
+        return this.templates.resolve(name, draft.victim()).thenCompose(found -> {
             if (found.isEmpty() || found.get().type() != draft.type()) {
                 return refused(Reason.UNKNOWN_TEMPLATE);
             }
@@ -110,9 +121,6 @@ public final class PunishmentFactory {
         }
         final Map<String, EvidenceRef> evidence = new LinkedHashMap<>();
         draft.evidence().forEach(ref -> evidence.put(ref.uri(), ref));
-        if (template != null) {
-            template.captured().forEach(ref -> evidence.putIfAbsent(ref.uri(), ref));
-        }
         final Set<String> evidenceTypes = evidence.values().stream()
                 .flatMap(ref -> ref.type().stream())
                 .collect(Collectors.toSet());

@@ -15,11 +15,13 @@ import net.serlith.sakurabans.core.storage.dbo.SbTable;
 import net.serlith.sakurabans.core.storage.dbo.ScopeKind;
 import net.serlith.sakurabans.core.storage.dbo.VictimKind;
 import net.serlith.sakurabans.core.storage.dbo.records.SbPunishmentsRecord;
+import net.serlith.sakurabans.core.util.AddressHashes;
 import net.serlith.sakurabans.core.util.InetAddresses;
 import net.serlith.sakurabans.core.util.Uuids;
 import org.assertj.core.api.Assertions;
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 /** The storage service already prepared the schema once when each test starts. */
@@ -90,6 +92,17 @@ class SchemaManagerTest extends DatabaseTest {
         Assertions.assertThatThrownBy(() -> this.read(dsl -> insertVictim(dsl, VictimKind.ADDRESS,
                 Uuids.ZERO, v4, 32))).as("victims are unique")
                 .hasCauseInstanceOf(DataAccessException.class);
+
+        // An erased victim has its hash and prefix but no address.
+        final byte[] hash = AddressHashes.of(InetAddress.getByName("198.51.100.9"));
+        this.read(dsl -> insertVictim(dsl, VictimKind.COMPOSITE, UUID.randomUUID(), null, 32,
+                hash));
+        Assertions.assertThatThrownBy(() -> this.read(dsl -> insertVictim(dsl,
+                VictimKind.ADDRESS, Uuids.ZERO, null, 0, hash)))
+                .hasCauseInstanceOf(DataAccessException.class);
+        Assertions.assertThatThrownBy(() -> this.read(dsl -> insertVictim(dsl,
+                VictimKind.ADDRESS_RANGE, Uuids.ZERO, null, 24, hash)))
+                .hasCauseInstanceOf(DataAccessException.class);
     }
 
     @Test
@@ -120,11 +133,20 @@ class SchemaManagerTest extends DatabaseTest {
 
     private static long insertVictim(final DSLContext dsl, final VictimKind kind,
             final UUID uuid, final byte[] address, final int prefixLength) {
+        return insertVictim(dsl, kind, uuid, address, prefixLength, address.length == 0
+                ? new byte[AddressHashes.LENGTH]
+                : AddressHashes.of(InetAddresses.fromBytes(address)));
+    }
+
+    private static long insertVictim(final DSLContext dsl, final VictimKind kind,
+            final UUID uuid, final byte @Nullable [] address, final int prefixLength,
+            final byte[] hash) {
         return dsl.insertInto(SakuraTables.VICTIMS)
                 .set(SakuraTables.VICTIMS.KIND, kind)
                 .set(SakuraTables.VICTIMS.UUID, uuid)
                 .set(SakuraTables.VICTIMS.ADDRESS, address)
                 .set(SakuraTables.VICTIMS.PREFIX_LENGTH, (short) prefixLength)
+                .set(SakuraTables.VICTIMS.ADDRESS_HASH, hash)
                 .returningResult(SakuraTables.VICTIMS.ID)
                 .fetchSingle()
                 .value1();

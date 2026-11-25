@@ -3,7 +3,9 @@ package net.serlith.sakurabans.api.data;
 import java.util.UUID;
 
 /**
- * What an erase removed or changed. Implemented by SakuraBans; don't implement it.
+ * What an erase removed or changed. Punishments and UUIDs are never removed by an erase; see
+ * {@link PlayerDataService#erase(UUID, net.serlith.sakurabans.api.model.Actor)}. Implemented by
+ * SakuraBans; don't implement it.
  */
 public interface EraseResult {
 
@@ -15,45 +17,56 @@ public interface EraseResult {
     UUID uuid();
 
     /**
-     * Names deleted from its history.
+     * Names deleted from its name history.
      *
      * @return the count
      */
-    long namesDeleted();
+    long namesRemoved();
 
     /**
-     * Addresses deleted from its history.
+     * Addresses deleted from its address history.
      *
      * @return the count
      */
-    long addressesDeleted();
+    long addressesRemoved();
 
     /**
-     * Ended punishments it received that were deleted.
+     * Allow-list entries deleted because their address was one of the account's addresses.
      *
      * @return the count
      */
-    long punishmentsExpunged();
+    long allowedAddressesRemoved();
 
     /**
-     * Active punishments it received that stay in force with their personal data removed (name
-     * snapshots, and the address of composite victims).
+     * Victims whose address was cleared, keeping only its hash: the account's composite victims,
+     * and address victims on one of its addresses that no other known account used. Their
+     * punishments now name an {@link net.serlith.sakurabans.api.model.ErasedAddressVictim} and
+     * still apply to that address.
      *
      * @return the count
      */
-    long punishmentsAnonymised();
+    long victimAddressesCleared();
 
     /**
-     * Punishments it issued whose operator became an "erased" placeholder.
+     * Evidence links deleted from punishments naming the account.
      *
      * @return the count
      */
-    long issuedAnonymised();
+    long evidenceRemoved();
 
     /**
-     * Allow-list entries, appeals and evidence links deleted.
+     * Punishments naming the account (as a player, composite or hashed victim), all kept.
      *
      * @return the count
      */
-    long otherDeleted();
+    long punishmentsKept();
+
+    /**
+     * Name snapshots of the account as staff (operator, revoker, voider, evidence and allow-list
+     * adder, lockdown starter, audit actor) replaced with the text {@code erased}. Their UUIDs
+     * stay.
+     *
+     * @return the number of rows changed
+     */
+    long namesRedacted();
 }

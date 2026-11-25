@@ -50,7 +50,6 @@ public final class CoreBootstrap {
                         components.templateActions(), components.warningActions(),
                         components.displayIds(), components.lockdowns(), components.webhooks(),
                         components.settingsService(), components.messageTemplates(),
-                        components.banWaveScheduler(),
                         SakuraApi.create(components.punishmentService(),
                                 new SakuraPlayerService(components.players(),
                                         components.clock(), components.altService()),
@@ -58,9 +57,7 @@ public final class CoreBootstrap {
                                 components.integrations(), components.allowList(),
                                 components.templates(), components.kindService(),
                                 components.authorization(),
-                                components.auditService(), components.settingsService(),
-                                components.messageTemplates(), components.formatter(),
-                                components.stats(), components.banWaves(),
-                                components.appeals(), components.playerData())));
+                                components.auditService(), components.formatter(),
+                                components.stats(), components.playerData())));
     }
 }

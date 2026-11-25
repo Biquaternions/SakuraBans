@@ -30,7 +30,6 @@ import net.serlith.sakurabans.core.message.Formats;
 import net.serlith.sakurabans.core.message.MessageKey;
 import net.serlith.sakurabans.core.message.Placeholders;
 import net.serlith.sakurabans.core.model.ResolvedTarget;
-import net.serlith.sakurabans.core.model.SakuraAltEntry;
 import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import net.serlith.sakurabans.core.platform.Platform;
@@ -167,22 +166,9 @@ public final class AltCommands implements CommandModule {
                                                 alt.activePunishments().stream().sorted()
                                                         .map(type -> this.runner.render(actor,
                                                                 Placeholders.typeKey(type)))
-                                                        .toList())))),
-                        Placeholder.component("source", this.source(actor, alt)));
+                                                        .toList())))));
             }
         });
-    }
-
-    private Component source(final CommandActor actor, final AltEntry alt) {
-        if (alt.source().equals(SakuraAltEntry.OWN_SOURCE)) {
-            return Component.empty();
-        }
-        final String score = alt.score().isPresent()
-                ? String.format(Locale.ROOT, "%.2f", alt.score().getAsDouble())
-                : "-";
-        return this.runner.render(actor, MessageKey.ALTS_SOURCE,
-                Placeholder.unparsed("source", alt.source()),
-                Placeholder.unparsed("score", score));
     }
 
     /** Online players grouped by the address they joined from, for shared addresses only. */

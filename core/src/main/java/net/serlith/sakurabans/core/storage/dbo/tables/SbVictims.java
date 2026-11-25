@@ -36,10 +36,13 @@ public final class SbVictims extends SbTable<SbVictimsRecord> {
             DSL.name("uuid"), SbTypes.UUID.nullable(false), this, "");
 
     public final TableField<SbVictimsRecord, byte[]> ADDRESS = createField(
-            DSL.name("address"), SQLDataType.VARBINARY(16).nullable(false), this, "");
+            DSL.name("address"), SQLDataType.VARBINARY(16).nullable(true), this, "");
 
     public final TableField<SbVictimsRecord, Short> PREFIX_LENGTH = createField(
             DSL.name("prefix_length"), SQLDataType.SMALLINT.nullable(false), this, "");
+
+    public final TableField<SbVictimsRecord, byte[]> ADDRESS_HASH = createField(
+            DSL.name("address_hash"), SQLDataType.BINARY(32).nullable(false), this, "");
 
     public SbVictims(final String prefix) {
         this(prefix, DSL.name(prefix + "victims"), null);
@@ -69,20 +72,27 @@ public final class SbVictims extends SbTable<SbVictimsRecord> {
     public List<Index> getIndexes() {
         return List.of(
                 Indexes.VICTIMS_UUID_IX,
-                Indexes.VICTIMS_ADDRESS_IX);
+                Indexes.VICTIMS_ADDRESS_HASH_IX);
     }
 
     @Override
     public List<Constraint> checks() {
+        // An erase clears the address of an address or composite victim; its prefix stays.
+        final Condition erased = this.ADDRESS.isNull()
+                .and(this.PREFIX_LENGTH.in((short) 32, (short) 128));
         return List.of(
                 this.check("shape_ck",
-                        this.KIND.eq(VictimKind.PLAYER)
+                        octets(this.ADDRESS_HASH).eq(32).and(
+                        this.KIND.eq(VictimKind.PLAYER).and(this.ADDRESS.isNotNull())
                                 .and(octets(this.ADDRESS).eq(0))
                                 .and(this.PREFIX_LENGTH.eq((short) 0))
                                 .or(this.KIND.in(VictimKind.ADDRESS, VictimKind.COMPOSITE)
-                                .and(this.prefixIs(4, 32, 32).or(this.prefixIs(16, 128, 128))))
+                                .and(erased.or(this.ADDRESS.isNotNull()
+                                        .and(this.prefixIs(4, 32, 32)
+                                                .or(this.prefixIs(16, 128, 128))))))
                                 .or(this.KIND.eq(VictimKind.ADDRESS_RANGE)
-                                .and(this.prefixIs(4, 1, 32).or(this.prefixIs(16, 1, 128))))));
+                                .and(this.ADDRESS.isNotNull())
+                                .and(this.prefixIs(4, 1, 32).or(this.prefixIs(16, 1, 128)))))));
     }
 
     private Condition prefixIs(final int bytes, final int min, final int max) {

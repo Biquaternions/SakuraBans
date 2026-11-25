@@ -2,7 +2,6 @@ package net.serlith.sakurabans.api;
 
 import java.util.Set;
 import net.serlith.sakurabans.api.allow.AllowListService;
-import net.serlith.sakurabans.api.appeal.AppealService;
 import net.serlith.sakurabans.api.audit.AuditService;
 import net.serlith.sakurabans.api.auth.AuthorizationService;
 import net.serlith.sakurabans.api.data.PlayerDataService;
@@ -11,14 +10,11 @@ import net.serlith.sakurabans.api.format.MessageFormatter;
 import net.serlith.sakurabans.api.imports.ImportService;
 import net.serlith.sakurabans.api.integration.IntegrationRegistry;
 import net.serlith.sakurabans.api.kind.KindService;
-import net.serlith.sakurabans.api.message.MessageTemplateService;
 import net.serlith.sakurabans.api.player.PlayerService;
 import net.serlith.sakurabans.api.punish.PunishmentService;
 import net.serlith.sakurabans.api.scope.ScopeService;
-import net.serlith.sakurabans.api.settings.SettingsService;
 import net.serlith.sakurabans.api.stats.StatsService;
 import net.serlith.sakurabans.api.template.TemplateService;
-import net.serlith.sakurabans.api.wave.BanWaveService;
 
 /**
  * Entry point of the SakuraBans API. Get it with {@link SakuraBans#api()}, or on Paper from the
@@ -112,7 +108,7 @@ public interface SakuraBansApi {
     AuthorizationService authorization();
 
     /**
-     * Where other plugins register guards, alt sources, evidence capturers and profile sources.
+     * Where other plugins register guards and profile sources.
      *
      * @return the registry
      */
@@ -124,20 +120,6 @@ public interface SakuraBansApi {
      * @return the service
      */
     KindService kinds();
-
-    /**
-     * Network-wide settings ({@link Capability#SETTINGS_EDITING}).
-     *
-     * @return the service
-     */
-    SettingsService settings();
-
-    /**
-     * Message templates ({@link Capability#MESSAGE_EDITING}).
-     *
-     * @return the service
-     */
-    MessageTemplateService messages();
 
     /**
      * Summaries and statistics ({@link Capability#STATS}).
@@ -152,20 +134,6 @@ public interface SakuraBansApi {
      * @return the service
      */
     AuditService audit();
-
-    /**
-     * Ban waves ({@link Capability#BAN_WAVES}).
-     *
-     * @return the service
-     */
-    BanWaveService banWaves();
-
-    /**
-     * Appeals ({@link Capability#APPEALS}).
-     *
-     * @return the service
-     */
-    AppealService appeals();
 
     /**
      * Exporting and erasing player data ({@link Capability#PLAYER_DATA}).

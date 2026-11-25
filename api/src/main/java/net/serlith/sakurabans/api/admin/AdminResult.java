@@ -5,8 +5,8 @@ import net.serlith.sakurabans.api.auth.Decision;
 import net.serlith.sakurabans.api.validation.FieldError;
 
 /**
- * The outcome of an administrative operation (kinds, templates, settings, messages, ban waves,
- * appeals, player data, imports). Implemented by SakuraBans; don't implement it.
+ * The outcome of an administrative operation (kinds, templates, settings, messages, player
+ * data, imports). Implemented by SakuraBans; don't implement it.
  *
  * @param <T> the type of the value on success
  */

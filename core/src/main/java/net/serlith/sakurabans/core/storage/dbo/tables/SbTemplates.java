@@ -42,9 +42,6 @@ public final class SbTemplates extends SbTable<SbTemplatesRecord> {
     public final TableField<SbTemplatesRecord, String> REQUIRED_EVIDENCE = createField(
             DSL.name("required_evidence"), SQLDataType.VARCHAR(1024).nullable(false), this, "");
 
-    public final TableField<SbTemplatesRecord, String> CAPTURE_EVIDENCE = createField(
-            DSL.name("capture_evidence"), SQLDataType.VARCHAR(1024).nullable(false), this, "");
-
     public final TableField<SbTemplatesRecord, Duration> LADDER_EXPIRY_MS = createField(
             DSL.name("ladder_expiry_ms"), SbTypes.DURATION.nullable(true), this, "");
 

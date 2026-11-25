@@ -12,7 +12,6 @@ import net.serlith.sakurabans.core.admin.SakuraSettingsService;
 import net.serlith.sakurabans.core.admin.SakuraStatsService;
 import net.serlith.sakurabans.core.alts.AltService;
 import net.serlith.sakurabans.core.alts.SakuraAllowListService;
-import net.serlith.sakurabans.core.appeal.SakuraAppealService;
 import net.serlith.sakurabans.core.audit.SakuraAuditService;
 import net.serlith.sakurabans.core.auth.SakuraAuthorizationService;
 import net.serlith.sakurabans.core.command.CommandRegistrar;
@@ -26,8 +25,6 @@ import net.serlith.sakurabans.core.command.ScopeAccess;
 import net.serlith.sakurabans.core.command.module.AdminCommands;
 import net.serlith.sakurabans.core.command.module.AllowCommands;
 import net.serlith.sakurabans.core.command.module.AltCommands;
-import net.serlith.sakurabans.core.command.module.AppealCommands;
-import net.serlith.sakurabans.core.command.module.BanWaveCommands;
 import net.serlith.sakurabans.core.command.module.CheckCommands;
 import net.serlith.sakurabans.core.command.module.EditCommands;
 import net.serlith.sakurabans.core.command.module.GdprCommands;
@@ -85,9 +82,7 @@ import net.serlith.sakurabans.core.storage.Lease;
 import net.serlith.sakurabans.core.storage.SchemaManager;
 import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.storage.repository.AllowListRepository;
-import net.serlith.sakurabans.core.storage.repository.AppealRepository;
 import net.serlith.sakurabans.core.storage.repository.AuditRepository;
-import net.serlith.sakurabans.core.storage.repository.BanWaveRepository;
 import net.serlith.sakurabans.core.storage.repository.KindRepository;
 import net.serlith.sakurabans.core.storage.repository.LockdownRepository;
 import net.serlith.sakurabans.core.storage.repository.MetaRepository;
@@ -106,8 +101,6 @@ import net.serlith.sakurabans.core.sync.SyncService;
 import net.serlith.sakurabans.core.sync.SyncTransport;
 import net.serlith.sakurabans.core.template.SakuraTemplateService;
 import net.serlith.sakurabans.core.template.TemplateActions;
-import net.serlith.sakurabans.core.wave.BanWaveScheduler;
-import net.serlith.sakurabans.core.wave.SakuraBanWaveService;
 
 final class CoreComponents {
 
@@ -166,9 +159,6 @@ final class CoreComponents {
     private final WebhookService webhooks;
     private final SakuraSettingsService settingsService;
     private final SakuraMessageTemplateService messageTemplates;
-    private final SakuraBanWaveService banWaves;
-    private final BanWaveScheduler banWaveScheduler;
-    private final SakuraAppealService appeals;
     private final SakuraPlayerDataService playerData;
 
     // Layer 4, and the layer 3 services that take a layer 4 implementation of their interface
@@ -236,7 +226,7 @@ final class CoreComponents {
                 environment.proxy(), this.serverNames, environment.logger());
 
         this.altService = new AltService(this.players, this.punishments, this.allowList,
-                this.integrations, clock, environment.logger());
+                clock);
         this.ranges = new ActiveRangeCache(this.punishments, this.players, this.allowList,
                 clock);
         this.mutes = new MuteCache(this.punishments, this.scopeService, this.config, clock,
@@ -251,8 +241,8 @@ final class CoreComponents {
         this.limits = new LimitService(this.config, this.permissions, new CooldownTracker(),
                 clock);
         this.templates = new SakuraTemplateService(this.templateRepository, this.meta,
-                this.templateFiles, this.kindService, this.integrations, this::authorize,
-                this.sync, this.events, clock, environment.logger());
+                this.templateFiles, this.kindService, this::authorize, this.sync, this.events,
+                clock, environment.logger());
         this.templateActions = new TemplateActions(this.events, this.templates, this.platform,
                 this.names, environment.logger());
         this.warningActions = new WarningActions(this.events, this.punishments, this.config,
@@ -286,14 +276,6 @@ final class CoreComponents {
                         clock, this.templates, this.kindService),
                 this.mutes, this.enforcer, this::authorize, this.limits, this.exemption,
                 this.events, this.sync, this.displayIds);
-        final BanWaveRepository waveRepository = new BanWaveRepository(this.storage);
-        this.banWaves = new SakuraBanWaveService(waveRepository, this.punishmentService,
-                this::authorize, this.sync, this.events, clock, environment.logger());
-        this.banWaveScheduler = new BanWaveScheduler(this.lease, waveRepository, this.banWaves,
-                this.executors, clock, environment.logger());
-        this.appeals = new SakuraAppealService(new AppealRepository(this.storage),
-                this.punishmentService, this::authorize, this.notifications, this.names,
-                this.sync, this.events, clock);
         this.playerData = new SakuraPlayerDataService(new PlayerDataRepository(this.storage,
                 new PunishmentMapper(this.displayIds::display)), this.players, this.audit,
                 this.allowList, this.mutes, this.names, this::authorize, this.sync, this.events,
@@ -301,15 +283,15 @@ final class CoreComponents {
         this.syncReceiver = new SyncReceiver(this.punishments, this.enforcer, this.mutes,
                 this.scopeService, this.platform, this.events, this.config, clock,
                 this.allowList, this.templates, this.kindService, this.lockdowns,
-                this.notifications, this.settingsService, this.messageTemplates,
-                this.banWaves, this.appeals, this.playerData, environment.logger());
+                this.settingsService, this.messageTemplates,
+                this.playerData, environment.logger());
         this.sweeper = new ExpirySweeper(this.lease, this.punishments, this.mutes, this.enforcer,
                 this.sync, this.events, this.executors, this.platform, clock,
                 environment.logger());
         this.loginGate = new LoginGate(this.lifecycle, this.config, this.scopeService,
                 this.punishments, this.players, this.names, this.mutes, this.enforcementMessages,
-                this.notifications, this.events, clock, this.allowList, this.altService,
-                this.ranges, this.enforcer, this.lockdowns, environment.logger());
+                this.notifications, this.events, clock, this.altService, this.ranges,
+                this.enforcer, this.lockdowns, environment.logger());
         this.chatGate = new ChatGate(this.mutes, new CommandBlacklist(this.config),
                 this.enforcementMessages, this.notifications, this.events, environment.logger());
 
@@ -348,15 +330,11 @@ final class CoreComponents {
                 new GdprCommands(registrar, runner, targetParser, this.targets, this.playerData,
                         confirmations, environment.dataDirectory(), this.executors.worker(),
                         clock),
-                new AppealCommands(registrar, runner, this.formats, this.appeals,
-                        this.punishmentService, this.displayIds, this.names),
-                new BanWaveCommands(registrar, runner, replies, this.formats, flags,
-                        targetParser, this.targets, this.banWaves, confirmations, clock),
                 new AdminCommands(registrar, runner, replies, this.placeholders, this.formats,
                         flags, targetParser, this.targets, this.punishmentService,
-                        this.punishments, this.lockdowns, this.scopeService, this.notifications,
-                        this.sync, this.config, this.messages, this.platform, confirmations,
-                        this.executors.worker(), clock),
+                        this.punishments, this.lockdowns, this.scopeService, this.config,
+                        this.messages, this.platform, confirmations, this.executors.worker(),
+                        clock),
                 new KindCommands(registrar, runner, this.kindService, this.scopeService)),
                 registrar, runner, this.messages);
     }
@@ -525,20 +503,8 @@ final class CoreComponents {
         return this.messageTemplates;
     }
 
-    SakuraBanWaveService banWaves() {
-        return this.banWaves;
-    }
-
     SakuraPlayerDataService playerData() {
         return this.playerData;
-    }
-
-    SakuraAppealService appeals() {
-        return this.appeals;
-    }
-
-    BanWaveScheduler banWaveScheduler() {
-        return this.banWaveScheduler;
     }
 
     SakuraStatsService stats() {

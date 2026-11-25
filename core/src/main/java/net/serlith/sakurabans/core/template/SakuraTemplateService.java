@@ -1,7 +1,6 @@
 package net.serlith.sakurabans.core.template;
 
 import com.google.common.base.Preconditions;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.util.ArrayList;
@@ -9,13 +8,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
@@ -23,15 +19,10 @@ import net.serlith.sakurabans.api.admin.AdminResult;
 import net.serlith.sakurabans.api.audit.SubjectType;
 import net.serlith.sakurabans.api.auth.Action;
 import net.serlith.sakurabans.api.event.ChangeType;
-import net.serlith.sakurabans.api.integration.EvidenceCapturer;
 import net.serlith.sakurabans.api.model.Actor;
-import net.serlith.sakurabans.api.model.CompositeVictim;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
-import net.serlith.sakurabans.api.model.EvidenceRef;
-import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Victim;
-import net.serlith.sakurabans.api.template.TemplateDefinition;
 import net.serlith.sakurabans.api.template.TemplateInfo;
 import net.serlith.sakurabans.api.template.TemplatePreview;
 import net.serlith.sakurabans.api.template.TemplateService;
@@ -43,12 +34,12 @@ import net.serlith.sakurabans.core.configuration.ConfigIssue;
 import net.serlith.sakurabans.core.configuration.TemplateFiles;
 import net.serlith.sakurabans.core.event.SakuraEventBus;
 import net.serlith.sakurabans.core.event.SakuraTemplateChangedEvent;
-import net.serlith.sakurabans.core.integration.SakuraIntegrationRegistry;
 import net.serlith.sakurabans.core.model.ApiValues;
 import net.serlith.sakurabans.core.model.SakuraAdminResult;
 import net.serlith.sakurabans.core.model.SakuraKind;
 import net.serlith.sakurabans.core.model.SakuraTemplateInfo;
 import net.serlith.sakurabans.core.model.SakuraTemplatePreview;
+import net.serlith.sakurabans.core.model.TemplateDefinition;
 import net.serlith.sakurabans.core.punish.ActionCheck;
 import net.serlith.sakurabans.core.punish.KindLookup;
 import net.serlith.sakurabans.core.punish.TemplateResolver;
@@ -57,12 +48,10 @@ import net.serlith.sakurabans.core.storage.repository.MetaRepository;
 import net.serlith.sakurabans.core.storage.repository.TemplateRepository;
 import net.serlith.sakurabans.core.sync.SyncPacket;
 import net.serlith.sakurabans.core.sync.SyncService;
-import net.serlith.sakurabans.core.util.Futures;
 import org.jspecify.annotations.Nullable;
 
 public final class SakuraTemplateService implements TemplateService, TemplateResolver {
 
-    static final Duration CAPTURE_TIMEOUT = Duration.ofSeconds(3);
     static final String SEEDED = "templates.seeded";
     static final Actor SEED_ACTOR = Actor.of(ConsoleOperator.INSTANCE, "config");
 
@@ -70,7 +59,6 @@ public final class SakuraTemplateService implements TemplateService, TemplateRes
     private final MetaRepository meta;
     private final TemplateFiles files;
     private final KindLookup kinds;
-    private final SakuraIntegrationRegistry integrations;
     private final ActionCheck actions;
     private final SyncService sync;
     private final SakuraEventBus events;
@@ -80,15 +68,13 @@ public final class SakuraTemplateService implements TemplateService, TemplateRes
             new AtomicReference<>(Map.of());
 
     public SakuraTemplateService(final TemplateRepository repository, final MetaRepository meta,
-            final TemplateFiles files, final KindLookup kinds,
-            final SakuraIntegrationRegistry integrations, final ActionCheck actions,
+            final TemplateFiles files, final KindLookup kinds, final ActionCheck actions,
             final SyncService sync, final SakuraEventBus events, final InstantSource clock,
             final ComponentLogger logger) {
         this.repository = repository;
         this.meta = meta;
         this.files = files;
         this.kinds = kinds;
-        this.integrations = integrations;
         this.actions = actions;
         this.sync = sync;
         this.events = events;
@@ -188,18 +174,16 @@ public final class SakuraTemplateService implements TemplateService, TemplateRes
     }
 
     @Override
-    public CompletableFuture<Optional<Resolution>> resolve(final String name, final Victim victim,
-            final Actor actor) {
+    public CompletableFuture<Optional<Resolution>> resolve(final String name,
+            final Victim victim) {
         final SakuraTemplateInfo template = this.find(name).orElse(null);
         if (template == null) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        return this.step(template, victim).thenCompose(step ->
-                this.capture(template, victim, actor).thenApply(captured -> Optional.of(
-                        new Resolution(template.name(), template.kind(), template.type(),
-                                template.reason(),
-                                template.ladder().get(step).duration().orElse(null), step,
-                                template.requiredEvidence(), captured))));
+        return this.step(template, victim).thenApply(step -> Optional.of(
+                new Resolution(template.name(), template.kind(), template.type(),
+                        template.reason(), template.ladder().get(step).duration().orElse(null),
+                        step, template.requiredEvidence())));
     }
 
     CompletableFuture<Integer> step(final SakuraTemplateInfo template, final Victim victim) {
@@ -234,60 +218,17 @@ public final class SakuraTemplateService implements TemplateService, TemplateRes
         return weights;
     }
 
-    private CompletableFuture<List<EvidenceRef>> capture(final SakuraTemplateInfo template,
-            final Victim victim, final Actor actor) {
-        final UUID uuid = switch (victim) {
-            case PlayerVictim player -> player.uuid();
-            case CompositeVictim composite -> composite.uuid();
-            default -> null;
-        };
-        if (uuid == null || template.captureEvidence().isEmpty()) {
-            return CompletableFuture.completedFuture(List.of());
-        }
-        final List<CompletableFuture<@Nullable EvidenceRef>> captures = new ArrayList<>();
-        for (final EvidenceCapturer capturer : this.integrations.capturers()) {
-            if (template.captureEvidence().contains(capturer.type())) {
-                captures.add(this.capture(capturer, uuid, actor));
-            }
-        }
-        return Futures.allOf(captures).thenApply(refs ->
-                refs.stream().filter(Objects::nonNull).toList());
-    }
-
-    private CompletableFuture<@Nullable EvidenceRef> capture(final EvidenceCapturer capturer,
-            final UUID uuid, final Actor actor) {
-        CompletableFuture<EvidenceRef> capture;
-        try {
-            capture = Preconditions.checkNotNull(capturer.capture(uuid, actor), "capture");
-        } catch (final RuntimeException e) {
-            capture = CompletableFuture.failedFuture(e);
-        }
-        return capture.toCompletableFuture()
-                .orTimeout(CAPTURE_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
-                .handle((ref, failure) -> {
-                    if (failure != null) {
-                        this.logger.warn("The evidence capturer for {} failed; continuing without"
-                                + " it", capturer.type(), Futures.unwrap(failure));
-                        return null;
-                    }
-                    return ref;
-                });
-    }
-
-    @Override
     public CompletableFuture<AdminResult<TemplateInfo>> create(
             final TemplateDefinition definition, final Actor actor) {
         return this.authorized(actor, () -> this.write(definition, null, actor, true));
     }
 
-    @Override
     public CompletableFuture<AdminResult<TemplateInfo>> update(
             final TemplateDefinition definition, final long expectedVersion, final Actor actor) {
         return this.authorized(actor, () -> this.write(definition, expectedVersion, actor,
                 false));
     }
 
-    @Override
     public CompletableFuture<AdminResult<TemplateInfo>> reorderSteps(final String name,
             final List<Integer> order, final long expectedVersion, final Actor actor) {
         return this.authorized(actor, () -> {
@@ -308,7 +249,6 @@ public final class SakuraTemplateService implements TemplateService, TemplateRes
         });
     }
 
-    @Override
     public CompletableFuture<AdminResult<TemplateInfo>> delete(final String name,
             final long expectedVersion, final Actor actor) {
         return this.authorized(actor, () -> {
@@ -334,8 +274,7 @@ public final class SakuraTemplateService implements TemplateService, TemplateRes
                                     step.actions()))
                             .toList())
                     .requiredEvidence(given.requiredEvidence())
-                    .captureEvidence(given.captureEvidence())
-                    .ladderExpiry(given.ladderExpiry().orElse(null))
+                    .ladderExpiry(given.ladderExpiry())
                     .addressShared(given.addressShared())
                     .permissionRequired(given.permissionRequired())
                     .actions(given.actions())

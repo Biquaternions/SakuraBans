@@ -1,11 +1,13 @@
 package net.serlith.sakurabans.core.storage.repository;
 
 import com.google.common.base.Preconditions;
+import java.net.InetAddress;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -17,6 +19,7 @@ import net.serlith.sakurabans.api.audit.SubjectType;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.EndKind;
+import net.serlith.sakurabans.api.model.ErasedAddressVictim;
 import net.serlith.sakurabans.api.model.EvidenceRef;
 import net.serlith.sakurabans.api.model.Lengths;
 import net.serlith.sakurabans.api.model.Operator;
@@ -40,6 +43,8 @@ import net.serlith.sakurabans.core.storage.dbo.records.SbPunishmentsRecord;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbActivePunishments;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbPunishments;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbVictims;
+import net.serlith.sakurabans.core.util.AddressHashes;
+import net.serlith.sakurabans.core.util.Uuids;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
@@ -350,11 +355,6 @@ public final class PunishmentRepository {
             final Punishment previous = this.fetch(dsl, id).orElseThrow();
             dsl.deleteFrom(SakuraTables.PUNISHMENT_EVIDENCE)
                     .where(SakuraTables.PUNISHMENT_EVIDENCE.PUNISHMENT_ID.eq(id)).execute();
-            dsl.deleteFrom(SakuraTables.APPEALS)
-                    .where(SakuraTables.APPEALS.PUNISHMENT_ID.eq(id)).execute();
-            dsl.update(SakuraTables.BAN_WAVE_ENTRIES)
-                    .setNull(SakuraTables.BAN_WAVE_ENTRIES.PUNISHMENT_ID)
-                    .where(SakuraTables.BAN_WAVE_ENTRIES.PUNISHMENT_ID.eq(id)).execute();
             dsl.deleteFrom(SakuraTables.ACTIVE_PUNISHMENTS)
                     .where(SakuraTables.ACTIVE_PUNISHMENTS.PUNISHMENT_ID.eq(id)).execute();
             dsl.deleteFrom(SakuraTables.PUNISHMENTS)
@@ -534,6 +534,37 @@ public final class PunishmentRepository {
             final Instant now) {
         return this.storage.read(dsl -> this.mapper.map(dsl, activeApplicableQuery(dsl, type,
                 applicability, scopes, now, this.policy, this.levels.levels()).fetch()));
+    }
+
+    public CompletableFuture<Optional<List<Punishment>>> restoreErased(
+            final List<Punishment> matched, final UUID uuid, final InetAddress address) {
+        final String hash = HexFormat.of().formatHex(AddressHashes.of(address));
+        final List<ErasedAddressVictim> erased = matched.stream()
+                .map(Punishment::victim)
+                .filter(ErasedAddressVictim.class::isInstance)
+                .map(ErasedAddressVictim.class::cast)
+                .filter(victim -> victim.hash().equals(hash)
+                        && victim.uuid().map(uuid::equals).orElse(true))
+                .distinct()
+                .toList();
+        if (erased.isEmpty()) {
+            return CompletableFuture.completedFuture(Optional.empty());
+        }
+        return this.storage.write(configuration -> {
+            final DSLContext dsl = configuration.dsl();
+            for (final ErasedAddressVictim victim : erased) {
+                VictimRepository.restore(dsl, victim.uuid().isPresent()
+                                ? VictimKind.COMPOSITE : VictimKind.ADDRESS,
+                        victim.uuid().orElse(Uuids.ZERO), address);
+            }
+            final List<Punishment> reloaded = new ArrayList<>(matched.size());
+            for (final Punishment punishment : matched) {
+                reloaded.add(erased.contains(punishment.victim())
+                        ? this.fetch(dsl, punishment.id()).orElse(punishment)
+                        : punishment);
+            }
+            return Optional.of(List.copyOf(reloaded));
+        });
     }
 
     public CompletableFuture<Map<UUID, Set<PunishmentType>>> activeTypes(

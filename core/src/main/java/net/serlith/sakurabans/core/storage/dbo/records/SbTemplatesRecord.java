@@ -71,15 +71,6 @@ public final class SbTemplatesRecord extends UpdatableRecordImpl<SbTemplatesReco
         return this;
     }
 
-    public String captureEvidence() {
-        return this.get(SakuraTables.TEMPLATES.CAPTURE_EVIDENCE);
-    }
-
-    public SbTemplatesRecord captureEvidence(final String value) {
-        this.set(SakuraTables.TEMPLATES.CAPTURE_EVIDENCE, value);
-        return this;
-    }
-
     public @Nullable Duration ladderExpiryMs() {
         return this.get(SakuraTables.TEMPLATES.LADDER_EXPIRY_MS);
     }

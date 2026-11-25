@@ -20,13 +20,14 @@ import net.serlith.sakurabans.api.model.AddressRangeVictim;
 import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.AddressVictim;
 import net.serlith.sakurabans.api.model.CompositeVictim;
+import net.serlith.sakurabans.api.model.ErasedAddressVictim;
 import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.api.punish.PunishmentQuery.Applicability;
-import net.serlith.sakurabans.api.template.TemplateDefinition;
 import net.serlith.sakurabans.api.template.TemplateStep;
 import net.serlith.sakurabans.core.model.SakuraTemplateInfo;
+import net.serlith.sakurabans.core.model.TemplateDefinition;
 import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import net.serlith.sakurabans.core.storage.dbo.VictimKind;
@@ -37,7 +38,7 @@ import net.serlith.sakurabans.core.storage.dbo.tables.SbTemplateGroups;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbTemplateSteps;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbTemplates;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbVictims;
-import net.serlith.sakurabans.core.util.InetAddresses;
+import net.serlith.sakurabans.core.util.AddressHashes;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
@@ -185,7 +186,7 @@ public final class TemplateRepository {
             case CompositeVictim composite -> composite.address();
             default -> null;
         };
-        if (victim instanceof AddressRangeVictim) {
+        if (victim instanceof AddressRangeVictim || victim instanceof ErasedAddressVictim) {
             return DSL.select(v.ID).from(v).where(StoredVictim.of(victim).matches(v));
         }
         if (addressShared) {
@@ -198,7 +199,7 @@ public final class TemplateRepository {
                     .and(v.KIND.in(VictimKind.PLAYER, VictimKind.COMPOSITE));
         }
         return DSL.select(v.ID).from(v)
-                .where(v.ADDRESS.eq(InetAddresses.toBytes(address)))
+                .where(v.ADDRESS_HASH.eq(AddressHashes.of(address)))
                 .and(v.KIND.in(VictimKind.ADDRESS, VictimKind.COMPOSITE));
     }
 
@@ -240,9 +241,9 @@ public final class TemplateRepository {
                 .fetch()
                 .forEach(member -> groups.put(member.value1(), member.value2().intValue()));
         return new SakuraTemplateInfo(row.name(), row.kind(), row.type(), row.reason(), ladder,
-                Set.copyOf(split(row.requiredEvidence())), Set.copyOf(split(row.captureEvidence())),
-                row.ladderExpiryMs(), row.addressShared(), row.permissionRequired(),
-                split(row.actions()), groups, row.version());
+                Set.copyOf(split(row.requiredEvidence())), row.ladderExpiryMs(),
+                row.addressShared(), row.permissionRequired(), split(row.actions()), groups,
+                row.version());
     }
 
     private static Map<Field<?>, @Nullable Object> values(final SakuraTemplateInfo template,
@@ -253,8 +254,6 @@ public final class TemplateRepository {
         values.put(t.TYPE, template.type());
         values.put(t.REASON, template.reason());
         values.put(t.REQUIRED_EVIDENCE, join(template.requiredEvidence().stream().sorted()
-                .toList()));
-        values.put(t.CAPTURE_EVIDENCE, join(template.captureEvidence().stream().sorted()
                 .toList()));
         values.put(t.ADDRESS_SHARED, template.addressShared());
         values.put(t.PERMISSION_REQUIRED, template.permissionRequired());

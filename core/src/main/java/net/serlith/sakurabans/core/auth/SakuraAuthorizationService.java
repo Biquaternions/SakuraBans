@@ -82,13 +82,11 @@ public final class SakuraAuthorizationService implements AuthorizationService, A
                 case FORGET_ADDRESS -> Permissions.ALTS_UNLINK;
                 case EXPORT, ERASE -> Permissions.ADMIN_GDPR;
             });
-            case Action.DecideAppeal appeal -> this.all(actor, Permissions.APPEALS_DECIDE);
             case Action.Manage manage -> this.all(actor, switch (manage.area()) {
                 case KINDS -> Permissions.ADMIN_KINDS;
                 case TEMPLATES -> Permissions.ADMIN_TEMPLATES;
                 case SETTINGS -> Permissions.ADMIN_SETTINGS;
                 case MESSAGES -> Permissions.ADMIN_MESSAGES;
-                case BAN_WAVES -> Permissions.ADMIN_BANWAVES;
                 case ALLOW_LIST -> Permissions.ADMIN_ALLOW;
                 case IMPORT -> Permissions.ADMIN_IMPORT;
             });
@@ -96,7 +94,6 @@ public final class SakuraAuthorizationService implements AuthorizationService, A
                 case AUDIT -> Permissions.ADMIN_AUDIT;
                 case STATS -> Permissions.ADMIN_STATS;
                 case HIDDEN_PUNISHMENTS -> Permissions.VIEW_HIDDEN;
-                case APPEALS -> Permissions.APPEALS_VIEW;
             });
         };
     }

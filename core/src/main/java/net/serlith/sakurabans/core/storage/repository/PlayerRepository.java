@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import net.serlith.sakurabans.api.audit.AuditAction;
@@ -25,6 +24,7 @@ import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import net.serlith.sakurabans.core.storage.dbo.records.SbPlayersRecord;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbPlayerAddresses;
+import net.serlith.sakurabans.core.util.AddressHashes;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
@@ -75,6 +75,7 @@ public final class PlayerRepository {
                 dsl.insertInto(SakuraTables.PLAYER_ADDRESSES)
                         .set(SakuraTables.PLAYER_ADDRESSES.UUID, uuid)
                         .set(SakuraTables.PLAYER_ADDRESSES.ADDRESS, address)
+                        .set(SakuraTables.PLAYER_ADDRESSES.ADDRESS_HASH, AddressHashes.of(address))
                         .set(SakuraTables.PLAYER_ADDRESSES.FIRST_SEEN, at)
                         .set(SakuraTables.PLAYER_ADDRESSES.LAST_SEEN, at)
                         .set(SakuraTables.PLAYER_ADDRESSES.LAST_SERVER, server)
@@ -206,14 +207,6 @@ public final class PlayerRepository {
                     links.add(new Link(account, List.copyOf(shared.get(id)))));
             return List.copyOf(links);
         });
-    }
-
-    public CompletableFuture<Set<UUID>> seenAt(final InetAddress address, final Instant since) {
-        final SbPlayerAddresses known = SakuraTables.PLAYER_ADDRESSES;
-        return this.storage.read(dsl -> dsl.selectDistinct(known.UUID).from(known)
-                .where(known.ADDRESS.eq(address))
-                .and(known.LAST_SEEN.ge(since))
-                .fetchSet(known.UUID));
     }
 
     private static PlayerProfileView toProfile(final SbPlayersRecord row) {

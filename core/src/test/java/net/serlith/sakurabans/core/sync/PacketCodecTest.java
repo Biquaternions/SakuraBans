@@ -11,6 +11,7 @@ import net.serlith.sakurabans.api.model.CompositeVictim;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
 import net.serlith.sakurabans.api.model.CustomOperator;
 import net.serlith.sakurabans.api.model.EndKind;
+import net.serlith.sakurabans.api.model.ErasedAddressVictim;
 import net.serlith.sakurabans.api.model.EvidenceRef;
 import net.serlith.sakurabans.api.model.GlobalScope;
 import net.serlith.sakurabans.api.model.Lengths;
@@ -22,12 +23,15 @@ import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.api.punish.PunishmentEdit;
 import net.serlith.sakurabans.core.RecordingLogger;
 import net.serlith.sakurabans.core.model.SakuraEvidence;
+import net.serlith.sakurabans.core.model.SakuraPlayerData;
 import net.serlith.sakurabans.core.model.SakuraPunishment;
 import net.serlith.sakurabans.core.model.SakuraPunishmentEnd;
 import net.serlith.sakurabans.core.model.SakuraPunishmentVoid;
 import net.serlith.sakurabans.core.model.SakuraTemplateRef;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class PacketCodecTest {
 
@@ -51,11 +55,11 @@ class PacketCodecTest {
                         PunishmentEdit.NewScope.of(CategoryScope.of("pvp"))),
                 new SyncPacket.PunishmentVoidedPacket(5),
                 new SyncPacket.LockdownChangedPacket(),
-                new SyncPacket.BroadcastPacket("<red>Restart"),
                 new SyncPacket.PunishmentsRolledBackPacket(List.of(1L, 2L),
                         PlayerOperator.of(UUID.randomUUID(), "Mod"), Instant.ofEpochMilli(7),
                         Actor.of(ConsoleOperator.INSTANCE, "console"), null, Visibility.SILENT),
-                new SyncPacket.PlayerDataErasedPacket(UUID.randomUUID(), 1, 2, 3, 4, 5, 6,
+                new SyncPacket.PlayerDataErasedPacket(new SakuraPlayerData.Erase(
+                        UUID.randomUUID(), 1, 2, 3, 4, 5, 6, 7),
                         Actor.of(ConsoleOperator.INSTANCE, "console")),
                 new SyncPacket.EvidenceChangedPacket(6, true, new SakuraEvidence(
                         EvidenceRef.of("hydra:chat:1"), Actor.of(CustomOperator.of("Hydra",
@@ -84,6 +88,21 @@ class PacketCodecTest {
 
         Assertions.assertThat(bytes.length).isLessThanOrEqualTo(16_384);
         Assertions.assertThat(this.receiver.decode(bytes)).contains(packet);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void erasedVictimsTravel(final boolean composite) {
+        final Punishment punishment = new SakuraPunishment(13, "K7Q2M9XB", PunishmentType.BAN,
+                "ban", false, null,
+                ErasedAddressVictim.of("0123456789abcdef".repeat(4),
+                        composite ? UUID.randomUUID() : null),
+                PlayerOperator.of(UUID.randomUUID(), "erased"), "in-game", GlobalScope.INSTANCE,
+                "reason", Instant.ofEpochMilli(1_000), null, null, Visibility.NORMAL, null, null,
+                null, List.of(), 1);
+        final SyncPacket packet = new SyncPacket.PunishmentExpungedPacket(punishment);
+
+        Assertions.assertThat(this.receiver.decode(this.sender.encode(packet))).contains(packet);
     }
 
     @Test

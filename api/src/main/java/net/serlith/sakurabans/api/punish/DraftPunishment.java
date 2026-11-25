@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import net.serlith.sakurabans.api.model.Actor;
+import net.serlith.sakurabans.api.model.ErasedAddressVictim;
 import net.serlith.sakurabans.api.model.EvidenceRef;
 import net.serlith.sakurabans.api.model.Lengths;
 import net.serlith.sakurabans.api.model.PunishmentType;
@@ -252,12 +253,15 @@ public interface DraftPunishment {
         /**
          * Checks the values without building.
          *
-         * @return every problem: {@code reason} too long, {@code kind} or {@code template} not an
-         *         identifier, {@code duration} not positive, not allowed on a kick, or exclusive
-         *         with a template
+         * @return every problem: {@code victim} an {@link ErasedAddressVictim}, {@code reason}
+         *         too long, {@code kind} or {@code template} not an identifier, {@code duration}
+         *         not positive, not allowed on a kick, or exclusive with a template
          */
         public List<FieldError> validate() {
             final Validator errors = Validator.create();
+            errors.check(!(this.victim instanceof ErasedAddressVictim), "victim",
+                    Code.NOT_ALLOWED,
+                    "an erased victim has no address; name the address or player instead");
             errors.maxLength("reason", this.reason, Lengths.MAX_REASON);
             errors.identifier("kind", this.kind);
             errors.identifier("template", this.template);

@@ -21,12 +21,35 @@ public interface PlayerDataService {
     CompletableFuture<AdminResult<PlayerDataExport>> export(UUID uuid, Actor actor);
 
     /**
-     * Erases an account's personal data. The profile, names, addresses, allow-list entries,
-     * appeals and evidence links are deleted, and its ended punishments are expunged. Its active
-     * punishments stay in force but lose their personal data (name snapshots, and the address of
-     * composite victims, so no IP address of the account remains). Punishments it issued keep
-     * their record with an "erased" operator. Address-only and range punishments aren't tied to
-     * the account and are kept.
+     * Erases an account's personal data, keeping every punishment in force and every UUID.
+     *
+     * <p>Kept: every punishment naming the account, ended or active, and every UUID (victims,
+     * operators, revokers, voiders, audit actors and subjects, the allow-list). Audit entries are
+     * kept.
+     *
+     * <p>Removed or redacted:
+     * <ul>
+     *   <li>the profile, the name history and the address history;</li>
+     *   <li>name snapshots of the account as staff (operator, revoker, voider, evidence and
+     *       allow-list adder, lockdown starter, audit actor) become the text {@code erased};</li>
+     *   <li>evidence of punishments naming the account;</li>
+     *   <li>allow-list entries for one of its addresses;</li>
+     *   <li>its addresses inside audit values become the text {@code erased};</li>
+     *   <li>the address of its composite victims, and of address victims on one of its known
+     *       addresses that no other known account used, is cleared; only its SHA-256 hash stays.
+     *       Their punishments then name an
+     *       {@link net.serlith.sakurabans.api.model.ErasedAddressVictim} and still apply to
+     *       connections from that exact address. Address victims shared with other accounts,
+     *       other accounts' composite victims and range victims are untouched.</li>
+     * </ul>
+     *
+     * <p>An erased victim gets its address back when the address is seen again: at a login
+     * stopped by its punishment, or when a punishment names the address (or the account and
+     * address) again.
+     *
+     * <p>Not handled: free text (reasons, notes), names inside audit values, export files, server
+     * logs and webhooks already sent. A plain SHA-256 hash of an IPv4 address can be reversed by
+     * trying every address; the point is that the address isn't stored.
      *
      * @param uuid the account
      * @param actor who requests the erase

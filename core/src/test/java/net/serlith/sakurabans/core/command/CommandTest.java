@@ -7,8 +7,6 @@ import net.serlith.sakurabans.core.audit.SakuraAuditService;
 import net.serlith.sakurabans.core.command.module.AdminCommands;
 import net.serlith.sakurabans.core.command.module.AllowCommands;
 import net.serlith.sakurabans.core.command.module.AltCommands;
-import net.serlith.sakurabans.core.command.module.AppealCommands;
-import net.serlith.sakurabans.core.command.module.BanWaveCommands;
 import net.serlith.sakurabans.core.command.module.CheckCommands;
 import net.serlith.sakurabans.core.command.module.EditCommands;
 import net.serlith.sakurabans.core.command.module.GdprCommands;
@@ -75,17 +73,11 @@ public abstract class CommandTest extends ServiceTest {
                 new GdprCommands(registrar, runner, targetParser, targets, this.playerData,
                         new ConfirmationTracker(this.clock), this.dir, Runnable::run,
                         this.clock),
-                new AppealCommands(registrar, runner, new Formats(this.messages, this.config),
-                        this.appeals, this.service, this.displayIds, this.names),
-                new BanWaveCommands(registrar, runner, replies, new Formats(this.messages,
-                        this.config), flags, targetParser, targets, this.banWaves,
-                        new ConfirmationTracker(this.clock), this.clock),
                 new AdminCommands(registrar, runner, replies, this.placeholders,
                         new Formats(this.messages, this.config), flags, targetParser, targets,
                         this.service, this.punishments, this.lockdowns, this.scopes,
-                        this.notifications, this.syncService, this.config, this.messages,
-                        this.platform, new ConfirmationTracker(this.clock), Runnable::run,
-                        this.clock)),
+                        this.config, this.messages, this.platform,
+                        new ConfirmationTracker(this.clock), Runnable::run, this.clock)),
                 registrar, runner, this.messages).install(this.manager);
     }
 

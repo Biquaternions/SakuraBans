@@ -66,10 +66,6 @@ screen:
     <red><bold>You were kicked.</bold></red>
 
     <gray>Reason:</gray> <white><reason></white>
-  connection_limit: |-
-    <red><bold>Too many accounts joined from your address recently.</bold></red>
-
-    <gray>Please try again later.</gray>
   check_failed: |-
     <red><bold>We couldn't check your account.</bold></red>
 
@@ -83,6 +79,8 @@ screen:
 
 # Sent to the punished player.
 victim:
+  # How a punishment names an address removed by /sb gdpr erase.
+  erased_address: erased address
   muted: '<prefix><red>You were muted by <operator>: <reason></red>'
   muted_temporary: '<prefix><red>You were muted by <operator> for <duration>: <reason></red>'
   warned: '<prefix><red>You were warned by <operator>: <reason></red>'
@@ -111,7 +109,6 @@ notify:
     join: '<prefix><white><name></white> <gray>joined with <count> known alts:</gray> <alts>'
     name: '<white><name></white>'
     punished_name: '<red><name></red>'
-  appeal: '<prefix><white><name></white> <gray>appealed #<display_id> (appeal <id>):</gray> <message>'
 
 # Commands. Captions (command.caption.*) are the errors of the command framework; their
 # placeholders are the framework's variables.
@@ -185,18 +182,13 @@ command:
     ipreport: 'Online players who share an address'
     info: 'Show a punishment'
     edit: 'Change a punishment'
-    void: 'Mark a punishment as a mistake'
     delete: 'Delete a punishment from the history'
     evidence: 'Attach or detach evidence'
     lockdown: 'Keep new players out'
     staffrollback: 'Lift what a staff member issued recently'
     prunehistory: 'Delete a player''s ended punishments'
-    broadcast: 'Send a message to every server'
     status: 'SakuraBans status'
     reload: 'Reload the configuration and messages'
-    banwave: 'Collect bans and release them together'
-    appeal: 'Appeal one of your punishments'
-    appeals: 'Appeals of punished players'
     gdpr: 'Export or erase a player''s data'
   invalid: '<prefix><red>That doesn''t work: <details></red>'
   unknown_target: '<prefix><red>Nobody is known as <input>.</red>'
@@ -277,9 +269,8 @@ list:
 alts:
   none: '<prefix><gray>No alts are known for <name>.</gray>'
   header: '<prefix><white><name></white><gray> has <count> known alts (<strictness>):</gray>'
-  entry: '<gray> - </gray><white><name></white> <gray>(last seen <last_seen>; via <addresses>)</gray><punished><source>'
+  entry: '<gray> - </gray><white><name></white> <gray>(last seen <last_seen>; via <addresses>)</gray><punished>'
   punished: ' <red>[<types>]</red>'
-  source: ' <dark_gray>(<source>, score <score>)</dark_gray>'
 iphistory:
   none: '<prefix><gray>No addresses are known for <name>.</gray>'
   header: '<prefix><gray>Addresses of</gray> <white><name></white><gray>:</gray>'
@@ -376,8 +367,6 @@ prune:
   confirm: '<prefix><yellow>This deletes <count> ended punishments of <name> for good. Run it again with --confirm within 30 seconds.</yellow>'
   done: '<prefix><green>Deleted <count> of <total> ended punishments of <white><name></white>.</green>'
   none: '<prefix><gray><name> has no ended punishments to delete.</gray>'
-broadcast:
-  format: '<prefix><message>'
 status:
   body: |-
     <prefix><white>SakuraBans <version></white> <gray>(<commit>)</gray>
@@ -390,53 +379,10 @@ reload:
   restart: '<prefix><yellow>Changes in <files> need a restart.</yellow>'
   error: '<prefix><red><error></red>'
   failed: '<prefix><red>The configuration has errors; the old settings stay active.</red>'
-banwave:
-  created: '<prefix><green>Created ban wave <white>#<id> <name></white>. Add players with /banwave add <id> <player>.</green>'
-  added: '<prefix><green>Added <white><target></white> to wave #<id> (entry <entry>; <count> in all).</green>'
-  removed: '<prefix><green>Removed entry <entry> from wave #<id>.</green>'
-  list:
-    empty: '<prefix><gray>There are no ban waves.</gray>'
-    header: '<prefix><white>Ban waves</white> <gray>(<count>)</gray>'
-    entry: '<gray> - </gray><white>#<id> <name></white> <gray><status>, <count> entries<scheduled></gray>'
-    scheduled: ', at <at>'
-  info:
-    entry: '<gray> - <entry>:</gray> <white><target></white> <gray>(<duration>): <reason></gray> <result>'
-  result:
-    pending: '<dark_gray>pending</dark_gray>'
-    done: '<green>banned #<display_id></green>'
-    failed: '<red><reason></red>'
-  scheduled: '<prefix><green>Wave #<id> is released at <at>.</green>'
-  unscheduled: '<prefix><green>Wave #<id> is a draft again.</green>'
-  confirm: '<prefix><yellow>This releases wave #<id> now: <count> punishments. Run it again with --confirm within 30 seconds.</yellow>'
-  released: '<prefix><green>Released wave #<id>: <done> punished, <failed> failed.</green>'
-  cancelled: '<prefix><green>Cancelled wave #<id>.</green>'
-  failure:
-    not_found: '<prefix><red>There is no such ban wave or entry.</red>'
-    invalid: '<prefix><red>That doesn''t work: <details></red>'
-    conflict: '<prefix><red>Someone else changed the wave meanwhile; try again.</red>'
-    forbidden: '<prefix><red>You may not do that.</red>'
-appeal:
-  decided:
-    accepted: '<prefix><green>Your appeal of #<display_id> was accepted.</green> <gray><note></gray>'
-    rejected: '<prefix><red>Your appeal of #<display_id> was rejected.</red> <gray><note></gray>'
-  submitted: '<prefix><green>Your appeal (<id>) was sent to the staff.</green>'
-  failure:
-    not_yours: '<prefix><red>You can only appeal your own punishments.</red>'
-    open: '<prefix><yellow>That punishment already has an open appeal.</yellow>'
-    invalid: '<prefix><red>That doesn''t work: <details></red>'
-    not_found: '<prefix><red>There is no such appeal or punishment.</red>'
-    conflict: '<prefix><red>Someone else decided it meanwhile.</red>'
-    forbidden: '<prefix><red>You may not do that.</red>'
-appeals:
-  list:
-    empty: '<prefix><gray>There are no open appeals.</gray>'
-    header: '<prefix><white>Open appeals</white> <gray>(<total>, page <page>/<pages>)</gray>'
-    entry: '<gray> - </gray><white><id></white> <gray>#<display_id> by <name>, <created>:</gray> <message>'
-  decided: '<prefix><green>Appeal <id>: <outcome>.</green>'
 gdpr:
   exported: '<prefix><green>Exported the data of <white><name></white> to <file>: <received> punishments received, <issued> issued.</green>'
   erase:
-    confirm: '<prefix><yellow>This erases everything SakuraBans knows about <name> (<uuid>); active punishments stay without personal data. It can''t be undone. Run it again with --confirm within 30 seconds.</yellow>'
-  erased: '<prefix><green>Erased <white><name></white>: <names> names, <addresses> addresses, <expunged> punishments deleted, <anonymised> kept without personal data, <issued> issued ones anonymised, <other> other records.</green>'
+    confirm: '<prefix><yellow>This erases the names and addresses SakuraBans knows of <name> (<uuid>). Punishments stay in force; banned addresses are kept only as hashes. It can''t be undone. Run it again with --confirm within 30 seconds.</yellow>'
+  erased: '<prefix><green>Erased <white><name></white>: <names> names, <addresses> addresses and <allowed> allow-list addresses removed, <cleared> punished addresses reduced to hashes, <evidence> evidence links removed, <redacted> staff name records redacted. <kept> punishments kept.</green>'
   failure:
     forbidden: '<prefix><red>You may not do that.</red>'

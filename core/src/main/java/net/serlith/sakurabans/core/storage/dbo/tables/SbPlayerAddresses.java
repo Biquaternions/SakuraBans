@@ -41,6 +41,9 @@ public final class SbPlayerAddresses extends SbTable<SbPlayerAddressesRecord> {
     public final TableField<SbPlayerAddressesRecord, String> LAST_SERVER = createField(
             DSL.name("last_server"), SQLDataType.VARCHAR(64).nullable(true), this, "");
 
+    public final TableField<SbPlayerAddressesRecord, byte[]> ADDRESS_HASH = createField(
+            DSL.name("address_hash"), SQLDataType.BINARY(32).nullable(false), this, "");
+
     public SbPlayerAddresses(final String prefix) {
         this(prefix, DSL.name(prefix + "player_addresses"), null);
     }
@@ -76,7 +79,7 @@ public final class SbPlayerAddresses extends SbTable<SbPlayerAddressesRecord> {
     public List<Constraint> checks() {
         return List.of(
                 this.check("address_ck",
-                        octets(this.ADDRESS).in(4, 16)));
+                        octets(this.ADDRESS).in(4, 16).and(octets(this.ADDRESS_HASH).eq(32))));
     }
 
     @Override

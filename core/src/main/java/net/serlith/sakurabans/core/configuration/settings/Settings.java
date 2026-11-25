@@ -49,15 +49,11 @@ public record Settings(
     }
 
     public record Alts(boolean registerOnConnection, Set<String> serversWithoutIpRegistration,
-            @Nullable Duration recordExpiration, JoinNotification joinNotification,
-            ConnectionLimiter connectionLimiter) {
+            @Nullable Duration recordExpiration, JoinNotification joinNotification) {
     }
 
     public record JoinNotification(boolean enabled, boolean onlyIfPunished, int threshold,
             int limit) {
-    }
-
-    public record ConnectionLimiter(boolean enabled, int limit, Duration window) {
     }
 
     public record Reasons(String defaultReason, Set<PunishmentType> requiredFor,

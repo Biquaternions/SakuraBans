@@ -15,7 +15,7 @@ import org.jspecify.annotations.Nullable;
  * before it performs them, so a UI that asks first never shows something that would be refused.
  */
 public sealed interface Action permits Action.Punish, Action.ChangePunishment, Action.Rollback,
-        Action.PlayerData, Action.DecideAppeal, Action.Manage, Action.View {
+        Action.PlayerData, Action.Manage, Action.View {
 
     /**
      * Creating a punishment of a kind, in a scope.
@@ -194,34 +194,6 @@ public sealed interface Action permits Action.Punish, Action.ChangePunishment, A
     }
 
     /**
-     * Deciding an appeal.
-     */
-    non-sealed interface DecideAppeal extends Action {
-
-        /**
-         * Which appeal.
-         *
-         * @return its id
-         */
-        long id();
-
-        /**
-         * Creates the action.
-         *
-         * @param id the appeal's id, at least 1
-         * @return the action
-         */
-        static DecideAppeal of(final long id) {
-            record Impl(long id) implements DecideAppeal {
-            }
-
-            Validator.create().check(id >= 1, "id", Code.OUT_OF_RANGE, "must be at least 1")
-                    .throwIfAny();
-            return new Impl(id);
-        }
-    }
-
-    /**
      * Creating, changing or deleting configuration-like data.
      */
     non-sealed interface Manage extends Action {
@@ -262,9 +234,6 @@ public sealed interface Action permits Action.Punish, Action.ChangePunishment, A
 
             /** Message templates. */
             MESSAGES,
-
-            /** Ban waves (creating, filling, scheduling, releasing). */
-            BAN_WAVES,
 
             /** The allow list. */
             ALLOW_LIST,
@@ -311,10 +280,7 @@ public sealed interface Action permits Action.Punish, Action.ChangePunishment, A
             STATS,
 
             /** Hidden punishments. */
-            HIDDEN_PUNISHMENTS,
-
-            /** Appeals. */
-            APPEALS
+            HIDDEN_PUNISHMENTS
         }
     }
 }

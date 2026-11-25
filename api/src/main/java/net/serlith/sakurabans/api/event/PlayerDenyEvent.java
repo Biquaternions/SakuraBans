@@ -46,7 +46,7 @@ public interface PlayerDenyEvent extends Cancellable {
     Denial denial();
 
     /**
-     * The punishment that causes it. Empty for a lockdown or the connection limiter.
+     * The punishment that causes it. Empty for a lockdown or a failed check.
      *
      * @return the punishment, or empty
      */
@@ -83,9 +83,6 @@ public interface PlayerDenyEvent extends Cancellable {
 
         /** Joining, because of a lockdown. */
         LOGIN_LOCKDOWN,
-
-        /** Joining, because the connection limiter tripped. */
-        LOGIN_CONNECTION_LIMIT,
 
         /** Switching to a server (proxy only), because of a ban in that server's scope. */
         SERVER_SWITCH_BANNED,

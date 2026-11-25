@@ -33,10 +33,10 @@ public final class Indexes {
                     SakuraTables.VICTIMS,
                     new OrderField<?>[] {SakuraTables.VICTIMS.UUID}, false);
 
-    public static final Index VICTIMS_ADDRESS_IX =
-            Internal.createIndex(DSL.name(SakuraTables.prefix() + "victims_address_ix"),
+    public static final Index VICTIMS_ADDRESS_HASH_IX =
+            Internal.createIndex(DSL.name(SakuraTables.prefix() + "victims_address_hash_ix"),
                     SakuraTables.VICTIMS,
-                    new OrderField<?>[] {SakuraTables.VICTIMS.ADDRESS}, false);
+                    new OrderField<?>[] {SakuraTables.VICTIMS.ADDRESS_HASH}, false);
 
     public static final Index PUNISHMENTS_VICTIM_IX =
             Internal.createIndex(DSL.name(SakuraTables.prefix() + "punishments_victim_ix"),
@@ -111,29 +111,6 @@ public final class Indexes {
             Internal.createIndex(DSL.name(SakuraTables.prefix() + "sync_messages_created_ix"),
                     SakuraTables.SYNC_MESSAGES,
                     new OrderField<?>[] {SakuraTables.SYNC_MESSAGES.CREATED_AT}, false);
-
-    public static final Index BAN_WAVE_ENTRIES_WAVE_IX =
-            Internal.createIndex(DSL.name(SakuraTables.prefix() + "ban_wave_entries_wave_ix"),
-                    SakuraTables.BAN_WAVE_ENTRIES,
-                    new OrderField<?>[] {SakuraTables.BAN_WAVE_ENTRIES.WAVE_ID}, false);
-
-    public static final Index APPEALS_PUNISHMENT_IX =
-            Internal.createIndex(DSL.name(SakuraTables.prefix() + "appeals_punishment_ix"),
-                    SakuraTables.APPEALS,
-                    new OrderField<?>[] {SakuraTables.APPEALS.PUNISHMENT_ID}, false);
-
-    public static final Index APPEALS_STATUS_IX =
-            Internal.createIndex(DSL.name(SakuraTables.prefix() + "appeals_status_ix"),
-                    SakuraTables.APPEALS,
-                    new OrderField<?>[] {
-                            SakuraTables.APPEALS.STATUS,
-                            SakuraTables.APPEALS.CREATED_AT
-                    }, false);
-
-    public static final Index APPEALS_APPELLANT_IX =
-            Internal.createIndex(DSL.name(SakuraTables.prefix() + "appeals_appellant_ix"),
-                    SakuraTables.APPEALS,
-                    new OrderField<?>[] {SakuraTables.APPEALS.APPELLANT}, false);
 
     private Indexes() {
     }

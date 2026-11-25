@@ -5,7 +5,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import net.serlith.sakurabans.api.settings.SettingType;
+import net.serlith.sakurabans.core.model.SettingType;
 import org.jspecify.annotations.Nullable;
 
 public final class SettingsSchema {
@@ -66,12 +66,6 @@ public final class SettingsSchema {
                     "The fewest alts that trigger a notice", List.of(), 1.0, null),
             entry("alts.join-notification.limit", SettingType.INTEGER, Scope.NETWORK,
                     "The most alts listed in a notice", List.of(), 1.0, null),
-            entry("alts.connection-limiter.enabled", SettingType.BOOLEAN, Scope.NETWORK,
-                    "Whether joins per address are limited", List.of(), null, null),
-            entry("alts.connection-limiter.limit", SettingType.INTEGER, Scope.NETWORK,
-                    "Other accounts allowed per address and window", List.of(), 1.0, null),
-            entry("alts.connection-limiter.window", SettingType.DURATION, Scope.NETWORK,
-                    "The limiter's window", List.of(), null, null),
             entry("reasons.default", SettingType.STRING, Scope.NETWORK,
                     "The reason used when none is given", List.of(), null, null),
             entry("reasons.require.ban", SettingType.BOOLEAN, Scope.NETWORK,

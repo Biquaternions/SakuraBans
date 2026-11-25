@@ -20,12 +20,6 @@ public enum SubjectType {
     /** A message template; the id is {@code <locale>/<key>}. */
     MESSAGE,
 
-    /** A ban wave; the id is its id. */
-    BAN_WAVE,
-
-    /** An appeal; the id is its id. */
-    APPEAL,
-
     /** A player's data; the id is the account's UUID. */
     PLAYER,
 

@@ -15,7 +15,6 @@ public final class Permissions {
     public static final String LOCKDOWN_BYPASS = ROOT + "lockdown.bypass";
     public static final String ADMIN_LOCKDOWN = ROOT + "admin.lockdown";
     public static final String ADMIN_PRUNEHISTORY = ROOT + "admin.prunehistory";
-    public static final String ADMIN_BROADCAST = ROOT + "admin.broadcast";
     public static final String ADMIN_STATUS = ROOT + "admin.status";
     public static final String ADMIN_RELOAD = ROOT + "admin.reload";
     public static final String SCOPE_GLOBAL = ROOT + "scope.global";
@@ -42,14 +41,10 @@ public final class Permissions {
     public static final String ADMIN_GDPR = ROOT + "admin.gdpr";
     public static final String ADMIN_SETTINGS = ROOT + "admin.settings";
     public static final String ADMIN_MESSAGES = ROOT + "admin.messages";
-    public static final String ADMIN_BANWAVES = ROOT + "admin.banwaves";
     public static final String ADMIN_IMPORT = ROOT + "admin.import";
     public static final String ADMIN_AUDIT = ROOT + "admin.audit";
     public static final String ADMIN_STATS = ROOT + "admin.stats";
     public static final String VIEW_HIDDEN = ROOT + "view.hidden";
-    public static final String APPEALS_VIEW = ROOT + "appeals.view";
-    public static final String APPEAL = ROOT + "appeal";
-    public static final String APPEALS_DECIDE = ROOT + "appeals.decide";
     public static final String COOLDOWN_BYPASS = ROOT + "cooldown.bypass";
 
     private Permissions() {

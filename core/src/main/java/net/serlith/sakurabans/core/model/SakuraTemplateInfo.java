@@ -9,7 +9,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import net.serlith.sakurabans.api.model.PunishmentType;
-import net.serlith.sakurabans.api.template.TemplateDefinition;
 import net.serlith.sakurabans.api.template.TemplateInfo;
 import net.serlith.sakurabans.api.template.TemplateStep;
 import net.serlith.sakurabans.core.util.Durations;
@@ -22,7 +21,6 @@ public record SakuraTemplateInfo(
         String reason,
         List<TemplateStep> ladder,
         Set<String> requiredEvidence,
-        Set<String> captureEvidence,
         @Nullable Duration ladderExpiryOrNull,
         boolean addressShared,
         boolean permissionRequired,
@@ -41,7 +39,6 @@ public record SakuraTemplateInfo(
                         || ladder.stream().allMatch(step -> step.duration().isEmpty()),
                 "a kick template has no durations");
         requiredEvidence = Set.copyOf(requiredEvidence);
-        captureEvidence = Set.copyOf(captureEvidence);
         actions = List.copyOf(actions);
         groups = Map.copyOf(groups);
         Preconditions.checkArgument(version >= 1, "version must be positive: %s", version);
@@ -51,7 +48,7 @@ public record SakuraTemplateInfo(
             final PunishmentType type, final long version) {
         return new SakuraTemplateInfo(definition.name(), definition.kind(), type,
                 definition.reason(), definition.ladder(), definition.requiredEvidence(),
-                definition.captureEvidence(), definition.ladderExpiry().orElse(null),
+                definition.ladderExpiry(),
                 definition.addressShared(), definition.permissionRequired(),
                 definition.actions(), definition.groups(), version);
     }
@@ -79,8 +76,6 @@ public record SakuraTemplateInfo(
                 + " permission-required=" + this.permissionRequired
                 + " actions=" + this.actions
                 + " groups=" + new TreeMap<>(this.groups)
-                + " required-evidence=" + new TreeSet<>(this.requiredEvidence)
-                + " capture-evidence=" + this.captureEvidence.stream().sorted()
-                        .toList();
+                + " required-evidence=" + new TreeSet<>(this.requiredEvidence);
     }
 }

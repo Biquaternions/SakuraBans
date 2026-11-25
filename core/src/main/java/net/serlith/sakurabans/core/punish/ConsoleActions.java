@@ -13,6 +13,7 @@ import net.serlith.sakurabans.api.model.AddressVictim;
 import net.serlith.sakurabans.api.model.CompositeVictim;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
 import net.serlith.sakurabans.api.model.CustomOperator;
+import net.serlith.sakurabans.api.model.ErasedAddressVictim;
 import net.serlith.sakurabans.api.model.PlayerOperator;
 import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.Punishment;
@@ -34,10 +35,15 @@ public final class ConsoleActions {
             case AddressVictim address -> address.address().getHostAddress();
             case AddressRangeVictim range -> range.network().getHostAddress() + "/"
                     + range.prefixLength();
+            // Never on a new punishment; kept for completeness.
+            case ErasedAddressVictim erased -> erased.uuid()
+                    .map(uuid -> names.apply(uuid).orElse(uuid.toString()))
+                    .orElse("");
         };
         final String uuid = switch (punishment.victim()) {
             case PlayerVictim player -> player.uuid().toString();
             case CompositeVictim composite -> composite.uuid().toString();
+            case ErasedAddressVictim erased -> erased.uuid().map(UUID::toString).orElse("");
             default -> "";
         };
         final String address = switch (punishment.victim()) {

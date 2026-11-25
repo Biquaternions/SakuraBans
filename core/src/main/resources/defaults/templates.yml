@@ -26,7 +26,6 @@
 #   groups               group: weight. Templates in a group share progress: a punishment from
 #                        a group mate counts as its weight in that group (voided ones never count)
 #   required-evidence    evidence types (<namespace>:<type>) a punishment must have
-#   capture-evidence     evidence types to capture automatically through plugins that provide them
 #
 # Actions may use {victim}, {uuid}, {address}, {id}, {operator}, {reason}, {template},
 # {step} and {duration}. Quote them, because YAML reads {...} as a section:
