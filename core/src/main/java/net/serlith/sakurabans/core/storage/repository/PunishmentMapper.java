@@ -40,9 +40,7 @@ public final class PunishmentMapper {
                 .join(SakuraTables.VICTIMS)
                 .on(SakuraTables.VICTIMS.ID.eq(SakuraTables.PUNISHMENTS.VICTIM_ID))
                 .join(SakuraTables.SCOPES)
-                .on(SakuraTables.SCOPES.ID.eq(SakuraTables.PUNISHMENTS.SCOPE_ID))
-                .leftJoin(SakuraTables.TEMPLATES)
-                .on(SakuraTables.TEMPLATES.ID.eq(SakuraTables.PUNISHMENTS.TEMPLATE_ID)));
+                .on(SakuraTables.SCOPES.ID.eq(SakuraTables.PUNISHMENTS.SCOPE_ID)));
     }
 
     private static List<Field<?>> fields() {
@@ -50,7 +48,6 @@ public final class PunishmentMapper {
         fields.addAll(List.of(SakuraTables.PUNISHMENTS.fields()));
         fields.addAll(List.of(SakuraTables.VICTIMS.fields()));
         fields.addAll(List.of(SakuraTables.SCOPES.fields()));
-        fields.add(SakuraTables.TEMPLATES.NAME);
         return fields;
     }
 
@@ -77,7 +74,7 @@ public final class PunishmentMapper {
 
     private Punishment punishment(final Record row, final List<Evidence> evidence) {
         final SbPunishmentsRecord p = row.into(SakuraTables.PUNISHMENTS);
-        final String templateName = row.get(SakuraTables.TEMPLATES.NAME);
+        final String templateName = p.template();
         final Short templateStep = p.templateStep();
         return new SakuraPunishment(
                 p.id(),

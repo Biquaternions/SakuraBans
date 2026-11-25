@@ -22,6 +22,8 @@ dependencies {
     // Provided by Paper and Velocity (plan 3.2), so never shaded or downloaded.
     implementation(libs.guava)
 
+    // Optional at runtime: only LuckPermsBridge touches it, after checking it is installed.
+    compileOnly(libs.luckperms.api)
     compileOnly(platform(libs.adventure.bom))
     compileOnly(libs.adventure.api)
     compileOnly(libs.adventure.text.minimessage)
@@ -39,6 +41,9 @@ dependencies {
     testImplementation(libs.adventure.text.minimessage)
     testImplementation(libs.adventure.text.serializer.plain)
     testImplementation(libs.slf4j.api)
+    // Brigadier as Paper uses it, to test suggestions the way clients get them (S31 review).
+    testImplementation(libs.cloud.brigadier)
+    testImplementation(libs.brigadier)
 }
 
 val integrationTest: SourceSet by sourceSets.creating {

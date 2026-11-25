@@ -3,10 +3,16 @@ package net.serlith.sakurabans.core.bootstrap;
 import java.time.InstantSource;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import net.serlith.sakurabans.api.auth.Action;
+import net.serlith.sakurabans.api.auth.Decision;
+import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.core.alts.AltService;
 import net.serlith.sakurabans.core.alts.SakuraAllowListService;
+import net.serlith.sakurabans.core.auth.SakuraAuthorizationService;
 import net.serlith.sakurabans.core.command.CommandRegistrar;
 import net.serlith.sakurabans.core.command.CommandRunner;
+import net.serlith.sakurabans.core.command.ConfirmationTracker;
 import net.serlith.sakurabans.core.command.Pager;
 import net.serlith.sakurabans.core.command.PunishFlags;
 import net.serlith.sakurabans.core.command.Replies;
@@ -16,13 +22,16 @@ import net.serlith.sakurabans.core.command.module.AllowCommands;
 import net.serlith.sakurabans.core.command.module.AltCommands;
 import net.serlith.sakurabans.core.command.module.CheckCommands;
 import net.serlith.sakurabans.core.command.module.HistoryCommands;
+import net.serlith.sakurabans.core.command.module.KindCommands;
 import net.serlith.sakurabans.core.command.module.PunishCommands;
 import net.serlith.sakurabans.core.command.module.RevokeCommands;
+import net.serlith.sakurabans.core.command.module.TemplateCommands;
 import net.serlith.sakurabans.core.command.parser.ScopeParser;
 import net.serlith.sakurabans.core.command.parser.TargetParser;
 import net.serlith.sakurabans.core.concurrent.Lifecycle;
 import net.serlith.sakurabans.core.concurrent.SakuraExecutors;
 import net.serlith.sakurabans.core.configuration.ConfigService;
+import net.serlith.sakurabans.core.configuration.TemplateFiles;
 import net.serlith.sakurabans.core.configuration.settings.SyncMode;
 import net.serlith.sakurabans.core.enforce.ChannelReceiver;
 import net.serlith.sakurabans.core.enforce.ChatGate;
@@ -33,12 +42,18 @@ import net.serlith.sakurabans.core.enforce.LoginGate;
 import net.serlith.sakurabans.core.enforce.SyncReceiver;
 import net.serlith.sakurabans.core.event.SakuraEventBus;
 import net.serlith.sakurabans.core.integration.SakuraIntegrationRegistry;
+import net.serlith.sakurabans.core.kind.SakuraKindService;
+import net.serlith.sakurabans.core.limit.CooldownTracker;
+import net.serlith.sakurabans.core.limit.LimitService;
 import net.serlith.sakurabans.core.message.Formats;
 import net.serlith.sakurabans.core.message.MessageService;
 import net.serlith.sakurabans.core.message.Placeholders;
 import net.serlith.sakurabans.core.messaging.ProxyChannel;
 import net.serlith.sakurabans.core.notify.NotificationService;
 import net.serlith.sakurabans.core.notify.Throttle;
+import net.serlith.sakurabans.core.permission.ExemptionService;
+import net.serlith.sakurabans.core.permission.LuckPermsBridge;
+import net.serlith.sakurabans.core.permission.PermissionService;
 import net.serlith.sakurabans.core.platform.LatePlatform;
 import net.serlith.sakurabans.core.player.NameCache;
 import net.serlith.sakurabans.core.player.TargetResolver;
@@ -56,16 +71,20 @@ import net.serlith.sakurabans.core.storage.SchemaManager;
 import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.storage.repository.AllowListRepository;
 import net.serlith.sakurabans.core.storage.repository.AuditRepository;
+import net.serlith.sakurabans.core.storage.repository.KindRepository;
 import net.serlith.sakurabans.core.storage.repository.MetaRepository;
 import net.serlith.sakurabans.core.storage.repository.PlayerRepository;
 import net.serlith.sakurabans.core.storage.repository.PunishmentMapper;
 import net.serlith.sakurabans.core.storage.repository.PunishmentRepository;
 import net.serlith.sakurabans.core.storage.repository.ScopeRepository;
+import net.serlith.sakurabans.core.storage.repository.TemplateRepository;
 import net.serlith.sakurabans.core.storage.repository.VictimRepository;
 import net.serlith.sakurabans.core.sync.PacketCodec;
 import net.serlith.sakurabans.core.sync.SqlPollingTransport;
 import net.serlith.sakurabans.core.sync.SyncService;
 import net.serlith.sakurabans.core.sync.SyncTransport;
+import net.serlith.sakurabans.core.template.SakuraTemplateService;
+import net.serlith.sakurabans.core.template.TemplateActions;
 
 final class CoreComponents {
 
@@ -88,6 +107,8 @@ final class CoreComponents {
     private final VictimRepository victims;
     private final PunishmentRepository punishments;
     private final AuditRepository audit;
+    private final TemplateRepository templateRepository;
+    private final TemplateFiles templateFiles;
     private final Formats formats;
     private final Placeholders placeholders;
 
@@ -107,6 +128,13 @@ final class CoreComponents {
 
     // Layer 3
     private final MuteCache mutes;
+    private final SakuraKindService kindService;
+    private final PermissionService permissions;
+    private final ExemptionService exemption;
+    private final SakuraAuthorizationService authorization;
+    private final LimitService limits;
+    private final SakuraTemplateService templates;
+    private final TemplateActions templateActions;
     private final NotificationService notifications;
 
     // Layer 4, and the layer 3 services that take a layer 4 implementation of their interface
@@ -147,17 +175,20 @@ final class CoreComponents {
                         new PacketCodec(this.instanceId, environment.logger()), this.executors,
                         this.config, clock, environment.logger())),
                 environment.logger());
-        // The allow list is what limits address strictness, so the queries read it (plan S28).
+        this.events = new SakuraEventBus(environment.logger());
+        this.kindService = new SakuraKindService(new KindRepository(this.storage),
+                this::authorize, this.sync, this.events, clock);
         this.allowList = new SakuraAllowListService(new AllowListRepository(this.storage),
                 this.sync, this.config, clock);
         this.punishments = new PunishmentRepository(this.storage,
-                new PunishmentMapper(Long::toString), this.allowList);
+                new PunishmentMapper(Long::toString), this.allowList, this.kindService);
         this.audit = new AuditRepository(this.storage);
+        this.templateRepository = new TemplateRepository(this.storage, this.allowList);
+        this.templateFiles = new TemplateFiles(environment.dataDirectory());
         this.formats = new Formats(this.messages, this.config);
         this.placeholders = new Placeholders(this.messages, this.formats);
 
         this.integrations = new SakuraIntegrationRegistry();
-        this.events = new SakuraEventBus(environment.logger());
         this.names = new NameCache();
         this.uuids = new UuidResolver(this.integrations, this.platform, this.config,
                 environment.logger());
@@ -173,6 +204,20 @@ final class CoreComponents {
                 clock);
         this.mutes = new MuteCache(this.punishments, this.scopeService, this.config, clock,
                 this.ranges);
+        this.permissions = new PermissionService(this.platform,
+                LuckPermsBridge.detect(environment.logger()), environment.logger());
+        this.exemption = new ExemptionService(this.config, this.permissions,
+                environment.logger());
+        this.authorization = new SakuraAuthorizationService(this.permissions, this.exemption,
+                this.kindService, this.punishments, this.integrations, this.config,
+                environment.logger());
+        this.limits = new LimitService(this.config, this.permissions, new CooldownTracker(),
+                clock);
+        this.templates = new SakuraTemplateService(this.templateRepository, this.meta,
+                this.templateFiles, this.kindService, this.integrations, this::authorize,
+                this.sync, this.events, clock, environment.logger());
+        this.templateActions = new TemplateActions(this.events, this.templates, this.platform,
+                this.names, environment.logger());
         this.notifications = new NotificationService(this.platform, this.messages,
                 this.placeholders, this.names, this.config, this.events, new Throttle(clock),
                 this.executors.worker(), clock);
@@ -188,11 +233,12 @@ final class CoreComponents {
         this.punishmentService = new SakuraPunishmentService(this.lifecycle,
                 this.executors.worker(), clock, this.config, this.scopeService, this.punishments,
                 new PunishmentFactory(this.scopeService, this.config, this.players, this.platform,
-                        clock),
-                this.mutes, this.enforcer, ActionCheck.ALLOW_ALL, this.events, this.sync);
+                        clock, this.templates, this.kindService),
+                this.mutes, this.enforcer, this::authorize, this.limits, this.exemption, this.events,
+                this.sync);
         this.syncReceiver = new SyncReceiver(this.punishments, this.enforcer, this.mutes,
                 this.scopeService, this.platform, this.events, this.config, clock,
-                this.allowList, environment.logger());
+                this.allowList, this.templates, this.kindService, environment.logger());
         this.sweeper = new ExpirySweeper(this.lease, this.punishments, this.mutes, this.enforcer,
                 this.sync, this.events, this.executors, this.platform, clock,
                 environment.logger());
@@ -216,7 +262,7 @@ final class CoreComponents {
         this.commands = new SakuraCommands(List.of(
                 new PunishCommands(registrar, runner, replies, flags, targetParser,
                         this.targets, this.punishmentService, this.names, this.config,
-                        this.scopeService, scopeAccess),
+                        this.scopeService, scopeAccess, this.templates, this.kindService),
                 new RevokeCommands(registrar, runner, replies, flags, targetParser,
                         this.targets, this.punishmentService, this.scopeService, scopeAccess),
                 new CheckCommands(registrar, runner, replies, pager, targetParser,
@@ -227,7 +273,10 @@ final class CoreComponents {
                         this.targets, this.players, clock, this.altService, this.platform,
                         this.config),
                 new AllowCommands(registrar, runner, replies, this.formats, targetParser,
-                        this.targets, this.allowList, this.names, this.placeholders)),
+                        this.targets, this.allowList, this.names, this.placeholders),
+                new TemplateCommands(registrar, runner, this.templates, this.templateFiles,
+                        new ConfirmationTracker(clock), this.executors.worker(), clock),
+                new KindCommands(registrar, runner, this.kindService, this.scopeService)),
                 registrar, runner, this.messages);
     }
 
@@ -349,6 +398,30 @@ final class CoreComponents {
 
     MuteCache mutes() {
         return this.mutes;
+    }
+
+    private CompletableFuture<Decision> authorize(final Actor actor, final Action action) {
+        return this.authorization.check(actor, action);
+    }
+
+    SakuraAuthorizationService authorization() {
+        return this.authorization;
+    }
+
+    SakuraKindService kindService() {
+        return this.kindService;
+    }
+
+    SakuraTemplateService templates() {
+        return this.templates;
+    }
+
+    TemplateActions templateActions() {
+        return this.templateActions;
+    }
+
+    TemplateFiles templateFiles() {
+        return this.templateFiles;
     }
 
     NotificationService notifications() {

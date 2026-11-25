@@ -101,10 +101,11 @@ public final class RevokeCommands implements CommandModule {
                 .permission(Permission.anyOf(Permission.of(Permissions.revoke(type)),
                         Permission.of(Permissions.revokeOwn(type))))
                 .required("target", this.targetParser.descriptor())
-                .optional("reason", StringParser.greedyFlagYieldingStringParser())
                 .flag(this.flags.silent(type))
                 .flag(this.flags.hide(type))
                 .flag(this.flags.scopeFilter())
+                // Last: it takes the rest of the line.
+                .flag(this.flags.reason())
                 .futureHandler(context -> this.runner.run(context.sender(),
                         () -> this.execute(context, spec)));
     }
@@ -118,7 +119,7 @@ public final class RevokeCommands implements CommandModule {
                 .flatMap(ScopeFilter::scope).orElse(null);
         final Visibility visibility = flags.isPresent(PunishFlags.HIDE) ? Visibility.HIDDEN
                 : flags.isPresent(PunishFlags.SILENT) ? Visibility.SILENT : Visibility.NORMAL;
-        final String reason = context.<String>optional("reason").map(String::strip)
+        final String reason = flags.<String>getValue(PunishFlags.REASON).map(String::strip)
                 .filter(text -> !text.isEmpty()).orElse(null);
         final boolean ownOnly = !actor.hasPermission(Permissions.revoke(spec.type()));
         final RevocationRequest.Builder template;
@@ -150,7 +151,6 @@ public final class RevokeCommands implements CommandModule {
     private record Found(List<Punishment> punishments, String name, List<Scope> skipped) {
     }
 
-    /** Empty after telling the sender why. */
     private CompletableFuture<Optional<Found>> revocationTargets(
             final CommandActor actor, final PunishmentType type, final ResolvedTarget target,
             final @Nullable Scope scope) {

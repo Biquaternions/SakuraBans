@@ -1,6 +1,9 @@
 package net.serlith.sakurabans.api.template;
 
+import java.time.Duration;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import net.serlith.sakurabans.api.admin.Versioned;
 import net.serlith.sakurabans.api.model.PunishmentType;
@@ -61,4 +64,43 @@ public interface TemplateInfo extends Versioned {
      * @return the types, possibly empty
      */
     Set<String> captureEvidence();
+
+    /**
+     * How long a punishment counts towards the ladder (LiteBans' {@code expire_ladder}): older
+     * ones are left out when the step is counted.
+     *
+     * @return the window, or empty if every earlier punishment counts
+     */
+    Optional<Duration> ladderExpiry();
+
+    /**
+     * Whether progress is shared through addresses (LiteBans' {@code ip_template}): earlier
+     * punishments of the victim's alts and addresses count too.
+     *
+     * @return {@code true} if shared
+     */
+    boolean addressShared();
+
+    /**
+     * Whether using the template needs the permission {@code sakurabans.template.<name>}.
+     *
+     * @return {@code true} if it does
+     */
+    boolean permissionRequired();
+
+    /**
+     * Console commands run after every punishment from this template, before the step's own
+     * {@link TemplateStep#actions()}; same placeholders.
+     *
+     * @return the commands, possibly empty
+     */
+    List<String> actions();
+
+    /**
+     * The groups the template is in, with its weight in each. Templates in a group share their
+     * progress: an earlier punishment from a group mate counts as its weight in that group.
+     *
+     * @return group name to weight (1-100), possibly empty
+     */
+    Map<String, Integer> groups();
 }

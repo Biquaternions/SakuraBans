@@ -12,9 +12,11 @@ import java.util.concurrent.Executor;
 import net.serlith.sakurabans.api.auth.Action;
 import net.serlith.sakurabans.api.auth.Decision;
 import net.serlith.sakurabans.api.model.Actor;
+import net.serlith.sakurabans.api.model.CompositeVictim;
 import net.serlith.sakurabans.api.model.EndKind;
 import net.serlith.sakurabans.api.model.EvidenceRef;
 import net.serlith.sakurabans.api.model.Page;
+import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Scope;
@@ -43,6 +45,7 @@ import net.serlith.sakurabans.core.event.SakuraPunishmentRevokedEvent;
 import net.serlith.sakurabans.core.model.ApiValues;
 import net.serlith.sakurabans.core.model.SakuraPunishResult;
 import net.serlith.sakurabans.core.model.SakuraRevokeResult;
+import net.serlith.sakurabans.core.permission.ExemptionService;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
 import net.serlith.sakurabans.core.storage.repository.InsertOutcome;
 import net.serlith.sakurabans.core.storage.repository.PunishmentRepository;
@@ -63,6 +66,8 @@ public final class SakuraPunishmentService implements PunishmentService {
     private final MuteCache mutes;
     private final Enforcer enforcer;
     private final ActionCheck actions;
+    private final PunishLimits limits;
+    private final ExemptionService exemption;
     private final SakuraEventBus events;
     private final SyncService sync;
 
@@ -70,7 +75,9 @@ public final class SakuraPunishmentService implements PunishmentService {
             final InstantSource clock, final ConfigService config,
             final SakuraScopeService scopes, final PunishmentRepository punishments,
             final PunishmentFactory factory, final MuteCache mutes, final Enforcer enforcer,
-            final ActionCheck actions, final SakuraEventBus events, final SyncService sync) {
+            final ActionCheck actions, final PunishLimits limits,
+            final ExemptionService exemption, final SakuraEventBus events,
+            final SyncService sync) {
         this.lifecycle = lifecycle;
         this.worker = worker;
         this.clock = clock;
@@ -81,6 +88,8 @@ public final class SakuraPunishmentService implements PunishmentService {
         this.mutes = mutes;
         this.enforcer = enforcer;
         this.actions = actions;
+        this.limits = limits;
+        this.exemption = exemption;
         this.events = events;
         this.sync = sync;
     }
@@ -109,7 +118,7 @@ public final class SakuraPunishmentService implements PunishmentService {
 
     private CompletableFuture<PunishResult> prepareAndStore(final DraftPunishment draft,
             final PunishOptions options) {
-        return this.factory.prepare(draft, options).thenComposeAsync(prepared -> {
+        return this.prepareLimited(draft, options, null).thenComposeAsync(prepared -> {
             if (prepared instanceof PunishmentFactory.Prepared.Refused refused) {
                 return CompletableFuture.completedFuture(
                         new SakuraPunishResult.Failure(refused.reason()));
@@ -126,12 +135,57 @@ public final class SakuraPunishmentService implements PunishmentService {
             if (event.draft() == resolved && event.options() == options) {
                 return this.store(ready, event.options());
             }
-            return this.factory.prepare(event.draft(), event.options()).thenCompose(again ->
-                    again instanceof PunishmentFactory.Prepared.Ready readyAgain
+            return this.prepareLimited(event.draft(), event.options(), ready)
+                    .thenCompose(again -> again instanceof PunishmentFactory.Prepared.Ready
+                            readyAgain
                             ? this.store(readyAgain, event.options())
                             : CompletableFuture.completedFuture(new SakuraPunishResult.Failure(
                                     ((PunishmentFactory.Prepared.Refused) again).reason())));
         }, this.worker);
+    }
+
+    private CompletableFuture<PunishmentFactory.Prepared> prepareLimited(
+            final DraftPunishment draft, final PunishOptions options,
+            final PunishmentFactory.Prepared.@Nullable Ready original) {
+        return this.factory.prepare(draft, options).thenCompose(prepared -> {
+            if (!(prepared instanceof PunishmentFactory.Prepared.Ready ready)) {
+                return CompletableFuture.completedFuture(prepared);
+            }
+            return this.limits.apply(original == null ? ready : keepTemplate(ready, original),
+                    options);
+        }).thenCompose(this::unlessExempt);
+    }
+
+    private CompletableFuture<PunishmentFactory.Prepared> unlessExempt(
+            final PunishmentFactory.Prepared prepared) {
+        if (!(prepared instanceof PunishmentFactory.Prepared.Ready ready)) {
+            return CompletableFuture.completedFuture(prepared);
+        }
+        final UUID victim = switch (ready.punishment().victim()) {
+            case PlayerVictim player -> player.uuid();
+            case CompositeVictim composite -> composite.uuid();
+            default -> null;
+        };
+        if (victim == null) {
+            return CompletableFuture.completedFuture(prepared);
+        }
+        return this.exemption.isExempt(ready.punishment().actor(), victim,
+                ready.punishment().type()).thenApply(exempt -> exempt
+                        ? new PunishmentFactory.Prepared.Refused(
+                                PunishResult.Failure.Reason.EXEMPT)
+                        : prepared);
+    }
+
+    private static PunishmentFactory.Prepared.Ready keepTemplate(
+            final PunishmentFactory.Prepared.Ready replaced,
+            final PunishmentFactory.Prepared.Ready original) {
+        if (replaced.punishment().template() != null
+                || original.punishment().template() == null) {
+            return replaced;
+        }
+        return new PunishmentFactory.Prepared.Ready(replaced.punishment().withTemplate(
+                original.punishment().template(), original.punishment().templateStep()),
+                replaced.kind());
     }
 
     private CompletableFuture<PunishResult> store(final PunishmentFactory.Prepared.Ready ready,
@@ -150,6 +204,7 @@ public final class SakuraPunishmentService implements PunishmentService {
             final PunishOptions options) {
         final Punishment punishment = inserted.punishment();
         final Punishment superseded = inserted.superseded();
+        this.limits.issued(punishment);
         final CompletableFuture<Void> local;
         if (options.enforcement() == Enforcement.NONE) {
             local = CompletableFuture.completedFuture(null);
@@ -211,13 +266,17 @@ public final class SakuraPunishmentService implements PunishmentService {
         if (candidates.isEmpty()) {
             return failure(RevokeResult.Failure.Reason.NOT_OWN);
         }
-        final List<CompletableFuture<Boolean>> checks = candidates.stream()
-                .map(punishment -> this.authorize(request.actor(), Action.ChangePunishment.of(
-                        Action.ChangePunishment.Operation.REVOKE, punishment.id())))
+        final List<CompletableFuture<Decision>> checks = candidates.stream()
+                .map(punishment -> this.actions.check(request.actor(), Action.ChangePunishment
+                        .of(Action.ChangePunishment.Operation.REVOKE, punishment.id())))
                 .toList();
-        return Futures.allOf(checks).thenComposeAsync(allowed -> {
-            if (allowed.contains(Boolean.FALSE)) {
-                return failure(RevokeResult.Failure.Reason.FORBIDDEN);
+        return Futures.allOf(checks).thenComposeAsync(decisions -> {
+            final Decision denied = decisions.stream().filter(decision -> !decision.allowed())
+                    .findFirst().orElse(null);
+            if (denied != null) {
+                return failure(denied.denial().orElse(null) == Decision.Denial.EXEMPT
+                        ? RevokeResult.Failure.Reason.EXEMPT
+                        : RevokeResult.Failure.Reason.FORBIDDEN);
             }
             final List<Punishment> approved = new ArrayList<>();
             for (final Punishment punishment : candidates) {

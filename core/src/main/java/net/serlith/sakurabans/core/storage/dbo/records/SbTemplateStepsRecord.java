@@ -41,4 +41,13 @@ public final class SbTemplateStepsRecord extends UpdatableRecordImpl<SbTemplateS
         this.set(SakuraTables.TEMPLATE_STEPS.DURATION_MS, value);
         return this;
     }
+
+    public String actions() {
+        return this.get(SakuraTables.TEMPLATE_STEPS.ACTIONS);
+    }
+
+    public SbTemplateStepsRecord actions(final String value) {
+        this.set(SakuraTables.TEMPLATE_STEPS.ACTIONS, value);
+        return this;
+    }
 }

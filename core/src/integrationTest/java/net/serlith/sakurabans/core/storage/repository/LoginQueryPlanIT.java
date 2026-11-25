@@ -9,6 +9,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.AddressStrictness;
@@ -57,7 +58,7 @@ class LoginQueryPlanIT extends DatabaseTest {
                 PunishmentRepository.activeApplicableQuery(dsl, PunishmentType.BAN,
                         Applicability.of(player, address, AddressStrictness.NORMAL),
                         List.of(GlobalScope.INSTANCE, ServerScope.of("lobby")),
-                        this.now.get(), AltPolicy.NONE)));
+                        this.now.get(), AltPolicy.NONE, Set.of(AddressStrictness.STRICT))));
         final List<String> plan = this.read(dsl -> dsl.connectionResult(connection ->
                 this.container == ContainerDatabase.POSTGRESQL
                         ? postgresPlan(connection, sql)

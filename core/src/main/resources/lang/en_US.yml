@@ -155,6 +155,9 @@ command:
     unban: 'Lift a ban'
     pardon: 'Lift a ban (same as unban)'
     allow: 'Accounts and addresses that address bans don''t reach'
+    templates: 'Punishment templates'
+    kinds: 'Punishment kinds'
+    kind: 'Punish with the kind <kind>'
     unlink: 'Forget addresses of an account'
     unmute: 'Lift a mute'
     unwarn: 'Remove a warning'
@@ -195,8 +198,11 @@ punish:
     limit_exceeded: '<prefix><red>That is longer than you may punish.</red>'
     cooldown: '<prefix><red>Wait a moment before punishing again.</red>'
     reason_required: '<prefix><red>Give a reason.</red>'
-    template_required: '<prefix><red>Use a template (#name).</red>'
+    template_required: '<prefix><red>Use a template (--template).</red>'
     unknown_template: '<prefix><red>There is no such template.</red>'
+    no_template: '<prefix><red>There is no template or reason shortcut called <name>.</red>'
+    template_no_permission: '<prefix><red>You can''t use the template <name>.</red>'
+    template_type: '<prefix><red><name> is a <type> template.</red>'
     unknown_kind: '<prefix><red>There is no such punishment kind.</red>'
     evidence_required: '<prefix><red>This punishment needs evidence.</red>'
     forbidden: '<prefix><red>You may not do that.</red>'
@@ -279,3 +285,18 @@ ipreport:
   none: '<prefix><gray>No two online players share an address.</gray>'
   header: '<prefix><gray>Online players sharing an address (<count>):</gray>'
   entry: '<gray> - </gray><white><address></white><gray>:</gray> <names>'
+templates:
+  list:
+    empty: '<prefix><gray>There are no templates.</gray>'
+    header: '<prefix><white>Templates</white> <gray>(<count>)</gray>'
+    entry: '<gray> - </gray><white><name></white> <gray><kind>:</gray> <ladder><gray>; <reason></gray>'
+  import:
+    confirm: '<prefix><yellow>This creates or updates the templates in templates.yml (<count>) for every server. Run it again with --confirm within 30 seconds.</yellow>'
+    done: '<prefix><green>Templates imported: <created> new, <updated> updated, <unchanged> unchanged.</green>'
+    error: '<prefix><red><error></red>'
+  export:
+    done: '<prefix><green>Exported <count> templates to <file>.</green>'
+kinds:
+  list:
+    header: '<prefix><white>Kinds</white> <gray>(<count>)</gray>'
+    entry: '<gray> - </gray><white><id></white> <gray>(<name>): <type><modifiers></gray>'

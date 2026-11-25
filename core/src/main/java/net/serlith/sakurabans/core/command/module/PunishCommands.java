@@ -1,7 +1,9 @@
 package net.serlith.sakurabans.core.command.module;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -26,6 +28,7 @@ import net.serlith.sakurabans.api.punish.Enforcement;
 import net.serlith.sakurabans.api.punish.OverridePolicy;
 import net.serlith.sakurabans.api.punish.PunishOptions;
 import net.serlith.sakurabans.api.punish.PunishResult;
+import net.serlith.sakurabans.api.template.TemplateInfo;
 import net.serlith.sakurabans.api.validation.ValidationException;
 import net.serlith.sakurabans.api.validation.Validator;
 import net.serlith.sakurabans.core.command.CommandActor;
@@ -36,31 +39,41 @@ import net.serlith.sakurabans.core.command.PunishFlags;
 import net.serlith.sakurabans.core.command.Replies;
 import net.serlith.sakurabans.core.command.ScopeAccess;
 import net.serlith.sakurabans.core.command.parser.DurationParser;
-import net.serlith.sakurabans.core.command.parser.PunishTail;
 import net.serlith.sakurabans.core.command.parser.TargetParser;
 import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.message.MessageKey;
+import net.serlith.sakurabans.core.message.Placeholders;
 import net.serlith.sakurabans.core.model.ResolvedTarget;
 import net.serlith.sakurabans.core.model.TargetInput;
 import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.player.NameCache;
 import net.serlith.sakurabans.core.player.TargetResolver;
+import net.serlith.sakurabans.core.punish.KindLookup;
 import net.serlith.sakurabans.core.punish.SakuraPunishmentService;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
+import net.serlith.sakurabans.core.template.SakuraTemplateService;
 import net.serlith.sakurabans.core.util.Futures;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
+import org.incendo.cloud.parser.flag.CommandFlag;
 import org.incendo.cloud.parser.flag.FlagContext;
 import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.permission.Permission;
+import org.incendo.cloud.suggestion.SuggestionProvider;
 import org.jspecify.annotations.Nullable;
 
 public final class PunishCommands implements CommandModule {
 
     private enum Mode { PLAIN, TEMPORARY, ADDRESS }
 
-    private record Spec(String name, PunishmentType type, Mode mode, MessageKey description) {
+    private record Spec(String name, PunishmentType type, Mode mode, MessageKey description,
+            @Nullable String kind) {
+
+        Spec(final String name, final PunishmentType type, final Mode mode,
+                final MessageKey description) {
+            this(name, type, mode, description, null);
+        }
     }
 
     private static final List<Spec> SPECS = List.of(
@@ -89,12 +102,15 @@ public final class PunishCommands implements CommandModule {
     private final ConfigService config;
     private final SakuraScopeService scopes;
     private final ScopeAccess scopeAccess;
+    private final SakuraTemplateService templates;
+    private final KindLookup kinds;
 
     public PunishCommands(final CommandRegistrar registrar, final CommandRunner runner,
             final Replies replies, final PunishFlags flags, final TargetParser targetParser,
             final TargetResolver targets, final SakuraPunishmentService punishments,
             final NameCache names, final ConfigService config,
-            final SakuraScopeService scopes, final ScopeAccess scopeAccess) {
+            final SakuraScopeService scopes, final ScopeAccess scopeAccess,
+            final SakuraTemplateService templates, final KindLookup kinds) {
         this.registrar = registrar;
         this.runner = runner;
         this.replies = replies;
@@ -106,6 +122,8 @@ public final class PunishCommands implements CommandModule {
         this.config = config;
         this.scopes = scopes;
         this.scopeAccess = scopeAccess;
+        this.templates = templates;
+        this.kinds = kinds;
     }
 
     @Override
@@ -115,39 +133,65 @@ public final class PunishCommands implements CommandModule {
                     .map(builder -> this.build(builder, spec))
                     .ifPresent(manager::command);
         }
+        this.config.settings().commands().kinds().forEach((kind, command) -> {
+            final Spec spec = new Spec(kind, command.type(), Mode.PLAIN,
+                    MessageKey.COMMAND_DESCRIPTION_KIND, kind);
+            this.registrar.builder(manager, command.labels(), spec.description(),
+                            Placeholder.unparsed("kind", kind))
+                    .map(builder -> this.build(builder, spec))
+                    .ifPresent(manager::command);
+        });
     }
 
     private Command.Builder<CommandActor> build(final Command.Builder<CommandActor> start,
             final Spec spec) {
         final PunishmentType type = spec.type();
+        final Permission permission = spec.mode() == Mode.TEMPORARY
+                ? Permission.anyOf(Permission.of(Permissions.punish(type)),
+                        Permission.of(Permissions.temporary(type)))
+                : Permission.of(Permissions.punish(type));
         Command.Builder<CommandActor> builder = start
-                .permission(spec.mode() == Mode.TEMPORARY
-                        ? Permission.anyOf(Permission.of(Permissions.punish(type)),
-                                Permission.of(Permissions.temporary(type)))
-                        : Permission.of(Permissions.punish(type)))
+                .permission(spec.kind() == null ? permission
+                        : Permission.allOf(permission, Permission.of(Permissions.kind(
+                                spec.kind()))))
                 .required("target", this.targetParser.descriptor());
+        final List<CommandFlag<?>> flagList = this.flagsFor(spec);
         if (spec.mode() == Mode.TEMPORARY) {
             builder = builder.required("duration", DurationParser.descriptor());
         }
-        builder = builder.optional("tail", StringParser.greedyFlagYieldingStringParser())
-                .flag(this.flags.silent(type))
-                .flag(this.flags.publicFlag(type))
-                .flag(this.flags.hide(type))
-                .flag(this.flags.global())
-                .flag(this.flags.server())
-                .flag(this.flags.category())
-                .flag(this.flags.scope())
-                .flag(this.flags.sender())
-                .flag(this.flags.senderUuid())
-                .flag(this.flags.skip(type));
-        if (spec.mode() != Mode.ADDRESS) {
-            builder = builder.flag(this.flags.ip(type));
-        }
-        if (!type.instant()) {
-            builder = builder.flag(this.flags.override(type)).flag(this.flags.ifLonger(type));
+        for (final CommandFlag<?> flag : flagList) {
+            builder = builder.flag(flag);
         }
         return builder.futureHandler(context -> this.runner.run(context.sender(),
                 () -> this.execute(context, spec)));
+    }
+
+    private List<CommandFlag<?>> flagsFor(final Spec spec) {
+        final PunishmentType type = spec.type();
+        final List<CommandFlag<?>> flagList = new ArrayList<>(List.of(
+                this.flags.silent(type),
+                this.flags.publicFlag(type),
+                this.flags.hide(type),
+                this.flags.global(),
+                this.flags.server(),
+                this.flags.category(),
+                this.flags.scope(),
+                this.flags.sender(),
+                this.flags.senderUuid(),
+                this.flags.skip(type),
+                this.flags.template(this.templateNames(type))));
+        if (spec.mode() != Mode.ADDRESS) {
+            flagList.add(this.flags.ip(type));
+        }
+        if (!type.instant()) {
+            flagList.add(this.flags.override(type));
+            flagList.add(this.flags.ifLonger(type));
+        }
+        if (!type.instant() && spec.mode() != Mode.TEMPORARY) {
+            flagList.add(this.flags.duration());
+        }
+        flagList.add(this.flags.reason());
+        return List.copyOf(flagList);
     }
 
     private CompletableFuture<?> execute(final CommandContext<CommandActor> context,
@@ -155,11 +199,11 @@ public final class PunishCommands implements CommandModule {
         final CommandActor actor = context.sender();
         final FlagContext flags = context.flags();
         final PunishmentType type = spec.type();
-        final PunishTail tail = PunishTail.parse(context.<String>optional("tail").orElse(null),
-                spec.mode() != Mode.TEMPORARY && !type.instant());
         final Duration duration = spec.mode() == Mode.TEMPORARY
                 ? context.<Duration>get("duration")
-                : tail.duration();
+                : flags.<Duration>getValue(PunishFlags.DURATION).orElse(null);
+        final String reason = flags.<String>getValue(PunishFlags.REASON).map(String::strip)
+                .filter(text -> !text.isEmpty()).orElse(null);
         final Optional<Scope> scope = this.scope(flags);
         if (scope.isPresent() && !this.scopeAccess.mayUse(actor, scope.get())) {
             this.runner.send(actor, MessageKey.COMMAND_SCOPE_NO_PERMISSION,
@@ -175,6 +219,16 @@ public final class PunishCommands implements CommandModule {
             this.runner.send(actor, MessageKey.COMMAND_SENDER_NEEDS_NAME);
             return CompletableFuture.completedFuture(null);
         }
+        final Shortcut shortcut = this.shortcut(actor, type, reason,
+                flags.<String>getValue(PunishFlags.TEMPLATE).orElse(null));
+        if (shortcut == null) {
+            return CompletableFuture.completedFuture(null);
+        }
+        if (spec.kind() != null && this.kinds.find(spec.kind())
+                .filter(kind -> kind.baseType() == type).isEmpty()) {
+            this.runner.send(actor, MessageKey.PUNISH_FAILURE_UNKNOWN_KIND);
+            return CompletableFuture.completedFuture(null);
+        }
         final boolean address = spec.mode() == Mode.ADDRESS || flags.isPresent(PunishFlags.IP)
                 || this.config.settings().enforcement().compositeByDefault()
                         && type != PunishmentType.KICK;
@@ -188,9 +242,10 @@ public final class PunishCommands implements CommandModule {
             try {
                 draft = DraftPunishment.builder(type, victim, issuer)
                         .scope(scope.orElse(null))
-                        .reason(tail.reason())
+                        .reason(shortcut.reason())
                         .duration(duration)
-                        .template(tail.template())
+                        .template(shortcut.template())
+                        .kind(spec.kind())
                         .build();
             } catch (final ValidationException e) {
                 this.invalid(actor, e);
@@ -205,6 +260,58 @@ public final class PunishCommands implements CommandModule {
                         }
                         throw new CompletionException(failure);
                     });
+        });
+    }
+
+    private record Shortcut(@Nullable String template, @Nullable String reason) {
+    }
+
+    private @Nullable Shortcut shortcut(final CommandActor actor, final PunishmentType type,
+            final @Nullable String reason, final @Nullable String given) {
+        if (given == null) {
+            return new Shortcut(null, reason);
+        }
+        final String name = given.strip().toLowerCase(Locale.ROOT);
+        final TemplateInfo template = this.templates.template(name).orElse(null);
+        if (template != null) {
+            if (template.type() != type) {
+                this.runner.send(actor, MessageKey.PUNISH_FAILURE_TEMPLATE_TYPE,
+                        Placeholder.unparsed("name", template.name()),
+                        Placeholder.component("type", this.runner.render(actor,
+                                Placeholders.typeKey(template.type()))));
+                return null;
+            }
+            if (template.permissionRequired()
+                    && !actor.hasPermission(Permissions.template(template.name()))) {
+                this.runner.send(actor, MessageKey.PUNISH_FAILURE_TEMPLATE_NO_PERMISSION,
+                        Placeholder.unparsed("name", template.name()));
+                return null;
+            }
+            return new Shortcut(template.name(), reason);
+        }
+        final String text = this.config.settings().reasons().shortcuts().get(name);
+        if (text == null) {
+            this.runner.send(actor, MessageKey.PUNISH_FAILURE_NO_TEMPLATE,
+                    Placeholder.unparsed("name", name));
+            return null;
+        }
+        return new Shortcut(null, reason == null ? text : text + " " + reason);
+    }
+
+    private SuggestionProvider<CommandActor> templateNames(final PunishmentType type) {
+        return SuggestionProvider.blockingStrings((context, input) -> {
+            final CommandActor actor = context.sender();
+            final List<String> names = new ArrayList<>();
+            for (final TemplateInfo template : this.templates.templates()) {
+                if (template.type() == type && (!template.permissionRequired()
+                        || actor.hasPermission(Permissions.template(template.name())))) {
+                    names.add(template.name());
+                }
+            }
+            this.config.settings().reasons().shortcuts().keySet().stream().sorted()
+                    .filter(shortcut -> !names.contains(shortcut))
+                    .forEach(names::add);
+            return names;
         });
     }
 

@@ -27,7 +27,7 @@ class CheckAndAltCommandsTest extends CommandTest {
         this.run(this.console, "checkban Steve2");
         Assertions.assertThat(this.console.last()).contains("Steve2 has nothing active");
 
-        this.run(this.console, "ban 198.51.100.1 shared network");
+        this.run(this.console, "ban 198.51.100.1 -r shared network");
         this.console.clear();
         this.run(this.console, "checkban Steve2");
 
@@ -37,7 +37,7 @@ class CheckAndAltCommandsTest extends CommandTest {
 
     @Test
     void checkByIdShowsAnyPunishment() {
-        this.run(this.console, "kick Steve2 bye");
+        this.run(this.console, "kick Steve2 -r bye");
         final Punishment kick = this.service.query(PunishmentQuery.builder().build()).join()
                 .items().getFirst();
         this.console.clear();

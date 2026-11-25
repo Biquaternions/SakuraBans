@@ -98,6 +98,24 @@ public final class SbTemplatesRecord extends UpdatableRecordImpl<SbTemplatesReco
         return this;
     }
 
+    public Boolean permissionRequired() {
+        return this.get(SakuraTables.TEMPLATES.PERMISSION_REQUIRED);
+    }
+
+    public SbTemplatesRecord permissionRequired(final Boolean value) {
+        this.set(SakuraTables.TEMPLATES.PERMISSION_REQUIRED, value);
+        return this;
+    }
+
+    public String actions() {
+        return this.get(SakuraTables.TEMPLATES.ACTIONS);
+    }
+
+    public SbTemplatesRecord actions(final String value) {
+        this.set(SakuraTables.TEMPLATES.ACTIONS, value);
+        return this;
+    }
+
     public Long version() {
         return this.get(SakuraTables.TEMPLATES.VERSION);
     }

@@ -7,8 +7,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
+import net.serlith.sakurabans.core.configuration.file.LimitsConfig;
 import net.serlith.sakurabans.core.configuration.file.MainConfig;
 import net.serlith.sakurabans.core.configuration.file.StorageConfig;
+import net.serlith.sakurabans.core.configuration.settings.LimitSettings;
 import net.serlith.sakurabans.core.configuration.settings.Settings;
 import net.serlith.sakurabans.core.configuration.settings.StorageSettings;
 import org.jspecify.annotations.Nullable;
@@ -21,6 +23,7 @@ public final class ConfigService {
     private final ComponentLogger logger;
     private final AtomicReference<@Nullable Settings> settings = new AtomicReference<>();
     private final AtomicReference<@Nullable StorageSettings> storage = new AtomicReference<>();
+    private final AtomicReference<@Nullable LimitSettings> limits = new AtomicReference<>();
 
     public ConfigService(final Path dataDirectory, final ComponentLogger logger) {
         this.dataDirectory = dataDirectory;
@@ -43,6 +46,14 @@ public final class ConfigService {
         return current;
     }
 
+    public LimitSettings limits() {
+        final LimitSettings current = this.limits.get();
+        if (current == null) {
+            throw new IllegalStateException("the configuration isn't loaded yet");
+        }
+        return current;
+    }
+
     public void load() throws ConfigException {
         final Loaded loaded = this.read();
         if (!loaded.errors().isEmpty()) {
@@ -50,6 +61,7 @@ public final class ConfigService {
         }
         this.settings.set(loaded.settings());
         this.storage.set(loaded.storage());
+        this.limits.set(loaded.limits());
         this.logWarnings(loaded.warnings());
     }
 
@@ -63,12 +75,21 @@ public final class ConfigService {
             restartRequired.add(ConfigFiles.STORAGE);
         }
         this.settings.set(loaded.settings());
+        this.limits.set(loaded.limits());
         this.logWarnings(loaded.warnings());
         return new ReloadResult.Reloaded(List.copyOf(restartRequired), loaded.warnings());
     }
 
     private record Loaded(@Nullable Settings settings, @Nullable StorageSettings storage,
-            List<ConfigIssue> errors, List<ConfigIssue> warnings) {
+            @Nullable LimitSettings limits, List<ConfigIssue> errors, List<ConfigIssue> warnings) {
+
+        @Override
+        public LimitSettings limits() {
+            if (this.limits == null) {
+                throw new IllegalStateException("no limit settings: " + this.errors);
+            }
+            return this.limits;
+        }
 
         @Override
         public Settings settings() {
@@ -94,6 +115,8 @@ public final class ConfigService {
                 this.readFile(ConfigFiles.CONFIG, MainConfig.class, errors, warnings);
         final StorageConfig storageConfig =
                 this.readFile(ConfigFiles.STORAGE, StorageConfig.class, errors, warnings);
+        final LimitsConfig limitsConfig =
+                this.readFile(ConfigFiles.LIMITS, LimitsConfig.class, errors, warnings);
         Settings settings = null;
         StorageSettings storageSettings = null;
         if (main != null) {
@@ -107,7 +130,14 @@ public final class ConfigService {
             errors.addAll(mapped.errors());
             storageSettings = mapped.value();
         }
-        return new Loaded(settings, storageSettings, List.copyOf(errors), List.copyOf(warnings));
+        LimitSettings limitSettings = null;
+        if (limitsConfig != null) {
+            final SettingsMapper.Mapped<LimitSettings> mapped = SettingsMapper.limits(limitsConfig);
+            errors.addAll(mapped.errors());
+            limitSettings = mapped.value();
+        }
+        return new Loaded(settings, storageSettings, limitSettings, List.copyOf(errors),
+                List.copyOf(warnings));
     }
 
     private <T> @Nullable T readFile(final String name, final Class<T> model,

@@ -165,12 +165,12 @@ public final class SbPunishmentsRecord extends UpdatableRecordImpl<SbPunishments
         return this;
     }
 
-    public @Nullable Integer templateId() {
-        return this.get(SakuraTables.PUNISHMENTS.TEMPLATE_ID);
+    public @Nullable String template() {
+        return this.get(SakuraTables.PUNISHMENTS.TEMPLATE);
     }
 
-    public SbPunishmentsRecord templateId(final @Nullable Integer value) {
-        this.set(SakuraTables.PUNISHMENTS.TEMPLATE_ID, value);
+    public SbPunishmentsRecord template(final @Nullable String value) {
+        this.set(SakuraTables.PUNISHMENTS.TEMPLATE, value);
         return this;
     }
 

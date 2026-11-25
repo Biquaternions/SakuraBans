@@ -22,7 +22,7 @@ class HistoryCommandsTest extends CommandTest {
 
     private void warns(final int count) {
         for (int i = 1; i <= count; i++) {
-            this.run(this.console, "warn Steve reason-" + i);
+            this.run(this.console, "warn Steve -r reason-" + i);
         }
         this.console.clear();
     }
@@ -85,9 +85,9 @@ class HistoryCommandsTest extends CommandTest {
 
     @Test
     void listsShowActivePunishmentsOfEveryone() {
-        this.run(this.console, "ban Steve one");
-        this.run(this.console, "ban Alex two 1h");
-        this.run(this.console, "kick Alex three");
+        this.run(this.console, "ban Steve -r one");
+        this.run(this.console, "ban Alex -r two 1h");
+        this.run(this.console, "kick Alex -r three");
         this.console.clear();
 
         this.run(this.console, "banlist");
@@ -101,8 +101,8 @@ class HistoryCommandsTest extends CommandTest {
         final FakeCommandActor mod = FakeCommandActor.player(MOD, "Mod",
                 Permissions.punish(PunishmentType.KICK));
         this.known(MOD, "Mod");
-        this.run(mod, "kick Steve spam");
-        this.run(this.console, "kick Alex spam");
+        this.run(mod, "kick Steve -r spam");
+        this.run(this.console, "kick Alex -r spam");
         this.console.clear();
 
         this.run(this.console, "staffhistory Mod");

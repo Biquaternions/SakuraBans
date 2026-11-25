@@ -1,5 +1,6 @@
 package net.serlith.sakurabans.core.punish;
 
+import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -49,6 +50,10 @@ public final class BuiltInKinds {
 
     public static Optional<SakuraKind> kind(final String id) {
         return Optional.ofNullable(KINDS.get(id));
+    }
+
+    public static Collection<SakuraKind> all() {
+        return KINDS.values();
     }
 
     public static String defaultFor(final PunishmentType type) {

@@ -7,10 +7,13 @@ import net.serlith.sakurabans.core.command.module.AllowCommands;
 import net.serlith.sakurabans.core.command.module.AltCommands;
 import net.serlith.sakurabans.core.command.module.CheckCommands;
 import net.serlith.sakurabans.core.command.module.HistoryCommands;
+import net.serlith.sakurabans.core.command.module.KindCommands;
 import net.serlith.sakurabans.core.command.module.PunishCommands;
 import net.serlith.sakurabans.core.command.module.RevokeCommands;
+import net.serlith.sakurabans.core.command.module.TemplateCommands;
 import net.serlith.sakurabans.core.command.parser.ScopeParser;
 import net.serlith.sakurabans.core.command.parser.TargetParser;
+import net.serlith.sakurabans.core.configuration.TemplateFiles;
 import net.serlith.sakurabans.core.integration.SakuraIntegrationRegistry;
 import net.serlith.sakurabans.core.message.Formats;
 import net.serlith.sakurabans.core.player.TargetResolver;
@@ -40,7 +43,7 @@ public abstract class CommandTest extends ServiceTest {
         new SakuraCommands(List.of(
                 new PunishCommands(registrar, runner, replies, flags, targetParser, targets,
                         this.service, this.names, this.config, this.scopes,
-                        new ScopeAccess(this.config)),
+                        new ScopeAccess(this.config), this.templates, this.kinds),
                 new RevokeCommands(registrar, runner, replies, flags, targetParser, targets,
                         this.service, this.scopes, new ScopeAccess(this.config)),
                 new CheckCommands(registrar, runner, replies, pager, targetParser, targets,
@@ -52,7 +55,11 @@ public abstract class CommandTest extends ServiceTest {
                         this.altService, this.platform, this.config),
                 new AllowCommands(registrar, runner, replies, new Formats(this.messages,
                         this.config), targetParser, targets, this.allowList, this.names,
-                        this.placeholders)),
+                        this.placeholders),
+                new TemplateCommands(registrar, runner, this.templates,
+                        new TemplateFiles(this.dir), new ConfirmationTracker(this.clock),
+                        this.executors.worker(), this.clock),
+                new KindCommands(registrar, runner, this.kinds, this.scopes)),
                 registrar, runner, this.messages).install(this.manager);
     }
 

@@ -12,6 +12,7 @@ import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.CategoryScope;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.core.RecordingLogger;
+import net.serlith.sakurabans.core.configuration.file.LimitsConfig;
 import net.serlith.sakurabans.core.configuration.file.MainConfig;
 import net.serlith.sakurabans.core.configuration.file.StorageConfig;
 import net.serlith.sakurabans.core.configuration.settings.Settings;
@@ -45,7 +46,8 @@ class ConfigServiceTest {
 
         service.load();
 
-        for (final String name : List.of(ConfigFiles.CONFIG, ConfigFiles.STORAGE)) {
+        for (final String name : List.of(ConfigFiles.CONFIG, ConfigFiles.STORAGE,
+                ConfigFiles.LIMITS)) {
             try (InputStream shipped = ConfigFiles.defaultResource(name)) {
                 assertThat(Files.readAllBytes(this.dir.resolve(name)))
                         .isEqualTo(shipped.readAllBytes());
@@ -56,6 +58,8 @@ class ConfigServiceTest {
                 .isEqualTo(SettingsMapper.settings(new MainConfig()).value());
         assertThat(service.storage())
                 .isEqualTo(SettingsMapper.storage(new StorageConfig()).value());
+        assertThat(service.limits())
+                .isEqualTo(SettingsMapper.limits(new LimitsConfig()).value());
     }
 
     @Test
@@ -176,7 +180,8 @@ class ConfigServiceTest {
         assertThat(Files.readString(this.dir.resolve(ConfigFiles.CONFIG))).isEqualTo(broken);
         try (var files = Files.list(this.dir)) {
             assertThat(files.map(path -> path.getFileName().toString()))
-                    .containsExactlyInAnyOrder(ConfigFiles.CONFIG, ConfigFiles.STORAGE);
+                    .containsExactlyInAnyOrder(ConfigFiles.CONFIG, ConfigFiles.STORAGE,
+                            ConfigFiles.LIMITS);
         }
     }
 

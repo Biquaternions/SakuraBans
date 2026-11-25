@@ -14,6 +14,9 @@
     <!-- Platform modules may import platform APIs. -->
     <suppress id="neutralImports" files="[\\/]platforms[\\/]"/>
 
+    <!-- One core test drives a real Brigadier tree, as Paper builds it (S31 review). -->
+    <suppress id="neutralImports" files="[\\/]core[\\/]src[\\/]test[\\/].*BrigadierSuggestionsTest\.java"/>
+
     <!-- Javadoc is mandatory in the public api module only (plan 4.3). -->
     <suppress checks="MissingJavadocType|MissingJavadocMethod"
             files="[\\/](core|platforms[\\/][^\\/]+)[\\/]src[\\/]"/>

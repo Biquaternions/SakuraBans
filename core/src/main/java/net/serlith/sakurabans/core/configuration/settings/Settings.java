@@ -61,7 +61,11 @@ public record Settings(
     }
 
     public record Reasons(String defaultReason, Set<PunishmentType> requiredFor,
-            boolean requiredForRevoke, boolean allowNewlines) {
+            boolean requiredForRevoke, boolean allowNewlines, Map<String, String> shortcuts) {
+
+        public Reasons {
+            shortcuts = Map.copyOf(shortcuts);
+        }
     }
 
     public record Exemption(ExemptionProvider provider, boolean permitSameWeight,
@@ -89,10 +93,18 @@ public record Settings(
     public record Players(boolean remoteLookup) {
     }
 
-    public record Commands(Map<String, List<String>> labels) {
+    public record KindCommand(PunishmentType type, List<String> labels) {
+
+        public KindCommand {
+            labels = List.copyOf(labels);
+        }
+    }
+
+    public record Commands(Map<String, List<String>> labels, Map<String, KindCommand> kinds) {
 
         public Commands {
             labels = Map.copyOf(labels);
+            kinds = Map.copyOf(kinds);
         }
 
         public List<String> labels(final String command) {

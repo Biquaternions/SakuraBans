@@ -15,6 +15,7 @@ import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.event.SakuraEventBus;
 import net.serlith.sakurabans.core.event.SakuraPunishmentCreatedEvent;
 import net.serlith.sakurabans.core.event.SakuraPunishmentRevokedEvent;
+import net.serlith.sakurabans.core.kind.SakuraKindService;
 import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import net.serlith.sakurabans.core.platform.Platform;
 import net.serlith.sakurabans.core.punish.Applicabilities;
@@ -24,6 +25,7 @@ import net.serlith.sakurabans.core.scope.SakuraScopeService;
 import net.serlith.sakurabans.core.storage.repository.PunishmentRepository;
 import net.serlith.sakurabans.core.sync.SyncPacket;
 import net.serlith.sakurabans.core.sync.SyncPacketHandler;
+import net.serlith.sakurabans.core.template.SakuraTemplateService;
 import net.serlith.sakurabans.core.util.Futures;
 
 public final class SyncReceiver implements SyncPacketHandler {
@@ -39,12 +41,15 @@ public final class SyncReceiver implements SyncPacketHandler {
     private final ConfigService config;
     private final InstantSource clock;
     private final SakuraAllowListService allowList;
+    private final SakuraTemplateService templates;
+    private final SakuraKindService kinds;
     private final ComponentLogger logger;
 
     public SyncReceiver(final PunishmentRepository punishments, final Enforcer enforcer,
             final MuteCache mutes, final SakuraScopeService scopes, final Platform platform,
             final SakuraEventBus events, final ConfigService config, final InstantSource clock,
-            final SakuraAllowListService allowList, final ComponentLogger logger) {
+            final SakuraAllowListService allowList, final SakuraTemplateService templates,
+            final SakuraKindService kinds, final ComponentLogger logger) {
         this.punishments = punishments;
         this.enforcer = enforcer;
         this.mutes = mutes;
@@ -54,6 +59,8 @@ public final class SyncReceiver implements SyncPacketHandler {
         this.config = config;
         this.clock = clock;
         this.allowList = allowList;
+        this.templates = templates;
+        this.kinds = kinds;
         this.logger = logger;
     }
 
@@ -63,6 +70,11 @@ public final class SyncReceiver implements SyncPacketHandler {
             case SyncPacket.PunishmentEnforcePacket enforce -> this.enforce(enforce);
             case SyncPacket.PunishmentRevokePacket revoke -> this.revoke(revoke);
             case SyncPacket.AllowListChangedPacket allowList -> this.allowList.reload();
+            case SyncPacket.EntityChangedPacket changed -> switch (changed.entity()) {
+                case TEMPLATE -> this.templates.changed(changed);
+                case KIND -> this.kinds.changed(changed);
+                default -> CompletableFuture.completedFuture(null);
+            };
         };
     }
 
@@ -109,6 +121,8 @@ public final class SyncReceiver implements SyncPacketHandler {
     public CompletableFuture<Void> missed() {
         final Instant now = this.clock.instant();
         final List<CompletableFuture<Void>> work = new ArrayList<>();
+        work.add(this.kinds.reload());
+        work.add(this.templates.reload());
         for (final OnlinePlayer player : this.platform.onlinePlayers()) {
             if (!this.scopes.proxy()) {
                 work.add(this.mutes.load(player.uuid(), player.address()));

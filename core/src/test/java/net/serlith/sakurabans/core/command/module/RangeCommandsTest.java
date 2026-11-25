@@ -14,18 +14,18 @@ class RangeCommandsTest extends CommandTest {
     void rangesNeedTheirPermission() {
         final FakeCommandActor mod = FakeCommandActor.player(UUID.randomUUID(), "Mod",
                 Permissions.punish(PunishmentType.BAN));
-        this.run(mod, "ban 10.0.*.* spam");
+        this.run(mod, "ban 10.0.*.* -r spam");
         Assertions.assertThat(mod.last()).contains("can't punish address ranges");
 
         mod.grant(Permissions.range(PunishmentType.BAN));
-        this.run(mod, "ban 10.0.*.* spam");
+        this.run(mod, "ban 10.0.*.* -r spam");
         Assertions.assertThat(mod.last()).contains("Banned 10.0.0.0/16");
     }
 
     @Test
     void checkAndHistoryShowExactlyThatRange() {
-        this.run(this.console, "ban 2001:db8::/32 spam");
-        this.run(this.console, "ban 10.0.0.0/8 spam");
+        this.run(this.console, "ban 2001:db8::/32 -r spam");
+        this.run(this.console, "ban 10.0.0.0/8 -r spam");
 
         this.run(this.console, "checkban 2001:db8::/32");
         Assertions.assertThat(this.console.texts()).anySatisfy(line ->

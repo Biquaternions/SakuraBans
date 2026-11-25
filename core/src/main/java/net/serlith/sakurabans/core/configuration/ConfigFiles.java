@@ -14,6 +14,7 @@ final class ConfigFiles {
 
     static final String CONFIG = "config.yml";
     static final String STORAGE = "storage.yml";
+    static final String LIMITS = "limits.yml";
 
     private ConfigFiles() {
     }

@@ -43,7 +43,7 @@ class PunishCommandsTest extends CommandTest {
     void bansWithDurationReasonAndReply() {
         final FakeOnlinePlayer online = this.platform.join(STEVE, "Steve", this.home);
 
-        this.run(this.console, "ban Steve 7d griefing at spawn");
+        this.run(this.console, "ban Steve -d 7d -r griefing at spawn");
 
         final Punishment ban = this.only();
         Assertions.assertThat(ban.victim()).isEqualTo(PlayerVictim.of(STEVE));
@@ -60,12 +60,25 @@ class PunishCommandsTest extends CommandTest {
         final FakeCommandActor helper = FakeCommandActor.player(MOD, "Helper",
                 Permissions.temporary(PunishmentType.BAN));
 
-        this.run(helper, "ban Steve spam");
+        this.run(helper, "ban Steve -r spam");
         Assertions.assertThat(helper.last()).contains("don't have permission");
-        this.run(helper, "tempban Steve 1h spam");
+        this.run(helper, "tempban Steve 1h -r spam");
 
         Assertions.assertThat(this.only().expiresAt()).isPresent();
         Assertions.assertThat(this.only().operator()).isEqualTo(PlayerOperator.of(MOD, "Helper"));
+    }
+
+    @Test
+    void theReasonFlagTakesTheRestOfTheLine() {
+        this.run(this.console, "ban Steve -d 3d -s -r griefing -o at spawn");
+
+        Assertions.assertThat(this.all()).singleElement().satisfies(ban -> {
+            Assertions.assertThat(ban.reason()).isEqualTo("griefing -o at spawn");
+            Assertions.assertThat(ban.visibility()).isEqualTo(Visibility.SILENT);
+        });
+        this.run(this.console, "ban Alex griefing");
+        // A bare word is neither a flag nor a reason: Cloud shows the usage.
+        Assertions.assertThat(this.console.last()).contains("Usage: /ban <target>");
     }
 
     @Test
@@ -75,13 +88,13 @@ class PunishCommandsTest extends CommandTest {
 
         for (final String flag : List.of("-s", "--hide", "-o", "--skip", "-I")) {
             mod.clear();
-            this.run(mod, "mute Steve spam " + flag);
+            this.run(mod, "mute Steve " + flag + " -r spam");
             Assertions.assertThat(mod.last()).as(flag).contains("You can't use the flag");
         }
         Assertions.assertThat(this.all()).isEmpty();
 
         mod.grant(Permissions.flag(PunishmentType.MUTE, PunishFlags.SILENT));
-        this.run(mod, "mute Steve spam -s");
+        this.run(mod, "mute Steve -s -r spam");
         Assertions.assertThat(this.only().visibility()).isEqualTo(Visibility.SILENT);
     }
 
@@ -91,12 +104,12 @@ class PunishCommandsTest extends CommandTest {
                 InetAddresses.parseLiteral("198.51.100.1")
                         .orElseThrow()).grant(Permissions.notify(PunishmentType.BAN));
 
-        this.run(this.console, "ban Steve xray -s");
+        this.run(this.console, "ban Steve -s -r xray");
 
         Assertions.assertThat(this.only().visibility()).isEqualTo(Visibility.SILENT);
         Assertions.assertThat(normal.messages()).isEmpty();
         this.run(this.console, "unban Steve");
-        this.run(this.console, "ban Steve xray --hide");
+        this.run(this.console, "ban Steve --hide -r xray");
         Assertions.assertThat(this.service.query(PunishmentQuery.builder().activeOnly(true)
                 .build()).join().items().getFirst().visibility()).isEqualTo(Visibility.HIDDEN);
     }
@@ -105,16 +118,16 @@ class PunishCommandsTest extends CommandTest {
     void theSenderFlagIsForTheConsoleOnly() {
         final FakeCommandActor mod = FakeCommandActor.player(MOD, "Mod",
                 Permissions.punish(PunishmentType.WARN));
-        this.run(mod, "warn Steve spam --sender Discord");
+        this.run(mod, "warn Steve --sender Discord -r spam");
         Assertions.assertThat(mod.last()).contains("You can't use the flag");
 
-        this.run(this.console, "warn Steve spam --sender Discord");
+        this.run(this.console, "warn Steve --sender Discord -r spam");
         Assertions.assertThat(this.only().operator()).isEqualTo(CustomOperator.of("Discord", null));
 
         this.console.clear();
-        this.run(this.console, "warn Steve again --sender-uuid " + MOD);
+        this.run(this.console, "warn Steve --sender-uuid " + MOD + " -r again");
         Assertions.assertThat(this.console.last()).contains("--sender-uuid needs --sender");
-        this.run(this.console, "warn Steve again --sender Mod --sender-uuid " + MOD);
+        this.run(this.console, "warn Steve --sender Mod --sender-uuid " + MOD + " -r again");
         Assertions.assertThat(this.all().getFirst().operator())
                 .isEqualTo(PlayerOperator.of(MOD, "Mod"));
     }
@@ -129,27 +142,27 @@ class PunishCommandsTest extends CommandTest {
 
     @Test
     void ipVariantsTakeTheLastAddress() {
-        this.run(this.console, "ipban Steve evading");
+        this.run(this.console, "ipban Steve -r evading");
         Assertions.assertThat(this.only().victim()).isEqualTo(CompositeVictim.of(STEVE, this.home));
 
-        this.run(this.console, "mute 203.0.113.7 spam");
+        this.run(this.console, "mute 203.0.113.7 -r spam");
         Assertions.assertThat(this.all().getFirst().victim())
                 .isEqualTo(AddressVictim.of(this.home));
 
         this.console.clear();
-        this.run(this.console, "ban 10.0.0.0/8 spam");
+        this.run(this.console, "ban 10.0.0.0/8 -r spam");
         Assertions.assertThat(this.console.last()).contains("Banned 10.0.0.0/8");
     }
 
     @Test
     void scopesComeFromFlagsAndConflictsAreReported() {
-        this.run(this.console, "ban Steve hacking --server survival");
+        this.run(this.console, "ban Steve --server survival -r hacking");
         Assertions.assertThat(this.only().scope()).isEqualTo(ServerScope.of("survival"));
 
         this.console.clear();
-        this.run(this.console, "ban Steve hacking --server survival");
+        this.run(this.console, "ban Steve --server survival -r hacking");
         Assertions.assertThat(this.console.last()).contains("already has an active ban");
-        this.run(this.console, "ban Steve hacking --server survival -o");
+        this.run(this.console, "ban Steve --server survival -o -r hacking");
         Assertions.assertThat(this.all()).hasSize(2);
     }
 
@@ -158,10 +171,11 @@ class PunishCommandsTest extends CommandTest {
         this.run(this.console, "ban Nobody");
         Assertions.assertThat(this.console.last()).contains("Nobody is known as Nobody");
 
-        this.run(this.console, "ban Steve #spam");
-        Assertions.assertThat(this.console.last()).contains("no such template");
+        this.run(this.console, "ban Steve --template spam");
+        Assertions.assertThat(this.console.last())
+                .contains("no template or reason shortcut called spam");
 
-        this.run(this.console, "ban #3 spam");
+        this.run(this.console, "ban #3 -r spam");
         Assertions.assertThat(this.console.last()).contains("not a punishment id");
     }
 }

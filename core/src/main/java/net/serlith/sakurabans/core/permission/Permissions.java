@@ -28,6 +28,21 @@ public final class Permissions {
     public static final String ALTS_NOTIFY = ROOT + "alts.notify";
     public static final String ALTS_IPREPORT = ROOT + "alts.ipreport";
     public static final String ADMIN_ALLOW = ROOT + "admin.allow";
+    public static final String ADMIN_TEMPLATES = ROOT + "admin.templates";
+    public static final String ADMIN_KINDS = ROOT + "admin.kinds";
+    public static final String LIMITS_UNLIMITED = ROOT + "limits.unlimited";
+    public static final String ADMIN_STAFFROLLBACK = ROOT + "admin.staffrollback";
+    public static final String ADMIN_GDPR = ROOT + "admin.gdpr";
+    public static final String ADMIN_SETTINGS = ROOT + "admin.settings";
+    public static final String ADMIN_MESSAGES = ROOT + "admin.messages";
+    public static final String ADMIN_BANWAVES = ROOT + "admin.banwaves";
+    public static final String ADMIN_IMPORT = ROOT + "admin.import";
+    public static final String ADMIN_AUDIT = ROOT + "admin.audit";
+    public static final String ADMIN_STATS = ROOT + "admin.stats";
+    public static final String VIEW_HIDDEN = ROOT + "view.hidden";
+    public static final String APPEALS_VIEW = ROOT + "appeals.view";
+    public static final String APPEALS_DECIDE = ROOT + "appeals.decide";
+    public static final String COOLDOWN_BYPASS = ROOT + "cooldown.bypass";
 
     private Permissions() {
     }
@@ -60,6 +75,30 @@ public final class Permissions {
         return node(type, "range");
     }
 
+    public static String exempt(final PunishmentType type) {
+        return node(type, "exempt");
+    }
+
+    public static String exemptBypass(final PunishmentType type) {
+        return node(type, "exempt.bypass");
+    }
+
+    public static String edit(final PunishmentType type) {
+        return node(type, "edit");
+    }
+
+    public static String editOwn(final PunishmentType type) {
+        return node(type, "edit.own");
+    }
+
+    public static String voidPunishment(final PunishmentType type) {
+        return node(type, "void");
+    }
+
+    public static String delete(final PunishmentType type) {
+        return node(type, "delete");
+    }
+
     public static String revoke(final PunishmentType type) {
         return node(type, "revoke");
     }
@@ -70,6 +109,14 @@ public final class Permissions {
 
     public static String check(final PunishmentType type) {
         return node(type, "check");
+    }
+
+    public static String kind(final String id) {
+        return ROOT + "kind." + id;
+    }
+
+    public static String template(final String name) {
+        return ROOT + "template." + name;
     }
 
     public static String scopeServer(final String server) {

@@ -38,13 +38,13 @@ class ScopeCommandsTest extends CommandTest {
     @Test
     void punishingWithoutScopeNeedsTheDefaultPermission() {
         final FakeCommandActor mod = FakeCommandActor.player(MOD, "Mod", BAN);
-        this.run(mod, "ban Steve griefing");
+        this.run(mod, "ban Steve -r griefing");
         Assertions.assertThat(mod.last()).contains("Name a scope");
         Assertions.assertThat(this.active()).isEmpty();
 
         final FakeCommandActor trusted =
                 FakeCommandActor.player(MOD, "Mod", BAN, Permissions.SCOPE_DEFAULT);
-        this.run(trusted, "ban Steve griefing");
+        this.run(trusted, "ban Steve -r griefing");
         Assertions.assertThat(this.active()).singleElement()
                 .extracting(Punishment::scope).isEqualTo(GlobalScope.INSTANCE);
     }
@@ -54,20 +54,20 @@ class ScopeCommandsTest extends CommandTest {
         final FakeCommandActor mod = FakeCommandActor.player(MOD, "Mod", BAN,
                 Permissions.scopeServer("survival"));
 
-        this.run(mod, "ban Steve griefing --server creative");
+        this.run(mod, "ban Steve --server creative -r griefing");
         Assertions.assertThat(mod.last()).contains("can't punish in server:creative");
-        this.run(mod, "ban Steve griefing -g");
+        this.run(mod, "ban Steve -g -r griefing");
         Assertions.assertThat(mod.last()).contains("can't punish in global");
 
-        this.run(mod, "ban Steve griefing --server survival");
+        this.run(mod, "ban Steve --server survival -r griefing");
         Assertions.assertThat(this.active()).singleElement()
                 .extracting(Punishment::scope).isEqualTo(ServerScope.of("survival"));
     }
 
     @Test
     void revocationsLeaveScopesTheSenderCantUse() {
-        this.run(this.console, "ban Steve one -g");
-        this.run(this.console, "ban Steve two --server survival");
+        this.run(this.console, "ban Steve -g -r one");
+        this.run(this.console, "ban Steve --server survival -r two");
         final FakeCommandActor mod = FakeCommandActor.player(MOD, "Mod", UNBAN,
                 Permissions.scopeServer("survival"));
 
@@ -88,16 +88,16 @@ class ScopeCommandsTest extends CommandTest {
 
     @Test
     void scopeAllIsForRevocationsOnly() {
-        this.run(this.console, "ban Steve one -g");
-        this.run(this.console, "ban Steve two --server survival");
+        this.run(this.console, "ban Steve -g -r one");
+        this.run(this.console, "ban Steve --server survival -r two");
 
-        this.run(this.console, "ban Steve three --scope all");
+        this.run(this.console, "ban Steve --scope all -r three");
         Assertions.assertThat(this.console.last()).contains("only when lifting");
 
         this.run(this.console, "unban Steve --scope server:survival");
         Assertions.assertThat(this.active()).singleElement()
                 .extracting(Punishment::scope).isEqualTo(GlobalScope.INSTANCE);
-        this.run(this.console, "ban Steve two --server survival");
+        this.run(this.console, "ban Steve --server survival -r two");
 
         this.run(this.console, "unban Steve --scope all");
         Assertions.assertThat(this.active()).isEmpty();
@@ -106,11 +106,11 @@ class ScopeCommandsTest extends CommandTest {
 
     @Test
     void scopeFlagsSuggestKnownServersAndCategories() {
-        Assertions.assertThat(this.suggest("ban Steve x --server "))
+        Assertions.assertThat(this.suggest("ban Steve -d 7d --server "))
                 .contains("kitpvp");
-        Assertions.assertThat(this.suggest("ban Steve x --category "))
+        Assertions.assertThat(this.suggest("ban Steve --category "))
                 .contains("pvp");
-        Assertions.assertThat(this.suggest("ban Steve x --scope "))
+        Assertions.assertThat(this.suggest("ban Steve -s --scope "))
                 .contains("global", "local", "server:lobby", "server:kitpvp", "category:pvp")
                 .doesNotContain("all");
         Assertions.assertThat(this.suggest("unban Steve --scope "))

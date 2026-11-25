@@ -1,0 +1,425 @@
+package net.serlith.sakurabans.core.template;
+
+import com.google.common.base.Preconditions;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.InstantSource;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
+import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
+import net.serlith.sakurabans.api.admin.AdminResult;
+import net.serlith.sakurabans.api.audit.SubjectType;
+import net.serlith.sakurabans.api.auth.Action;
+import net.serlith.sakurabans.api.event.ChangeType;
+import net.serlith.sakurabans.api.integration.EvidenceCapturer;
+import net.serlith.sakurabans.api.model.Actor;
+import net.serlith.sakurabans.api.model.CompositeVictim;
+import net.serlith.sakurabans.api.model.ConsoleOperator;
+import net.serlith.sakurabans.api.model.EvidenceRef;
+import net.serlith.sakurabans.api.model.PlayerVictim;
+import net.serlith.sakurabans.api.model.PunishmentType;
+import net.serlith.sakurabans.api.model.Victim;
+import net.serlith.sakurabans.api.template.TemplateDefinition;
+import net.serlith.sakurabans.api.template.TemplateInfo;
+import net.serlith.sakurabans.api.template.TemplatePreview;
+import net.serlith.sakurabans.api.template.TemplateService;
+import net.serlith.sakurabans.api.template.TemplateStep;
+import net.serlith.sakurabans.api.validation.FieldError.Code;
+import net.serlith.sakurabans.api.validation.ValidationException;
+import net.serlith.sakurabans.api.validation.Validator;
+import net.serlith.sakurabans.core.configuration.ConfigIssue;
+import net.serlith.sakurabans.core.configuration.TemplateFiles;
+import net.serlith.sakurabans.core.event.SakuraEventBus;
+import net.serlith.sakurabans.core.event.SakuraTemplateChangedEvent;
+import net.serlith.sakurabans.core.integration.SakuraIntegrationRegistry;
+import net.serlith.sakurabans.core.model.*;
+import net.serlith.sakurabans.core.punish.ActionCheck;
+import net.serlith.sakurabans.core.punish.KindLookup;
+import net.serlith.sakurabans.core.punish.TemplateResolver;
+import net.serlith.sakurabans.core.storage.repository.EntityWrite;
+import net.serlith.sakurabans.core.storage.repository.MetaRepository;
+import net.serlith.sakurabans.core.storage.repository.TemplateRepository;
+import net.serlith.sakurabans.core.sync.SyncPacket;
+import net.serlith.sakurabans.core.sync.SyncService;
+import net.serlith.sakurabans.core.util.Futures;
+import org.jspecify.annotations.Nullable;
+
+public final class SakuraTemplateService implements TemplateService, TemplateResolver {
+
+    static final Duration CAPTURE_TIMEOUT = Duration.ofSeconds(3);
+    static final String SEEDED = "templates.seeded";
+    static final Actor SEED_ACTOR = Actor.of(ConsoleOperator.INSTANCE, "config");
+
+    private final TemplateRepository repository;
+    private final MetaRepository meta;
+    private final TemplateFiles files;
+    private final KindLookup kinds;
+    private final SakuraIntegrationRegistry integrations;
+    private final ActionCheck actions;
+    private final SyncService sync;
+    private final SakuraEventBus events;
+    private final InstantSource clock;
+    private final ComponentLogger logger;
+    private final AtomicReference<Map<String, SakuraTemplateInfo>> templates =
+            new AtomicReference<>(Map.of());
+
+    public SakuraTemplateService(final TemplateRepository repository, final MetaRepository meta,
+            final TemplateFiles files, final KindLookup kinds,
+            final SakuraIntegrationRegistry integrations, final ActionCheck actions,
+            final SyncService sync, final SakuraEventBus events, final InstantSource clock,
+            final ComponentLogger logger) {
+        this.repository = repository;
+        this.meta = meta;
+        this.files = files;
+        this.kinds = kinds;
+        this.integrations = integrations;
+        this.actions = actions;
+        this.sync = sync;
+        this.events = events;
+        this.clock = clock;
+        this.logger = logger;
+    }
+
+    public CompletableFuture<Void> reload() {
+        return this.repository.all().thenAccept(all -> {
+            final Map<String, SakuraTemplateInfo> byName = new TreeMap<>();
+            all.forEach(template -> byName.put(template.name(), template));
+            this.templates.set(Map.copyOf(byName));
+        });
+    }
+
+    public CompletableFuture<Void> start() {
+        return this.meta.putIfAbsent(SEEDED, this.clock.instant().toString())
+                .thenCompose(first -> {
+                    if (!first) {
+                        return this.reload();
+                    }
+                    final TemplateFiles.Read read = this.files.read();
+                    read.errors().forEach(error -> this.logger.warn("Not imported: {}", error));
+                    return this.merge(read.templates(), SEED_ACTOR).thenAccept(report ->
+                            this.logger.info("Imported {} templates from {}",
+                                    report.created(), TemplateFiles.FILE));
+                });
+    }
+
+    public record MergeReport(int created, int updated, int unchanged,
+            List<ConfigIssue> errors) {
+    }
+
+    public CompletableFuture<MergeReport> merge(final List<TemplateDefinition> definitions,
+            final Actor actor) {
+        CompletableFuture<int[]> chain = CompletableFuture.completedFuture(new int[3]);
+        final List<ConfigIssue> errors = new ArrayList<>();
+        for (final TemplateDefinition definition : definitions) {
+            chain = chain.thenCompose(counts -> {
+                final SakuraTemplateInfo before = this.templates.get().get(definition.name());
+                return this.write(definition, null, actor, before == null).thenApply(outcome -> {
+                    switch (outcome) {
+                        case AdminResult.Ok<TemplateInfo> ok -> {
+                            if (before == null) {
+                                counts[0]++;
+                            } else if (ok.value().version() != before.version()) {
+                                counts[1]++;
+                            } else {
+                                counts[2]++;
+                            }
+                        }
+                        case AdminResult.ValidationFailed<TemplateInfo> failed ->
+                                failed.errors().forEach(error -> errors.add(ConfigIssue.error(
+                                        TemplateFiles.FILE, "templates." + definition.name()
+                                                + "." + error.path(), error.message())));
+                        default -> errors.add(ConfigIssue.error(TemplateFiles.FILE, "templates."
+                                + definition.name(), "changed meanwhile; not imported"));
+                    }
+                    return counts;
+                });
+            });
+        }
+        return chain.thenApply(counts -> new MergeReport(counts[0], counts[1], counts[2],
+                List.copyOf(errors)));
+    }
+
+    @Override
+    public List<TemplateInfo> templates() {
+        return List.copyOf(this.templates.get().values());
+    }
+
+    @Override
+    public Optional<TemplateInfo> template(final String name) {
+        return this.find(name).map(TemplateInfo.class::cast);
+    }
+
+    private Optional<SakuraTemplateInfo> find(final String name) {
+        Preconditions.checkNotNull(name, "name");
+        return Validator.normalizeIdentifier(name).map(this.templates.get()::get);
+    }
+
+    @Override
+    public CompletableFuture<Optional<TemplatePreview>> preview(final String name,
+            final Victim victim) {
+        final Victim checked;
+        try {
+            checked = ApiValues.victim(victim);
+        } catch (final RuntimeException e) {
+            return CompletableFuture.failedFuture(e);
+        }
+        final SakuraTemplateInfo template = this.find(name).orElse(null);
+        if (template == null) {
+            return CompletableFuture.completedFuture(Optional.empty());
+        }
+        return this.step(template, checked).thenApply(step ->
+                Optional.of(new SakuraTemplatePreview(template, step)));
+    }
+
+    @Override
+    public CompletableFuture<Optional<Resolution>> resolve(final String name, final Victim victim,
+            final Actor actor) {
+        final SakuraTemplateInfo template = this.find(name).orElse(null);
+        if (template == null) {
+            return CompletableFuture.completedFuture(Optional.empty());
+        }
+        return this.step(template, victim).thenCompose(step ->
+                this.capture(template, victim, actor).thenApply(captured -> Optional.of(
+                        new Resolution(template.name(), template.kind(), template.type(),
+                                template.reason(),
+                                template.ladder().get(step).duration().orElse(null), step,
+                                template.requiredEvidence(), captured))));
+    }
+
+    CompletableFuture<Integer> step(final SakuraTemplateInfo template, final Victim victim) {
+        final Map<String, Integer> weights = this.weights(template);
+        final Instant now = this.clock.instant();
+        final Instant since = template.ladderExpiry().map(now::minus).orElse(null);
+        return this.repository.history(weights.keySet(), victim, template.addressShared(), since,
+                now).thenApply(counts -> {
+                    long points = 0;
+                    for (final Map.Entry<String, Long> count : counts.entrySet()) {
+                        points += count.getValue() * weights.getOrDefault(count.getKey(), 0);
+                    }
+                    return template.stepFor(points);
+                });
+    }
+
+    Map<String, Integer> weights(final SakuraTemplateInfo template) {
+        final Map<String, Integer> weights = new HashMap<>();
+        if (template.groups().isEmpty()) {
+            weights.put(template.name(), 1);
+            return weights;
+        }
+        final Map<String, SakuraTemplateInfo> all = new HashMap<>(this.templates.get());
+        all.put(template.name(), template);
+        for (final SakuraTemplateInfo other : all.values()) {
+            for (final Map.Entry<String, Integer> group : other.groups().entrySet()) {
+                if (template.groups().containsKey(group.getKey())) {
+                    weights.merge(other.name(), group.getValue(), Math::max);
+                }
+            }
+        }
+        return weights;
+    }
+
+    private CompletableFuture<List<EvidenceRef>> capture(final SakuraTemplateInfo template,
+            final Victim victim, final Actor actor) {
+        final UUID uuid = switch (victim) {
+            case PlayerVictim player -> player.uuid();
+            case CompositeVictim composite -> composite.uuid();
+            default -> null;
+        };
+        if (uuid == null || template.captureEvidence().isEmpty()) {
+            return CompletableFuture.completedFuture(List.of());
+        }
+        final List<CompletableFuture<@Nullable EvidenceRef>> captures = new ArrayList<>();
+        for (final EvidenceCapturer capturer : this.integrations.capturers()) {
+            if (template.captureEvidence().contains(capturer.type())) {
+                captures.add(this.capture(capturer, uuid, actor));
+            }
+        }
+        return Futures.allOf(captures).thenApply(refs ->
+                refs.stream().filter(Objects::nonNull).toList());
+    }
+
+    private CompletableFuture<@Nullable EvidenceRef> capture(final EvidenceCapturer capturer,
+            final UUID uuid, final Actor actor) {
+        CompletableFuture<EvidenceRef> capture;
+        try {
+            capture = Preconditions.checkNotNull(capturer.capture(uuid, actor), "capture");
+        } catch (final RuntimeException e) {
+            capture = CompletableFuture.failedFuture(e);
+        }
+        return capture.toCompletableFuture()
+                .orTimeout(CAPTURE_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
+                .handle((ref, failure) -> {
+                    if (failure != null) {
+                        this.logger.warn("The evidence capturer for {} failed; continuing without"
+                                + " it", capturer.type(), Futures.unwrap(failure));
+                        return null;
+                    }
+                    return ref;
+                });
+    }
+
+    @Override
+    public CompletableFuture<AdminResult<TemplateInfo>> create(
+            final TemplateDefinition definition, final Actor actor) {
+        return this.authorized(actor, () -> this.write(definition, null, actor, true));
+    }
+
+    @Override
+    public CompletableFuture<AdminResult<TemplateInfo>> update(
+            final TemplateDefinition definition, final long expectedVersion, final Actor actor) {
+        return this.authorized(actor, () -> this.write(definition, expectedVersion, actor,
+                false));
+    }
+
+    @Override
+    public CompletableFuture<AdminResult<TemplateInfo>> reorderSteps(final String name,
+            final List<Integer> order, final long expectedVersion, final Actor actor) {
+        return this.authorized(actor, () -> {
+            final SakuraTemplateInfo template = this.find(name).orElse(null);
+            if (template == null) {
+                return CompletableFuture.completedFuture(new SakuraAdminResult.NotFound<>());
+            }
+            final int size = template.ladder().size();
+            if (order.size() != size || !new HashSet<>(order).equals(range(size))) {
+                return CompletableFuture.completedFuture(SakuraAdminResult.invalid("order",
+                        Code.INVALID, "must list each step index 0-" + (size - 1) + " once"));
+            }
+            final List<TemplateStep> ladder = order.stream()
+                    .map(template.ladder()::get)
+                    .toList();
+            return this.write(TemplateDefinition.builder(template).ladder(ladder).build(),
+                    expectedVersion, actor, false);
+        });
+    }
+
+    @Override
+    public CompletableFuture<AdminResult<TemplateInfo>> delete(final String name,
+            final long expectedVersion, final Actor actor) {
+        return this.authorized(actor, () -> {
+            final String normalized = Validator.normalizeIdentifier(name).orElse(null);
+            if (normalized == null) {
+                return CompletableFuture.completedFuture(new SakuraAdminResult.NotFound<>());
+            }
+            return this.repository.delete(normalized, expectedVersion, ApiValues.actor(actor),
+                    this.clock.instant()).thenCompose(write -> this.written(write,
+                    ChangeType.DELETED, actor));
+        });
+    }
+
+    private CompletableFuture<AdminResult<TemplateInfo>> write(
+            final TemplateDefinition given, final @Nullable Long expectedVersion,
+            final Actor actor, final boolean create) {
+        final TemplateDefinition definition;
+        try {
+            definition = TemplateDefinition.builder(given.name(), given.kind())
+                    .reason(given.reason())
+                    .ladder(given.ladder().stream()
+                            .map(step -> TemplateStep.of(step.duration().orElse(null),
+                                    step.actions()))
+                            .toList())
+                    .requiredEvidence(given.requiredEvidence())
+                    .captureEvidence(given.captureEvidence())
+                    .ladderExpiry(given.ladderExpiry().orElse(null))
+                    .addressShared(given.addressShared())
+                    .permissionRequired(given.permissionRequired())
+                    .actions(given.actions())
+                    .groups(given.groups())
+                    .build();
+        } catch (final ValidationException e) {
+            return CompletableFuture.completedFuture(
+                    new SakuraAdminResult.ValidationFailed<>(e.errors()));
+        }
+        final PunishmentType type = this.kinds.find(definition.kind())
+                .map(SakuraKind::baseType)
+                .orElse(null);
+        if (type == null) {
+            return CompletableFuture.completedFuture(SakuraAdminResult.invalid("kind",
+                    Code.NOT_ALLOWED, "no kind is called '" + definition.kind() + "'"));
+        }
+        if (type.instant() && definition.ladder().stream()
+                .anyMatch(step -> step.duration().isPresent())) {
+            return CompletableFuture.completedFuture(SakuraAdminResult.invalid("ladder",
+                    Code.NOT_ALLOWED, "a kick template has only permanent steps"));
+        }
+        final Instant now = this.clock.instant();
+        final Actor checked = ApiValues.actor(actor);
+        return (create
+                ? this.repository.create(definition, type, checked, now)
+                : this.repository.update(definition, type, expectedVersion, checked, now))
+                .thenCompose(write -> this.written(write,
+                        create ? ChangeType.CREATED : ChangeType.UPDATED, checked));
+    }
+
+    private CompletableFuture<AdminResult<TemplateInfo>> written(
+            final EntityWrite<SakuraTemplateInfo> write, final ChangeType change,
+            final Actor actor) {
+        return switch (write) {
+            case EntityWrite.Done<SakuraTemplateInfo> done -> this.reload().thenApply(ignored -> {
+                final SakuraTemplateInfo template = done.value();
+                this.sync.publish(new SyncPacket.EntityChangedPacket(SubjectType.TEMPLATE,
+                        template.name(), change, template.version(), actor));
+                this.events.post(new SakuraTemplateChangedEvent(change, template.name(),
+                        template.version(), actor,
+                        change == ChangeType.DELETED ? null : template, false));
+                return new SakuraAdminResult.Ok<>(template);
+            });
+            case EntityWrite.Unchanged<SakuraTemplateInfo> unchanged ->
+                    CompletableFuture.completedFuture(new SakuraAdminResult.Ok<>(
+                            unchanged.value()));
+            case EntityWrite.Taken<SakuraTemplateInfo> taken ->
+                    CompletableFuture.completedFuture(SakuraAdminResult.invalid("name",
+                            Code.NOT_ALLOWED, "a template is called '" + taken.existing().name()
+                                    + "' already"));
+            case EntityWrite.NotFound<SakuraTemplateInfo> notFound ->
+                    CompletableFuture.completedFuture(new SakuraAdminResult.NotFound<>());
+            case EntityWrite.Conflict<SakuraTemplateInfo> conflict ->
+                    CompletableFuture.completedFuture(new SakuraAdminResult.Conflict<>(
+                            conflict.currentVersion()));
+            case EntityWrite.Refused<SakuraTemplateInfo> refused ->
+                    CompletableFuture.completedFuture(SakuraAdminResult.invalid(refused.path(),
+                            Code.NOT_ALLOWED, refused.message()));
+        };
+    }
+
+    public CompletableFuture<Void> changed(final SyncPacket.EntityChangedPacket packet) {
+        return this.reload().thenRun(() -> this.events.post(new SakuraTemplateChangedEvent(
+                packet.change(), packet.id(), packet.version(), packet.actor(),
+                packet.change() == ChangeType.DELETED ? null
+                        : this.templates.get().get(packet.id()), true)));
+    }
+
+    private CompletableFuture<AdminResult<TemplateInfo>> authorized(final Actor actor,
+            final Supplier<CompletableFuture<AdminResult<TemplateInfo>>> work) {
+        final Actor checked;
+        try {
+            checked = ApiValues.actor(actor);
+        } catch (final RuntimeException e) {
+            return CompletableFuture.failedFuture(e);
+        }
+        return this.actions.check(checked, Action.Manage.of(Action.Manage.Area.TEMPLATES))
+                .thenCompose(decision -> decision.allowed()
+                        ? work.get()
+                        : CompletableFuture.completedFuture(
+                                new SakuraAdminResult.Forbidden<>(decision)));
+    }
+
+    private static Set<Integer> range(final int size) {
+        final Set<Integer> all = new HashSet<>();
+        for (int i = 0; i < size; i++) {
+            all.add(i);
+        }
+        return all;
+    }
+}

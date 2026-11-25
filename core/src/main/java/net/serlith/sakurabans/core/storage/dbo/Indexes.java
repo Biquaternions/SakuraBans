@@ -64,7 +64,7 @@ public final class Indexes {
             Internal.createIndex(DSL.name(SakuraTables.prefix() + "punishments_template_ix"),
                     SakuraTables.PUNISHMENTS,
                     new OrderField<?>[] {
-                            SakuraTables.PUNISHMENTS.TEMPLATE_ID,
+                            SakuraTables.PUNISHMENTS.TEMPLATE,
                             SakuraTables.PUNISHMENTS.VICTIM_ID
                     }, false);
 

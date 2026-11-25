@@ -79,8 +79,8 @@ public final class SbPunishments extends SbTable<SbPunishmentsRecord> {
     public final TableField<SbPunishmentsRecord, Visibility> VISIBILITY = createField(
             DSL.name("visibility"), SbTypes.VISIBILITY.nullable(false), this, "");
 
-    public final TableField<SbPunishmentsRecord, Integer> TEMPLATE_ID = createField(
-            DSL.name("template_id"), SQLDataType.INTEGER.nullable(true), this, "");
+    public final TableField<SbPunishmentsRecord, String> TEMPLATE = createField(
+            DSL.name("template"), SQLDataType.VARCHAR(64).nullable(true), this, "");
 
     public final TableField<SbPunishmentsRecord, Short> TEMPLATE_STEP = createField(
             DSL.name("template_step"), SQLDataType.SMALLINT.nullable(true), this, "");
@@ -158,8 +158,7 @@ public final class SbPunishments extends SbTable<SbPunishmentsRecord> {
     public List<ForeignKey<SbPunishmentsRecord, ?>> getReferences() {
         return List.of(
                 Keys.PUNISHMENTS_VICTIM_FK,
-                Keys.PUNISHMENTS_SCOPE_FK,
-                Keys.PUNISHMENTS_TEMPLATE_FK);
+                Keys.PUNISHMENTS_SCOPE_FK);
     }
 
     @Override

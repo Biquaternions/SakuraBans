@@ -6,6 +6,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
+import org.jspecify.annotations.Nullable;
 
 public final class Futures {
 
@@ -24,7 +25,7 @@ public final class Futures {
         });
     }
 
-    public static <T> CompletableFuture<List<T>> allOf(final List<CompletableFuture<T>> futures) {
+    public static <T extends @Nullable Object> CompletableFuture<List<T>> allOf(final List<CompletableFuture<T>> futures) {
         final List<CompletableFuture<T>> copy = List.copyOf(futures);
         return CompletableFuture.allOf(copy.toArray(CompletableFuture[]::new))
                 .thenApply(ignored -> copy.stream().map(CompletableFuture::join).toList());

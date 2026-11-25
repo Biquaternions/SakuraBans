@@ -25,10 +25,10 @@ class RevokeCommandsTest extends CommandTest {
 
     @Test
     void unbanEndsPlayerAndAddressBansOfTheAccount() {
-        this.run(this.console, "ban Steve one");
-        this.run(this.console, "ipban Steve two --server survival");
+        this.run(this.console, "ban Steve -r one");
+        this.run(this.console, "ipban Steve --server survival -r two");
 
-        this.run(this.console, "unban Steve appealed");
+        this.run(this.console, "unban Steve -r appealed");
 
         Assertions.assertThat(this.active(PunishmentType.BAN)).isZero();
         Assertions.assertThat(this.console.last()).contains("Unbanned Steve (2)");
@@ -36,9 +36,9 @@ class RevokeCommandsTest extends CommandTest {
 
     @Test
     void pardonIsUnbanUnderVanillasName() {
-        this.run(this.console, "ban Steve one");
+        this.run(this.console, "ban Steve -r one");
 
-        this.run(this.console, "pardon Steve appealed");
+        this.run(this.console, "pardon Steve -r appealed");
 
         Assertions.assertThat(this.active(PunishmentType.BAN)).isZero();
         Assertions.assertThat(this.console.last()).contains("Unbanned Steve (1)");
@@ -46,8 +46,8 @@ class RevokeCommandsTest extends CommandTest {
 
     @Test
     void unwarnRemovesOnlyTheNewestWarning() {
-        this.run(this.console, "warn Steve one");
-        this.run(this.console, "warn Steve two");
+        this.run(this.console, "warn Steve -r one");
+        this.run(this.console, "warn Steve -r two");
 
         this.run(this.console, "unwarn Steve");
 
@@ -59,13 +59,13 @@ class RevokeCommandsTest extends CommandTest {
 
     @Test
     void byIdChecksTheType() {
-        this.run(this.console, "mute Steve spam");
+        this.run(this.console, "mute Steve -r spam");
         final Punishment mute = this.service.query(PunishmentQuery.builder().build()).join()
                 .items().getFirst();
 
         this.run(this.console, "unban #" + mute.id());
         Assertions.assertThat(this.console.last()).contains("is a mute");
-        this.run(this.console, "unmute #" + mute.id() + " sorry");
+        this.run(this.console, "unmute #" + mute.id() + " -r sorry");
 
         final Punishment ended = this.service.byId(mute.id()).join().orElseThrow();
         Assertions.assertThat(ended.end().orElseThrow().kind()).isEqualTo(EndKind.REVOKED);
@@ -76,14 +76,14 @@ class RevokeCommandsTest extends CommandTest {
     void theOwnPermissionOnlyLiftsOwnPunishments() {
         final FakeCommandActor mod = FakeCommandActor.player(MOD, "Mod",
                 Permissions.punish(PunishmentType.BAN), Permissions.revokeOwn(PunishmentType.BAN));
-        this.run(this.console, "ban Steve by console");
+        this.run(this.console, "ban Steve -r by console");
 
         this.run(mod, "unban Steve");
         Assertions.assertThat(mod.last()).contains("only lift punishments you issued");
         Assertions.assertThat(this.active(PunishmentType.BAN)).isOne();
 
         this.run(this.console, "unban Steve");
-        this.run(mod, "ban Steve by mod");
+        this.run(mod, "ban Steve -r by mod");
         this.run(mod, "unban Steve");
         Assertions.assertThat(this.active(PunishmentType.BAN)).isZero();
     }

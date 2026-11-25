@@ -103,7 +103,8 @@ class RangeTest extends ServiceTest {
                 .isInstanceOf(LoginDecision.Allowed.class);
 
         new SyncReceiver(this.punishments, this.enforcer, this.mutes, this.scopes, this.platform,
-                this.bus, this.config, this.clock, this.allowList, this.log.logger())
+                this.bus, this.config, this.clock, this.allowList, this.templates,
+                this.kinds, this.log.logger())
                 .handle(SyncPacket.PunishmentEnforcePacket.of(ban.id())).join();
         Assertions.assertThat(this.join(STEVE, "10.0.0.1"))
                 .isInstanceOf(LoginDecision.Denied.class);

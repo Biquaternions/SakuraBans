@@ -25,7 +25,7 @@ public record NewPunishment(
         @Nullable Instant expiresAt,
         @Nullable String originServer,
         Visibility visibility,
-        @Nullable Integer templateId,
+        @Nullable String template,
         @Nullable Integer templateStep,
         List<EvidenceRef> evidence,
         @Nullable String externalId) {
@@ -40,6 +40,18 @@ public record NewPunishment(
         Preconditions.checkNotNull(createdAt, "createdAt");
         Preconditions.checkNotNull(visibility, "visibility");
         evidence = List.copyOf(evidence);
+    }
+
+    public NewPunishment withExpiry(final @Nullable Instant expiry) {
+        return new NewPunishment(this.type, this.kind, this.shadow, this.strictness, this.victim,
+                this.scope, this.reason, this.actor, this.createdAt, expiry, this.originServer,
+                this.visibility, this.template, this.templateStep, this.evidence, this.externalId);
+    }
+
+    public NewPunishment withTemplate(final @Nullable String name, final @Nullable Integer step) {
+        return new NewPunishment(this.type, this.kind, this.shadow, this.strictness, this.victim,
+                this.scope, this.reason, this.actor, this.createdAt, this.expiresAt,
+                this.originServer, this.visibility, name, step, this.evidence, this.externalId);
     }
 
     boolean outlasts(final @Nullable Instant otherExpiry) {

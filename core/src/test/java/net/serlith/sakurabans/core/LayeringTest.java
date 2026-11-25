@@ -29,7 +29,7 @@ class LayeringTest {
             List.of("util", "concurrent", "model", "platform", "integration"),
             List.of("configuration", "message", "storage"),
             List.of("permission", "event", "sync", "player", "scope", "messaging"),
-            List.of("punish", "alts", "template", "limit", "notify"),
+            List.of("punish", "kind", "auth", "alts", "template", "limit", "notify"),
             List.of("enforce", "importer"),
             List.of("command"),
             List.of("", "bootstrap"));

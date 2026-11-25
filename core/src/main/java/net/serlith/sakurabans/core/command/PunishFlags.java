@@ -1,8 +1,10 @@
 package net.serlith.sakurabans.core.command;
 
+import java.time.Duration;
 import java.util.UUID;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Scope;
+import net.serlith.sakurabans.core.command.parser.DurationParser;
 import net.serlith.sakurabans.core.command.parser.ScopeFilter;
 import net.serlith.sakurabans.core.command.parser.ScopeParser;
 import net.serlith.sakurabans.core.permission.Permissions;
@@ -12,6 +14,7 @@ import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.parser.standard.UUIDParser;
 import org.incendo.cloud.permission.Permission;
 import org.incendo.cloud.permission.PredicatePermission;
+import org.incendo.cloud.suggestion.SuggestionProvider;
 
 public final class PunishFlags {
 
@@ -28,6 +31,9 @@ public final class PunishFlags {
     public static final String SENDER = "sender";
     public static final String SENDER_UUID = "sender-uuid";
     public static final String SKIP = "skip";
+    public static final String TEMPLATE = "template";
+    public static final String REASON = "reason";
+    public static final String DURATION = "duration";
 
     private final ScopeParser scopes;
 
@@ -108,6 +114,29 @@ public final class PunishFlags {
         return CommandFlag.<CommandActor>builder(SENDER_UUID)
                 .withComponent(UUIDParser.<CommandActor>uuidParser())
                 .withPermission(consoleOnly()).build();
+    }
+
+    public CommandFlag<String> template(final SuggestionProvider<CommandActor> names) {
+        return CommandFlag.<CommandActor>builder(TEMPLATE).withAliases("t")
+                .withComponent(CommandComponent.<CommandActor, String>builder()
+                        .name(TEMPLATE)
+                        .parser(StringParser.<CommandActor>stringParser())
+                        .suggestionProvider(names))
+                .build();
+    }
+
+    public CommandFlag<String> reason() {
+        return CommandFlag.<CommandActor>builder(REASON).withAliases("r")
+                .withComponent(CommandComponent.<CommandActor, String>builder()
+                        .name(REASON)
+                        .parser(StringParser.<CommandActor>greedyStringParser()))
+                .build();
+    }
+
+    public CommandFlag<Duration> duration() {
+        return CommandFlag.<CommandActor>builder(DURATION).withAliases("d")
+                .withComponent(DurationParser.descriptor())
+                .build();
     }
 
     public CommandFlag<Void> skip(final PunishmentType type) {

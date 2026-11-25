@@ -107,6 +107,14 @@ reasons:
     revoke: false
   # Whether reasons may contain line breaks.
   allow-newlines: false
+  # Reason shortcuts: with "griefing: Griefing", /ban Steve --template griefing uses "Griefing"
+  # as the reason (a reason given with -r is added after it). A template with the same name
+  # wins; see templates.yml.
+  # Names are 1-64 characters of a-z, 0-9, _ and -. For example:
+  #   shortcuts:
+  #     griefing: Griefing
+  #     language: Inappropriate language
+  shortcuts: {}
 
 exemption:
   # Who can't be punished: NONE, PERMISSION (sakurabans.exempt.<type>) or LUCKPERMS_WEIGHT
@@ -162,3 +170,13 @@ commands:
   # ipreport.
   labels:
     sakurabans: [sakurabans, sb]
+  # Punish commands for punishment kinds: the kind's id, its base type (ban, mute, warn or kick)
+  # and the command's labels. Each works like /ban (same arguments and flags) and needs
+  # sakurabans.<type> and sakurabans.kind.<id>. Kinds are listed by /sb kinds list.
+  kinds:
+    blacklist:
+      type: ban
+      labels: [blacklist]
+    shadow-mute:
+      type: mute
+      labels: [shadowmute]

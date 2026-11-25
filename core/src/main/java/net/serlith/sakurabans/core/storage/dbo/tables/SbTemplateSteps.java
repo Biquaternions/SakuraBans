@@ -31,6 +31,9 @@ public final class SbTemplateSteps extends SbTable<SbTemplateStepsRecord> {
     public final TableField<SbTemplateStepsRecord, Duration> DURATION_MS = createField(
             DSL.name("duration_ms"), SbTypes.DURATION.nullable(true), this, "");
 
+    public final TableField<SbTemplateStepsRecord, String> ACTIONS = createField(
+            DSL.name("actions"), SQLDataType.VARCHAR(4096).nullable(false), this, "");
+
     public SbTemplateSteps(final String prefix) {
         this(prefix, DSL.name(prefix + "template_steps"), null);
     }

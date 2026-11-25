@@ -32,7 +32,7 @@ class SyncReceiverTest extends ServiceTest {
     void receiver() {
         this.receiver = new SyncReceiver(this.punishments, this.enforcer, this.mutes, this.scopes,
                 this.platform, this.bus, this.config, this.clock, this.allowList,
-                this.log.logger());
+                this.templates, this.kinds, this.log.logger());
         this.loginGate.check(new LoginAttempt(STEVE, "Steve", this.home, null)).join();
         eventually(() -> this.mutes.loaded(STEVE));
         this.steve = this.platform.join(STEVE, "Steve", this.home);

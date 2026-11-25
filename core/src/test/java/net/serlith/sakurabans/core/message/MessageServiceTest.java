@@ -130,6 +130,23 @@ class MessageServiceTest {
     }
 
     @Test
+    void remainingTimeShowsTheTwoLargestUnits() {
+        final Duration days = Duration.ofDays(3).plusHours(4).plusMinutes(5).plusSeconds(6);
+        assertThat(this.formats.approximate(days, Locale.US)).isEqualTo("3 days and 4 hours");
+        assertThat(this.formats.approximate(Duration.ofHours(2).plusMinutes(5).plusSeconds(9),
+                Locale.US)).isEqualTo("2 hours and 5 minutes");
+        assertThat(this.formats.approximate(Duration.ofMinutes(7).plusSeconds(30), Locale.US))
+                .isEqualTo("7 minutes and 30 seconds");
+        assertThat(this.formats.approximate(Duration.ofSeconds(42), Locale.US))
+                .isEqualTo("42 seconds");
+        // A unit below the largest that is zero is left out, not replaced by a smaller one.
+        assertThat(this.formats.approximate(Duration.ofDays(2).plusMinutes(30), Locale.US))
+                .isEqualTo("2 days");
+        assertThat(this.formats.approximate(Duration.ofDays(400), Locale.US))
+                .isEqualTo("1 year and 35 days");
+    }
+
+    @Test
     void durationsReadNaturally() {
         assertThat(this.formats.duration(Duration.ofSeconds(1), Locale.US)).isEqualTo("1 second");
         assertThat(this.formats.duration(Duration.ofDays(1).plusHours(12), Locale.US))

@@ -2,6 +2,7 @@ package net.serlith.sakurabans.core.command;
 
 import java.util.List;
 import java.util.Optional;
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.message.MessageKey;
 import net.serlith.sakurabans.core.message.MessageService;
@@ -22,13 +23,19 @@ public final class CommandRegistrar {
     public Optional<Command.Builder<CommandActor>> builder(
             final CommandManager<CommandActor> manager, final String command,
             final MessageKey description) {
-        final List<String> labels = this.config.settings().commands().labels(command);
+        return this.builder(manager, this.config.settings().commands().labels(command),
+                description);
+    }
+
+    public Optional<Command.Builder<CommandActor>> builder(
+            final CommandManager<CommandActor> manager, final List<String> labels,
+            final MessageKey description, final TagResolver... resolvers) {
         if (labels.isEmpty()) {
             return Optional.empty();
         }
         return Optional.of(manager.commandBuilder(labels.getFirst(),
-                labels.subList(1, labels.size()), RichDescription.of(
-                        this.messages.render(description, this.messages.defaultLocale())),
+                labels.subList(1, labels.size()), RichDescription.of(this.messages.render(
+                        description, this.messages.defaultLocale(), resolvers)),
                 manager.createDefaultCommandMeta()));
     }
 

@@ -249,14 +249,6 @@ public final class Keys {
                     new TableField[] {SakuraTables.SCOPES.ID},
                     true, QOM.ForeignKeyRule.NO_ACTION, QOM.ForeignKeyRule.NO_ACTION);
 
-    public static final ForeignKey<SbPunishmentsRecord, SbTemplatesRecord>
-            PUNISHMENTS_TEMPLATE_FK = Internal.createForeignKey(
-                    SakuraTables.PUNISHMENTS, name("punishments_template_fk"),
-                    new TableField[] {SakuraTables.PUNISHMENTS.TEMPLATE_ID},
-                    TEMPLATES_PK,
-                    new TableField[] {SakuraTables.TEMPLATES.ID},
-                    true, QOM.ForeignKeyRule.SET_NULL, QOM.ForeignKeyRule.NO_ACTION);
-
     public static final ForeignKey<SbActivePunishmentsRecord, SbPunishmentsRecord>
             ACTIVE_PUNISHMENTS_PUNISHMENT_FK = Internal.createForeignKey(
                     SakuraTables.ACTIVE_PUNISHMENTS, name("active_punishments_punishment_fk"),

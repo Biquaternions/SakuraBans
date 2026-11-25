@@ -1,5 +1,6 @@
 package net.serlith.sakurabans.core.configuration.file;
 
+import java.util.Map;
 import lombok.Getter;
 import org.spongepowered.configurate.objectmapping.ConfigSerializable;
 import org.spongepowered.configurate.objectmapping.meta.Setting;
@@ -12,6 +13,7 @@ public final class ReasonsSection {
     private String defaultReason = "No reason specified";
     private RequireSection require = new RequireSection();
     private boolean allowNewlines;
+    private Map<String, String> shortcuts = Map.of();
 
     @Getter
     @ConfigSerializable

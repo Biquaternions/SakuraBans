@@ -5,7 +5,9 @@ import java.time.Duration;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -23,9 +25,11 @@ import net.serlith.sakurabans.api.validation.Validator;
 import net.serlith.sakurabans.core.configuration.file.AltsSection;
 import net.serlith.sakurabans.core.configuration.file.CommandsSection;
 import net.serlith.sakurabans.core.configuration.file.DisplaySection;
+import net.serlith.sakurabans.core.configuration.file.LimitsConfig;
 import net.serlith.sakurabans.core.configuration.file.MainConfig;
 import net.serlith.sakurabans.core.configuration.file.ReasonsSection;
 import net.serlith.sakurabans.core.configuration.file.StorageConfig;
+import net.serlith.sakurabans.core.configuration.settings.LimitSettings;
 import net.serlith.sakurabans.core.configuration.settings.Settings;
 import net.serlith.sakurabans.core.configuration.settings.StorageSettings;
 import net.serlith.sakurabans.core.configuration.settings.StorageType;
@@ -56,6 +60,59 @@ final class SettingsMapper {
         final SettingsMapper mapper = new SettingsMapper(ConfigFiles.CONFIG);
         final Settings settings = mapper.mapSettings(config);
         return new Mapped<>(mapper.errors.isEmpty() ? settings : null, List.copyOf(mapper.errors));
+    }
+
+    static Mapped<LimitSettings> limits(final LimitsConfig config) {
+        final SettingsMapper mapper = new SettingsMapper(ConfigFiles.LIMITS);
+        final LimitSettings limits = mapper.mapLimits(config);
+        return new Mapped<>(mapper.errors.isEmpty() ? limits : null, List.copyOf(mapper.errors));
+    }
+
+    private LimitSettings mapLimits(final LimitsConfig config) {
+        final List<LimitSettings.Group> groups = new ArrayList<>();
+        config.groups().forEach((name, group) -> {
+            final String path = "groups." + name;
+            this.check(!group.permission().isBlank(), path + ".permission",
+                    "must name the permission that puts staff in this group");
+            final Map<PunishmentType, Duration> max = new EnumMap<>(PunishmentType.class);
+            group.maxDuration().forEach((type, value) -> {
+                final String key = path + ".max-duration." + type;
+                this.type(key, type).ifPresent(parsed -> {
+                    this.check(!parsed.instant(), key, "a kick has no duration");
+                    if (!Durations.isPermanentToken(value)) {
+                        this.duration(key, value).ifPresent(duration -> max.put(parsed,
+                                duration));
+                    }
+                });
+            });
+            final Map<PunishmentType, Duration> cooldowns = new EnumMap<>(PunishmentType.class);
+            group.cooldown().forEach((type, value) -> {
+                final String key = path + ".cooldown." + type;
+                this.type(key, type).ifPresent(parsed -> this.duration(key, value)
+                        .ifPresent(duration -> cooldowns.put(parsed, duration)));
+            });
+            groups.add(new LimitSettings.Group(name, group.permission().strip(), max, cooldowns,
+                    group.requireTemplate()));
+        });
+        return new LimitSettings(config.reduceToLimit(), groups);
+    }
+
+    private Optional<PunishmentType> type(final String path, final String value) {
+        for (final PunishmentType type : PunishmentType.values()) {
+            if (type.name().equalsIgnoreCase(value.strip())) {
+                return Optional.of(type);
+            }
+        }
+        this.error(path, "\"" + value + "\" is not ban, mute, warn or kick");
+        return Optional.empty();
+    }
+
+    private Optional<Duration> duration(final String path, final String value) {
+        final Optional<Duration> duration = Durations.parse(value.strip());
+        if (duration.isEmpty()) {
+            this.error(path, "\"" + value + "\" is not a duration (like 30s, 10m, 7d)");
+        }
+        return duration;
     }
 
     static Mapped<StorageSettings> storage(final StorageConfig config) {
@@ -148,8 +205,19 @@ final class SettingsMapper {
         if (require.kick()) {
             required.add(PunishmentType.KICK);
         }
+        final Map<String, String> shortcuts = new HashMap<>();
+        reasons.shortcuts().forEach((name, text) -> {
+            final String key = "reasons.shortcuts." + name;
+            final String normalized = Validator.normalizeIdentifier(name).orElse(null);
+            this.check(normalized != null, key, "is not a name (1-64 of a-z, 0-9, _ and -)");
+            this.check(!text.isBlank() && text.length() <= Lengths.MAX_REASON, key,
+                    "must be a reason of 1-" + Lengths.MAX_REASON + " characters");
+            if (normalized != null) {
+                shortcuts.put(normalized, text.strip());
+            }
+        });
         return new Settings.Reasons(reasons.defaultReason(), Set.copyOf(required),
-                require.revoke(), reasons.allowNewlines());
+                require.revoke(), reasons.allowNewlines(), shortcuts);
     }
 
     private Settings.Display display(final DisplaySection display) {
@@ -222,7 +290,24 @@ final class SettingsMapper {
             }
             labels.put(command.toLowerCase(Locale.ROOT), List.copyOf(valid));
         });
-        return new Settings.Commands(labels);
+        final Map<String, Settings.KindCommand> kinds = new LinkedHashMap<>();
+        section.kinds().forEach((kind, command) -> {
+            final String path = "commands.kinds." + kind;
+            this.identifier(path, kind).ifPresent(id -> {
+                final List<String> valid = new ArrayList<>();
+                for (final String name : command.labels()) {
+                    final String lower = name.strip().toLowerCase(Locale.ROOT);
+                    if (LABEL.matcher(lower).matches()) {
+                        valid.add(lower);
+                    } else {
+                        this.error(path + ".labels", "\"" + name
+                                + "\" must be 1-32 characters of a-z, 0-9, '_' or '-'");
+                    }
+                }
+                kinds.put(id, new Settings.KindCommand(command.type(), valid));
+            });
+        });
+        return new Settings.Commands(labels, kinds);
     }
 
     private Map<String, Set<String>> categories(final Map<String, List<String>> section) {

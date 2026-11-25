@@ -23,7 +23,7 @@ class SakuraCommandsTest extends CommandTest {
         Assertions.assertThat(this.console.last()).contains("'forever' is not a duration");
 
         this.run(this.console, "ban");
-        Assertions.assertThat(this.console.last()).contains("Usage: /ban <target> [tail]");
+        Assertions.assertThat(this.console.last()).contains("Usage: /ban <target> [--silent");
 
         final FakeCommandActor player = FakeCommandActor.player(MOD, "Mod");
         this.run(player, "ban Steve");
@@ -35,7 +35,7 @@ class SakuraCommandsTest extends CommandTest {
         final FakeCommandActor mod =
                 FakeCommandActor.player(MOD, "Mod", Permissions.punish(PunishmentType.BAN));
 
-        this.run(mod, "ban Steve griefing -s");
+        this.run(mod, "ban Steve -s -r griefing");
 
         Assertions.assertThat(mod.last()).contains("You can't use the flag");
     }
@@ -45,7 +45,7 @@ class SakuraCommandsTest extends CommandTest {
         this.run(this.console, "sakurabans help");
 
         Assertions.assertThat(String.join("\n", this.console.texts()))
-                .contains("Help (1/", "/ban <target> [tail]", "/banlist [page]");
+                .contains("Help (1/", "/ban <target> [--silent", "/banlist [page]");
     }
 
     @Test

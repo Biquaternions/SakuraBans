@@ -17,15 +17,14 @@ class SakuraApiTest extends ServiceTest {
     private SakuraApi api() {
         return SakuraApi.create(this.service, new SakuraPlayerService(this.players, this.clock,
                         (uuid, strictness) -> CompletableFuture.completedFuture(List.of())),
-                this.scopes, this.bus, new SakuraIntegrationRegistry(), this.allowList);
+                this.scopes, this.bus, new SakuraIntegrationRegistry(), this.allowList,
+                this.templates, this.kinds, this.authorization);
     }
 
     @Test
     void unfinishedServicesSayWhenTheyArrive() {
         final SakuraApi api = this.api();
 
-        Assertions.assertThat(api.templates().templates()).isEmpty();
-        Assertions.assertThat(api.kinds().kind("ban")).isEmpty();
         Assertions.assertThat(api.audit().query(
                         AuditQuery.builder().build()))
                 .failsWithin(Duration.ofSeconds(1))
@@ -42,7 +41,8 @@ class SakuraApiTest extends ServiceTest {
     @Test
     void onlyFinishedCapabilitiesAreListed() {
         Assertions.assertThat(this.api().capabilities())
-                .containsExactlyInAnyOrder(Capability.SHADOW_MUTE, Capability.CURSORS);
+                .containsExactlyInAnyOrder(Capability.SHADOW_MUTE, Capability.CURSORS,
+                        Capability.TEMPLATE_EDITING, Capability.KINDS);
         Assertions.assertThat(this.api().punishments()).isSameAs(this.service);
     }
 }

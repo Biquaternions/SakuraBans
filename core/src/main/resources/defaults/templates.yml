@@ -1,0 +1,67 @@
+# SakuraBans templates.
+#
+# Templates live in the database and are shared by every server on it. This file only seeds
+# them: it is imported once, on the first start with an empty template table. After that, change
+# templates in game or through the API, or edit this file and run /sb templates import, which
+# creates or updates every template listed here and keeps the others. /sb templates export
+# writes the current templates to exports/templates-<time>.yml in this format.
+#
+# Use a template with --template (or -t) and its name:
+#   /ban Steve --template hacking
+#   /ban Steve -t hacking -r caught on camera
+# A reason given with -r (always last) replaces the template's reason. The template decides
+# the duration, so don't give one. Tab completion lists the templates.
+#
+# Keys of a template (all but kind, reason and ladder are optional):
+#   kind                 the punishment kind: ban, ip-ban, mute, shadow-mute, warn, kick, ...
+#   reason               the reason when the command gives none
+#   ladder               one duration per step (30m, 7d, 1mo, ...) or permanent. The first
+#                        punishment from the template uses the first step, the next one the
+#                        second, and so on; after the last step it repeats. Kicks: permanent.
+#   ladder-expiry        earlier punishments older than this don't count (none = all count)
+#   address-shared       true: punishments of the player's alts and addresses count too
+#   permission-required  true: using it needs sakurabans.template.<name>
+#   actions              console commands run after every punishment from the template
+#   step-actions         console commands for one step only, by step number (from 1)
+#   groups               group: weight. Templates in a group share progress: a punishment from
+#                        a group mate counts as its weight in that group (voided ones never count)
+#   required-evidence    evidence types (<namespace>:<type>) a punishment must have
+#   capture-evidence     evidence types to capture automatically through plugins that provide them
+#
+# Actions may use {victim}, {uuid}, {address}, {id}, {operator}, {reason}, {template},
+# {step} and {duration}. Quote them, because YAML reads {...} as a section:
+#   actions: ["broadcast {victim} was banned for {duration}"]
+
+templates:
+  hacking:
+    kind: ban
+    reason: Unfair advantage (hacked client)
+    ladder: [7d, 30d, permanent]
+    ladder-expiry: 1y
+    address-shared: true
+    groups:
+      cheating: 2
+
+  xray:
+    kind: ban
+    reason: X-ray
+    ladder: [3d, 14d, permanent]
+    ladder-expiry: 1y
+    groups:
+      cheating: 1
+
+  spam:
+    kind: mute
+    reason: Spamming
+    ladder: [15m, 1h, 1d, 7d]
+    ladder-expiry: 30d
+
+  advertising:
+    kind: mute
+    reason: Advertising
+    ladder: [1d, 7d, permanent]
+
+  inappropriate-name:
+    kind: kick
+    reason: Please change your name
+    ladder: [permanent]

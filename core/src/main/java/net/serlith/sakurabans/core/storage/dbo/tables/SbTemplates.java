@@ -51,6 +51,12 @@ public final class SbTemplates extends SbTable<SbTemplatesRecord> {
     public final TableField<SbTemplatesRecord, Boolean> ADDRESS_SHARED = createField(
             DSL.name("address_shared"), SbTypes.FLAG.nullable(false), this, "");
 
+    public final TableField<SbTemplatesRecord, Boolean> PERMISSION_REQUIRED = createField(
+            DSL.name("permission_required"), SbTypes.FLAG.nullable(false), this, "");
+
+    public final TableField<SbTemplatesRecord, String> ACTIONS = createField(
+            DSL.name("actions"), SQLDataType.VARCHAR(4096).nullable(false), this, "");
+
     public final TableField<SbTemplatesRecord, Long> VERSION = createField(
             DSL.name("version"), SQLDataType.BIGINT.nullable(false), this, "");
 

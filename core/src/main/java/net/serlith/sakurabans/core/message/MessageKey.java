@@ -143,6 +143,12 @@ public record MessageKey(String key) {
             new MessageKey("command.description.pardon");
     public static final MessageKey COMMAND_DESCRIPTION_ALLOW =
             new MessageKey("command.description.allow");
+    public static final MessageKey COMMAND_DESCRIPTION_TEMPLATES =
+            new MessageKey("command.description.templates");
+    public static final MessageKey COMMAND_DESCRIPTION_KINDS =
+            new MessageKey("command.description.kinds");
+    public static final MessageKey COMMAND_DESCRIPTION_KIND =
+            new MessageKey("command.description.kind");
     public static final MessageKey COMMAND_DESCRIPTION_UNLINK =
             new MessageKey("command.description.unlink");
     public static final MessageKey COMMAND_DESCRIPTION_UNMUTE =
@@ -211,6 +217,12 @@ public record MessageKey(String key) {
             new MessageKey("punish.failure.reason_required");
     public static final MessageKey PUNISH_FAILURE_TEMPLATE_REQUIRED =
             new MessageKey("punish.failure.template_required");
+    public static final MessageKey PUNISH_FAILURE_NO_TEMPLATE =
+            new MessageKey("punish.failure.no_template");
+    public static final MessageKey PUNISH_FAILURE_TEMPLATE_NO_PERMISSION =
+            new MessageKey("punish.failure.template_no_permission");
+    public static final MessageKey PUNISH_FAILURE_TEMPLATE_TYPE =
+            new MessageKey("punish.failure.template_type");
     public static final MessageKey PUNISH_FAILURE_UNKNOWN_TEMPLATE =
             new MessageKey("punish.failure.unknown_template");
     public static final MessageKey PUNISH_FAILURE_UNKNOWN_KIND =
@@ -294,6 +306,20 @@ public record MessageKey(String key) {
     public static final MessageKey IPREPORT_ENTRY = new MessageKey("ipreport.entry");
     public static final MessageKey COMMAND_DESCRIPTION_IPREPORT =
             new MessageKey("command.description.ipreport");
+
+    public static final MessageKey TEMPLATES_LIST_EMPTY = new MessageKey("templates.list.empty");
+    public static final MessageKey TEMPLATES_LIST_HEADER =
+            new MessageKey("templates.list.header");
+    public static final MessageKey TEMPLATES_LIST_ENTRY = new MessageKey("templates.list.entry");
+    public static final MessageKey TEMPLATES_IMPORT_CONFIRM =
+            new MessageKey("templates.import.confirm");
+    public static final MessageKey TEMPLATES_IMPORT_DONE = new MessageKey("templates.import.done");
+    public static final MessageKey TEMPLATES_IMPORT_ERROR =
+            new MessageKey("templates.import.error");
+    public static final MessageKey TEMPLATES_EXPORT_DONE = new MessageKey("templates.export.done");
+
+    public static final MessageKey KINDS_LIST_HEADER = new MessageKey("kinds.list.header");
+    public static final MessageKey KINDS_LIST_ENTRY = new MessageKey("kinds.list.entry");
 
     private static final List<MessageKey> ALL = Arrays.stream(MessageKey.class.getDeclaredFields())
             .filter(field -> Modifier.isStatic(field.getModifiers())

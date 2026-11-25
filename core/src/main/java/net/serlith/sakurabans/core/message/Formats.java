@@ -34,12 +34,27 @@ public final class Formats {
         this.config = config;
     }
 
-    /** {@code 1 day, 12 hours and 5 seconds}; below a second it is {@code 0 seconds}. */
     public String duration(final Duration duration, final Locale locale) {
+        return this.units(duration, locale, UNITS.size());
+    }
+
+    public String approximate(final Duration duration, final Locale locale) {
+        return this.units(duration, locale, 2);
+    }
+
+    private String units(final Duration duration, final Locale locale, final int precision) {
         long seconds = Math.max(0, duration.toSeconds());
         final List<String> parts = new ArrayList<>();
-        for (final Unit unit : UNITS) {
+        int first = -1;
+        for (int i = 0; i < UNITS.size(); i++) {
+            final Unit unit = UNITS.get(i);
             final long count = seconds / unit.seconds();
+            if (count > 0 && first < 0) {
+                first = i;
+            }
+            if (first >= 0 && i >= first + precision) {
+                break;
+            }
             if (count > 0) {
                 parts.add(this.messages.renderPlain(count == 1 ? unit.one() : unit.many(), locale,
                         Placeholder.unparsed("count", Long.toString(count))));
@@ -62,7 +77,6 @@ public final class Formats {
         return this.config.settings().display().formatInstant(instant, locale);
     }
 
-    /** The full length of a punishment, or "permanent". */
     public String length(final Punishment punishment, final Locale locale) {
         return punishment.expiresAt()
                 .map(expiry -> Duration.between(punishment.createdAt(), expiry))
@@ -70,10 +84,9 @@ public final class Formats {
                 .orElseGet(() -> this.messages.renderPlain(MessageKey.TIME_PERMANENT, locale));
     }
 
-    /** What is left of a punishment at {@code now}, or "permanent". */
     public String remaining(final Punishment punishment, final Instant now, final Locale locale) {
         return punishment.expiresAt()
-                .map(expiry -> this.duration(Duration.between(now, expiry), locale))
+                .map(expiry -> this.approximate(Duration.between(now, expiry), locale))
                 .orElseGet(() -> this.messages.renderPlain(MessageKey.TIME_PERMANENT, locale));
     }
 

@@ -46,10 +46,14 @@ public final class CoreBootstrap {
                         components.commands(), components.serverNames(), components.channel(),
                         components.channelReceiver(), components.sync(),
                         components.syncReceiver(), components.allowList(), components.ranges(),
+                        components.kindService(), components.templates(),
+                        components.templateActions(),
                         SakuraApi.create(components.punishmentService(),
                                 new SakuraPlayerService(components.players(),
                                         components.clock(), components.altService()),
                                 components.scopeService(), components.events(),
-                                components.integrations(), components.allowList())));
+                                components.integrations(), components.allowList(),
+                                components.templates(), components.kindService(),
+                                components.authorization())));
     }
 }

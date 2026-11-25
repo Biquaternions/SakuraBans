@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import net.serlith.sakurabans.api.model.Actor;
+import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.EndKind;
 import net.serlith.sakurabans.api.model.EvidenceRef;
 import net.serlith.sakurabans.api.model.Lengths;
@@ -36,6 +37,7 @@ import net.serlith.sakurabans.core.storage.dbo.tables.SbPunishments;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbVictims;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.Field;
 import org.jooq.Record;
 import org.jooq.ResultQuery;
 import org.jooq.SortField;
@@ -47,6 +49,7 @@ public final class PunishmentRepository {
     private final StorageService storage;
     private final PunishmentMapper mapper;
     private final AltPolicy policy;
+    private final StrictnessLevels levels;
 
     public PunishmentRepository(final StorageService storage, final PunishmentMapper mapper) {
         this(storage, mapper, AltPolicy.NONE);
@@ -54,9 +57,15 @@ public final class PunishmentRepository {
 
     public PunishmentRepository(final StorageService storage, final PunishmentMapper mapper,
             final AltPolicy policy) {
+        this(storage, mapper, policy, StrictnessLevels.NONE);
+    }
+
+    public PunishmentRepository(final StorageService storage, final PunishmentMapper mapper,
+            final AltPolicy policy, final StrictnessLevels levels) {
         this.storage = storage;
         this.mapper = mapper;
         this.policy = policy;
+        this.levels = levels;
     }
 
     public CompletableFuture<InsertOutcome> insert(final NewPunishment punishment,
@@ -143,7 +152,7 @@ public final class PunishmentRepository {
                 .set(p.EXPIRES_AT, punishment.expiresAt())
                 .set(p.ORIGIN_SERVER, punishment.originServer())
                 .set(p.VISIBILITY, punishment.visibility())
-                .set(p.TEMPLATE_ID, punishment.templateId())
+                .set(p.TEMPLATE, punishment.template())
                 .set(p.TEMPLATE_STEP, punishment.templateStep() == null ? null
                         : punishment.templateStep().shortValue())
                 .set(p.VERSION, 1L)
@@ -237,7 +246,7 @@ public final class PunishmentRepository {
             final Applicability applicability, final Collection<? extends Scope> scopes,
             final Instant now) {
         return this.storage.read(dsl -> this.mapper.map(dsl, activeApplicableQuery(dsl, type,
-                applicability, scopes, now, this.policy).fetch()));
+                applicability, scopes, now, this.policy, this.levels.levels()).fetch()));
     }
 
     /** The types of punishment active on these accounts (victims naming them), per account. */
@@ -268,14 +277,36 @@ public final class PunishmentRepository {
         final SbPunishments p = SakuraTables.PUNISHMENTS;
         return this.storage.read(dsl -> dsl.fetchExists(DSL.selectOne().from(p)
                 .where(p.ID.eq(punishmentId))
-                .and(p.VICTIM_ID.in(ApplicabilityConditions.victimIds(applicability,
-                        this.policy, now)))));
+                .and(reached(p.VICTIM_ID, applicability, this.policy, this.levels.levels(),
+                        now))));
+    }
+
+    static Condition reached(final Field<Long> victimId, final Applicability applicability,
+            final AltPolicy policy, final Set<AddressStrictness> levels, final Instant now) {
+        final SbPunishments p = SakuraTables.PUNISHMENTS;
+        final AddressStrictness configured = applicability.strictness();
+        final Set<AddressStrictness> others = EnumSet.noneOf(AddressStrictness.class);
+        others.addAll(levels);
+        others.remove(configured);
+        final Condition usual = victimId.in(ApplicabilityConditions.victimIds(applicability,
+                policy, now));
+        if (others.isEmpty()) {
+            return usual;
+        }
+        Condition reached = p.STRICTNESS.isNull().or(p.STRICTNESS.notIn(others)).and(usual);
+        for (final AddressStrictness level : others) {
+            reached = reached.or(p.STRICTNESS.eq(level).and(victimId.in(
+                    ApplicabilityConditions.victimIds(Applicability.of(
+                            applicability.uuid().orElse(null),
+                            applicability.address().orElse(null), level), policy, now))));
+        }
+        return reached;
     }
 
     static ResultQuery<Record> activeApplicableQuery(final DSLContext dsl,
             final PunishmentType type, final Applicability applicability,
             final Collection<? extends Scope> scopes, final Instant now,
-            final AltPolicy policy) {
+            final AltPolicy policy, final Set<AddressStrictness> levels) {
         final SbPunishments p = SakuraTables.PUNISHMENTS;
         final SbActivePunishments active = SakuraTables.ACTIVE_PUNISHMENTS;
         final Condition inScopes = DSL.or(scopes.stream().map(ScopeRepository::matches).toList());
@@ -284,8 +315,7 @@ public final class PunishmentRepository {
                 .where(active.TYPE.eq(type))
                 .and(active.SCOPE_ID.in(DSL.select(SakuraTables.SCOPES.ID)
                         .from(SakuraTables.SCOPES).where(inScopes)))
-                .and(active.VICTIM_ID.in(ApplicabilityConditions.victimIds(applicability,
-                        policy, now)))
+                .and(reached(active.VICTIM_ID, applicability, policy, levels, now))
                 .and(unexpired(now))
                 .orderBy(active.EXPIRES_AT.desc().nullsFirst(), p.ID.desc());
     }
