@@ -1,5 +1,13 @@
 package net.serlith.sakurabans.core.notify;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonPrimitive;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -15,8 +23,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.serlith.sakurabans.api.event.EventPriority;
 import net.serlith.sakurabans.api.event.PunishmentCreatedEvent;
@@ -42,6 +48,7 @@ import net.serlith.sakurabans.core.player.NameCache;
 import net.serlith.sakurabans.core.punish.ConsoleActions;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
 import net.serlith.sakurabans.core.util.Futures;
+import net.serlith.sakurabans.core.util.Strings;
 import org.jspecify.annotations.Nullable;
 
 public final class WebhookService {
@@ -49,8 +56,7 @@ public final class WebhookService {
     static final int ATTEMPTS = 4;
     private static final Duration FIRST_BACKOFF = Duration.ofSeconds(1);
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
-    private static final Pattern RETRY_AFTER =
-            Pattern.compile("\"retry_after\"\\s*:\\s*([0-9.]+)");
+    private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
 
     private final SakuraEventBus events;
     private final ConfigService config;
@@ -269,12 +275,8 @@ public final class WebhookService {
     }
 
     static Duration retryAfter(final HttpResponse<String> response) {
-        final String header = response.headers().firstValue("Retry-After").orElse(null);
-        String seconds = header;
-        if (seconds == null) {
-            final Matcher matcher = RETRY_AFTER.matcher(response.body());
-            seconds = matcher.find() ? matcher.group(1) : "1";
-        }
+        final String seconds = response.headers().firstValue("Retry-After")
+                .orElseGet(() -> retryAfterInBody(response.body()));
         try {
             final double value = Double.parseDouble(seconds);
             return Duration.ofMillis(Math.max(0L, Math.min(60_000L, (long) (value * 1000))));
@@ -283,61 +285,56 @@ public final class WebhookService {
         }
     }
 
+    private static String retryAfterInBody(final String body) {
+        try {
+            final JsonElement json = JsonParser.parseString(body);
+            if (json.isJsonObject() && json.getAsJsonObject().get("retry_after")
+                    instanceof JsonPrimitive value && value.isNumber()) {
+                return value.getAsString();
+            }
+        } catch (final JsonParseException e) {
+            // Not JSON: wait the default second.
+        }
+        return "1";
+    }
+
     static String payload(final WebhookSettings settings, final WebhookSettings.Route route,
             final Map<String, String> values, final Instant at) {
-        final StringBuilder json = new StringBuilder("{");
-        json.append("\"username\":").append(quote(settings.username(), 80));
-        if (settings.avatarUrl() != null) {
-            json.append(",\"avatar_url\":")
-                    .append(quote(settings.avatarUrl().toString(), 2048));
-        }
-        json.append(",\"embeds\":[{");
-        json.append("\"title\":").append(quote(fill(route.title(), values), 256));
-        json.append(",\"description\":").append(quote(fill(route.description(), values), 4096));
-        json.append(",\"color\":").append(route.color());
-        json.append(",\"timestamp\":").append(quote(at.toString(), 64));
-        json.append(",\"fields\":[");
-        int count = 0;
+        final JsonArray fields = new JsonArray();
         for (final WebhookSettings.Field field : route.fields()) {
             final String value = fill(field.value(), values);
-            if (count == 25 || value.isBlank()) {
+            if (fields.size() == 25 || value.isBlank()) {
                 continue;
             }
-            if (count++ > 0) {
-                json.append(',');
-            }
-            json.append("{\"name\":").append(quote(field.name(), 256))
-                    .append(",\"value\":").append(quote(value, 1024))
-                    .append(",\"inline\":true}");
+            final JsonObject entry = new JsonObject();
+            entry.addProperty("name", cut(field.name(), 256));
+            entry.addProperty("value", cut(value, 1024));
+            entry.addProperty("inline", true);
+            fields.add(entry);
         }
-        return json.append("]}]}").toString();
+        final JsonObject embed = new JsonObject();
+        embed.addProperty("title", cut(fill(route.title(), values), 256));
+        embed.addProperty("description", cut(fill(route.description(), values), 4096));
+        embed.addProperty("color", route.color());
+        embed.addProperty("timestamp", at.toString());
+        embed.add("fields", fields);
+        final JsonArray embeds = new JsonArray();
+        embeds.add(embed);
+        final JsonObject json = new JsonObject();
+        json.addProperty("username", cut(settings.username(), 80));
+        if (settings.avatarUrl() != null) {
+            json.addProperty("avatar_url", cut(settings.avatarUrl().toString(), 2048));
+        }
+        json.add("embeds", embeds);
+        return GSON.toJson(json);
     }
 
     private static String fill(final String text, final Map<String, String> values) {
         return ConsoleActions.fill(text, values);
     }
 
-    static String quote(final String text, final int limit) {
-        final String cut = text.length() > limit ? text.substring(0, limit - 1) + "…" : text;
-        final StringBuilder out = new StringBuilder("\"");
-        for (int i = 0; i < cut.length(); i++) {
-            final char c = cut.charAt(i);
-            switch (c) {
-                case '"' -> out.append("\\\"");
-                case '\\' -> out.append("\\\\");
-                case '\n' -> out.append("\\n");
-                case '\r' -> out.append("\\r");
-                case '\t' -> out.append("\\t");
-                default -> {
-                    if (c < 0x20) {
-                        out.append(String.format("\\u%04x", (int) c));
-                    } else {
-                        out.append(c);
-                    }
-                }
-            }
-        }
-        return out.append('"').toString();
+    static String cut(final String text, final int limit) {
+        return text.length() > limit ? Strings.truncate(text, limit - 1) + "…" : text;
     }
 
 }

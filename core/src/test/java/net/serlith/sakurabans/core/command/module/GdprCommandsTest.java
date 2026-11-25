@@ -1,5 +1,7 @@
 package net.serlith.sakurabans.core.command.module;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -20,10 +22,15 @@ class GdprCommandsTest extends CommandTest {
         try (Stream<Path> listing = Files.list(this.dir.resolve("exports"))) {
             files = listing.toList();
         }
-        Assertions.assertThat(files).singleElement().satisfies(file ->
-                Assertions.assertThat(Files.readString(file))
-                        .startsWith("{\"uuid\":\"" + STEVE + "\"")
-                        .contains("\"names\":[{\"name\":\"Steve\""));
+        Assertions.assertThat(files).singleElement().satisfies(file -> {
+            final JsonObject json = JsonParser.parseString(Files.readString(file))
+                    .getAsJsonObject();
+            Assertions.assertThat(json.get("uuid").getAsString()).isEqualTo(STEVE.toString());
+            Assertions.assertThat(json.getAsJsonArray("names").get(0).getAsJsonObject()
+                    .get("name").getAsString()).isEqualTo("Steve");
+            Assertions.assertThat(json.get("profile").isJsonObject()).isTrue();
+            Assertions.assertThat(json.getAsJsonArray("received")).isEmpty();
+        });
 
         this.run(this.console, "sb gdpr erase Steve");
         Assertions.assertThat(this.console.last()).contains("--confirm");

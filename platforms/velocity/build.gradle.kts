@@ -35,6 +35,7 @@ tasks {
         val libs = "net.serlith.sakurabans.libs"
         relocate("com.google.common", "$libs.guava")
         relocate("com.google.thirdparty", "$libs.guava.thirdparty")
+        relocate("com.google.gson", "$libs.gson")
         relocate("org.jooq", "$libs.jooq")
         relocate("io.r2dbc", "$libs.r2dbc")
         relocate("org.reactivestreams", "$libs.reactivestreams")

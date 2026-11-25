@@ -1,24 +1,27 @@
 package net.serlith.sakurabans.core.command.module;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
+import com.google.gson.JsonObject;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.time.InstantSource;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.function.Function;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.serlith.sakurabans.api.admin.AdminResult;
-import net.serlith.sakurabans.api.allow.AllowEntry;
-import net.serlith.sakurabans.api.appeal.Appeal;
-import net.serlith.sakurabans.api.audit.AuditEntry;
 import net.serlith.sakurabans.api.data.EraseResult;
 import net.serlith.sakurabans.api.data.PlayerDataExport;
-import net.serlith.sakurabans.api.model.AddressRecord;
-import net.serlith.sakurabans.api.model.NameRecord;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.core.command.CommandActor;
 import net.serlith.sakurabans.core.command.CommandModule;
@@ -34,7 +37,6 @@ import net.serlith.sakurabans.core.model.TargetInput;
 import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.player.TargetResolver;
 import net.serlith.sakurabans.core.storage.repository.AuditValues;
-import net.serlith.sakurabans.core.util.JsonWriter;
 import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.parser.flag.CommandFlag;
@@ -42,6 +44,8 @@ import org.jspecify.annotations.Nullable;
 
 public final class GdprCommands implements CommandModule {
 
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().serializeNulls()
+            .disableHtmlEscaping().create();
     private static final DateTimeFormatter FILE_TIME =
             DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(ZoneOffset.UTC);
 
@@ -162,83 +166,88 @@ public final class GdprCommands implements CommandModule {
     }
 
     private Path write(final PlayerDataExport export) {
-        final JsonWriter json = new JsonWriter().beginObject()
-                .field("uuid", export.uuid())
-                .field("exportedAt", export.exportedAt());
-        json.name("profile");
-        if (export.profile().isPresent()) {
-            json.beginObject()
-                    .field("name", export.profile().get().name())
-                    .field("firstSeen", export.profile().get().firstSeen())
-                    .field("lastSeen", export.profile().get().lastSeen())
-                    .endObject();
-        } else {
-            json.value(null);
-        }
-        json.name("names").beginArray();
-        for (final NameRecord name : export.names()) {
-            json.beginObject().field("name", name.name()).field("firstSeen", name.firstSeen())
-                    .field("lastSeen", name.lastSeen()).endObject();
-        }
-        json.endArray().name("addresses").beginArray();
-        for (final AddressRecord address : export.addresses()) {
-            json.beginObject().field("address", address.address().getHostAddress())
-                    .field("firstSeen", address.firstSeen()).field("lastSeen", address.lastSeen())
-                    .field("lastServer", address.lastServer().orElse(null)).endObject();
-        }
-        json.endArray();
-        punishments(json, "received", export.received());
-        punishments(json, "issued", export.issued());
-        json.name("allowList").beginArray();
-        for (final AllowEntry entry : export.allowEntries()) {
-            json.beginObject().field("addedAt", entry.addedAt())
-                    .field("note", entry.note().orElse(null)).endObject();
-        }
-        json.endArray().name("appeals").beginArray();
-        for (final Appeal appeal : export.appeals()) {
-            json.beginObject().field("id", appeal.id())
-                    .field("punishment", appeal.punishmentId())
-                    .field("message", appeal.message())
-                    .field("createdAt", appeal.createdAt())
-                    .field("status", appeal.status()).endObject();
-        }
-        json.endArray().name("audit").beginArray();
-        for (final AuditEntry entry : export.auditEntries()) {
-            json.beginObject().field("at", entry.at()).field("action", entry.action())
-                    .field("subject", entry.subjectType() + " " + entry.subjectId())
-                    .field("old", entry.oldValue().orElse(null))
-                    .field("new", entry.newValue().orElse(null)).endObject();
-        }
-        json.endArray().endObject();
+        final JsonObject json = new JsonObject();
+        json.addProperty("uuid", export.uuid().toString());
+        json.addProperty("exportedAt", export.exportedAt().toString());
+        json.add("profile", export.profile().<JsonElement>map(profile -> {
+            final JsonObject object = new JsonObject();
+            object.addProperty("name", profile.name());
+            object.addProperty("firstSeen", profile.firstSeen().toString());
+            object.addProperty("lastSeen", profile.lastSeen().toString());
+            return object;
+        }).orElse(JsonNull.INSTANCE));
+        json.add("names", array(export.names(), name -> {
+            final JsonObject object = new JsonObject();
+            object.addProperty("name", name.name());
+            object.addProperty("firstSeen", name.firstSeen().toString());
+            object.addProperty("lastSeen", name.lastSeen().toString());
+            return object;
+        }));
+        json.add("addresses", array(export.addresses(), address -> {
+            final JsonObject object = new JsonObject();
+            object.addProperty("address", address.address().getHostAddress());
+            object.addProperty("firstSeen", address.firstSeen().toString());
+            object.addProperty("lastSeen", address.lastSeen().toString());
+            object.addProperty("lastServer", address.lastServer().orElse(null));
+            return object;
+        }));
+        json.add("received", array(export.received(), GdprCommands::punishment));
+        json.add("issued", array(export.issued(), GdprCommands::punishment));
+        json.add("allowList", array(export.allowEntries(), entry -> {
+            final JsonObject object = new JsonObject();
+            object.addProperty("addedAt", entry.addedAt().toString());
+            object.addProperty("note", entry.note().orElse(null));
+            return object;
+        }));
+        json.add("appeals", array(export.appeals(), appeal -> {
+            final JsonObject object = new JsonObject();
+            object.addProperty("id", appeal.id());
+            object.addProperty("punishment", appeal.punishmentId());
+            object.addProperty("message", appeal.message());
+            object.addProperty("createdAt", appeal.createdAt().toString());
+            object.addProperty("status", appeal.status().name());
+            return object;
+        }));
+        json.add("audit", array(export.auditEntries(), entry -> {
+            final JsonObject object = new JsonObject();
+            object.addProperty("at", entry.at().toString());
+            object.addProperty("action", entry.action().name());
+            object.addProperty("subject", entry.subjectType() + " " + entry.subjectId());
+            object.addProperty("old", entry.oldValue().orElse(null));
+            object.addProperty("new", entry.newValue().orElse(null));
+            return object;
+        }));
         final Path file = this.dataDirectory.resolve("exports").resolve("player-"
                 + export.uuid() + "-" + FILE_TIME.format(this.clock.instant()) + ".json");
         try {
             Files.createDirectories(file.getParent());
-            Files.writeString(file, json.toString());
+            Files.writeString(file, GSON.toJson(json));
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
         return file;
     }
 
-    private static void punishments(final JsonWriter json, final String name,
-            final List<Punishment> punishments) {
-        json.name(name).beginArray();
-        for (final Punishment punishment : punishments) {
-            json.beginObject()
-                    .field("id", punishment.id())
-                    .field("type", punishment.type())
-                    .field("kind", punishment.kind())
-                    .field("victim", AuditValues.victim(punishment.victim()))
-                    .field("scope", AuditValues.scope(punishment.scope()))
-                    .field("reason", punishment.reason())
-                    .field("createdAt", punishment.createdAt())
-                    .field("expiresAt", punishment.expiresAt().orElse(null))
-                    .field("ended", punishment.end().map(end -> end.kind().name())
-                            .orElse(null))
-                    .field("voided", punishment.voiding().isPresent())
-                    .endObject();
-        }
-        json.endArray();
+    private static <T> JsonArray array(final List<T> values,
+            final Function<T, JsonObject> element) {
+        final JsonArray array = new JsonArray(values.size());
+        values.forEach(value -> array.add(element.apply(value)));
+        return array;
     }
+
+    private static JsonObject punishment(final Punishment punishment) {
+        final JsonObject object = new JsonObject();
+        object.addProperty("id", punishment.id());
+        object.addProperty("type", punishment.type().name());
+        object.addProperty("kind", punishment.kind());
+        object.addProperty("victim", AuditValues.victim(punishment.victim()));
+        object.addProperty("scope", AuditValues.scope(punishment.scope()));
+        object.addProperty("reason", punishment.reason());
+        object.addProperty("createdAt", punishment.createdAt().toString());
+        object.addProperty("expiresAt", punishment.expiresAt().map(Instant::toString).orElse(null));
+        object.addProperty("ended", punishment.end().map(end -> end.kind().name()).orElse(null));
+        object.addProperty("voided", punishment.voiding().isPresent());
+        return object;
+    }
+
 }

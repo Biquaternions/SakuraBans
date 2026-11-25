@@ -5,13 +5,22 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpHeaders;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
+import javax.net.ssl.SSLSession;
 import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentType;
@@ -155,9 +164,61 @@ class WebhookServiceTest extends ServiceTest {
     }
 
     @Test
-    void textsAreEscapedAndCut() {
-        Assertions.assertThat(WebhookService.quote("a\"b\\c\nd\u0001", 100))
-                .isEqualTo("\"a\\\"b\\\\c\\nd\\u0001\"");
-        Assertions.assertThat(WebhookService.quote("x".repeat(10), 5)).isEqualTo("\"xxxx…\"");
+    void textsAreCutToTheirLimit() {
+        Assertions.assertThat(WebhookService.cut("x".repeat(10), 5)).isEqualTo("xxxx…");
+        Assertions.assertThat(WebhookService.cut("xxxxx", 5)).isEqualTo("xxxxx");
+        // A surrogate pair is never split.
+        Assertions.assertThat(WebhookService.cut("abc🌸z", 5)).isEqualTo("abc…");
+    }
+
+    @Test
+    void retryAfterComesFromTheHeaderOrTheBody() {
+        Assertions.assertThat(WebhookService.retryAfter(
+                response(Map.of("Retry-After", List.of("2")), "")))
+                .isEqualTo(Duration.ofSeconds(2));
+        Assertions.assertThat(WebhookService.retryAfter(
+                response(Map.of(), "{\"retry_after\": 0.25, \"global\": false}")))
+                .isEqualTo(Duration.ofMillis(250));
+        Assertions.assertThat(WebhookService.retryAfter(response(Map.of(), "<html>")))
+                .isEqualTo(Duration.ofSeconds(1));
+    }
+
+    private static HttpResponse<String> response(final Map<String, List<String>> headers,
+            final String body) {
+        return new StubResponse(HttpHeaders.of(headers, (name, value) -> true), body);
+    }
+
+    private record StubResponse(HttpHeaders headers, String body)
+            implements HttpResponse<String> {
+
+        @Override
+        public int statusCode() {
+            return 429;
+        }
+
+        @Override
+        public HttpRequest request() {
+            return HttpRequest.newBuilder(this.uri()).build();
+        }
+
+        @Override
+        public Optional<HttpResponse<String>> previousResponse() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<SSLSession> sslSession() {
+            return Optional.empty();
+        }
+
+        @Override
+        public URI uri() {
+            return URI.create("http://127.0.0.1/");
+        }
+
+        @Override
+        public HttpClient.Version version() {
+            return HttpClient.Version.HTTP_1_1;
+        }
     }
 }

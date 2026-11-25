@@ -133,7 +133,8 @@ public final class SakuraPunishmentService implements PunishmentService {
     private CompletableFuture<PunishResult> prepareAndStore(final DraftPunishment draft,
             final PunishOptions options) {
         return this.prepareLimited(draft, options, null).thenComposeAsync(prepared -> {
-            if (prepared instanceof PunishmentFactory.Prepared.Refused(PunishResult.Failure.Reason reason)) {
+            if (prepared instanceof PunishmentFactory.Prepared.Refused(
+                    PunishResult.Failure.Reason reason)) {
                 return CompletableFuture.completedFuture(
                         new SakuraPunishResult.Failure(reason));
             }
@@ -530,8 +531,7 @@ public final class SakuraPunishmentService implements PunishmentService {
                         : this.punishments.evidence(id, ref, attach, checked,
                                 this.clock.instant()).thenApplyAsync(outcome -> {
                                     if (!(outcome instanceof ChangeOutcome.Changed(
-                                            Punishment previous, Punishment current
-                                    ))) {
+                                            Punishment previous, Punishment current))) {
                                         return editFailure(outcome);
                                     }
                                     final Punishment source = attach
@@ -543,9 +543,9 @@ public final class SakuraPunishmentService implements PunishmentService {
                                             id, attach, item));
                                     this.events.post(attach
                                             ? new SakuraPunishmentChangeEvents.EvidenceAttached(
-                                            current, item, false)
+                                                    current, item, false)
                                             : new SakuraPunishmentChangeEvents.EvidenceDetached(
-                                            current, item, false));
+                                                    current, item, false));
                                     return new SakuraChangeResults.EditSuccess(
                                             current);
                                 }, this.worker), this.worker);

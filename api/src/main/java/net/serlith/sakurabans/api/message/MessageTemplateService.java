@@ -39,8 +39,9 @@ public interface MessageTemplateService {
      * @param patch the new MiniMessage texts by key
      * @param expectedVersion the snapshot version the caller last saw
      * @param actor who changes them
-     * @return the new snapshot; {@code ValidationFailed} with the key as path for unknown keys,
-     *         unknown placeholders or invalid MiniMessage
+     * @return the new snapshot; {@code ValidationFailed} with the key as path for unknown keys
+     *         and blank or too long texts. The MiniMessage itself is not checked: tags are the
+     *         caller's responsibility, and an unknown tag renders as plain text
      */
     CompletableFuture<AdminResult<MessageSnapshot>> update(
             Locale locale, Map<String, String> patch, long expectedVersion, Actor actor);

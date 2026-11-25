@@ -44,7 +44,6 @@ import org.jspecify.annotations.Nullable;
 public final class SakuraMessageTemplateService implements MessageTemplateService {
 
     private static final Pattern TAG = Pattern.compile("<([a-z_]+)>");
-    private static final Pattern ANY_TAG = Pattern.compile("</?!?([A-Za-z0-9_#-]+)[:>]");
     private static final int MAX_TEXT = 4096;
 
     private final MessageService messages;
@@ -142,11 +141,6 @@ public final class SakuraMessageTemplateService implements MessageTemplateServic
                         "must be 1-" + MAX_TEXT + " characters"));
                 return;
             }
-            final String problem = this.parseProblem(key, text);
-            if (problem != null) {
-                errors.add(FieldError.of(key, FieldError.Code.INVALID_FORMAT, problem));
-                return;
-            }
             changes.put(key, text);
         });
         return this.change(locale, changes, errors, expectedVersion, actor);
@@ -181,25 +175,6 @@ public final class SakuraMessageTemplateService implements MessageTemplateServic
             return false;
         }
         return true;
-    }
-
-    private @Nullable String parseProblem(final String key, final String text) {
-        final Set<String> allowed = new LinkedHashSet<>();
-        allowed.add("prefix");
-        for (final MessageField field : this.schema()) {
-            if (field.key().equals(key)) {
-                allowed.addAll(field.placeholders());
-            }
-        }
-        final Matcher matcher = ANY_TAG.matcher(text);
-        while (matcher.find()) {
-            final String name = matcher.group(1).toLowerCase(Locale.ROOT);
-            if (!allowed.contains(name) && !TagResolver.standard().has(name)) {
-                return "<" + name + "> is not a MiniMessage tag or a placeholder of this"
-                        + " message (" + String.join(", ", allowed) + ")";
-            }
-        }
-        return null;
     }
 
     private CompletableFuture<AdminResult<MessageSnapshot>> change(final Locale locale,

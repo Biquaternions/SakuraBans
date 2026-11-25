@@ -161,7 +161,7 @@ class OverridesTest extends ServiceTest {
     }
 
     @Test
-    void messagesAreOverriddenPerLocaleWithKnownTagsOnly() {
+    void messagesAreOverriddenPerLocale() {
         Assertions.assertThat(this.messageTemplates.schema()).filteredOn(field -> field.key()
                 .equals("punish.ban")).singleElement().satisfies(field ->
                 Assertions.assertThat(field.placeholders()).contains("victim", "duration",
@@ -180,11 +180,13 @@ class OverridesTest extends ServiceTest {
                 .singleElement().satisfies(event -> Assertions.assertThat(event.locale())
                         .isEqualTo(Locale.US));
 
+        // Tags are not checked: a typo is stored and renders as text.
         Assertions.assertThat(invalid(this.messageTemplates.update(Locale.US, Map.of(
                 "victim.muted", "<red>Muted: <reasn>", "no.such.key", "x"), 2, MODERATOR)
-                .join())).extracting(FieldError::path)
-                .containsExactlyInAnyOrder("victim.muted", "no.such.key");
-        ok(this.messageTemplates.reset(Locale.US, Set.of("victim.warned"), 2, MODERATOR)
+                .join())).extracting(FieldError::path).containsExactly("no.such.key");
+        ok(this.messageTemplates.update(Locale.US, Map.of("victim.muted", "<red>Muted: <reasn>"),
+                2, MODERATOR).join());
+        ok(this.messageTemplates.reset(Locale.US, Set.of("victim.warned"), 3, MODERATOR)
                 .join());
         Assertions.assertThat(plain(this.messages.render(MessageKey.VICTIM_WARNED, Locale.US)))
                 .contains("You were warned");

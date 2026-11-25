@@ -19,8 +19,9 @@ dependencies {
     implementation(libs.mysql)
     implementation(libs.postgresql)
 
-    // Provided by Paper and Velocity (plan 3.2), so never shaded or downloaded.
+    // Shaded and relocated on every platform (plan 3.3, 3.4): the servers' copies are never used.
     implementation(libs.guava)
+    implementation(libs.gson)
 
     // Optional at runtime: only LuckPermsBridge touches it, after checking it is installed.
     compileOnly(libs.luckperms.api)
