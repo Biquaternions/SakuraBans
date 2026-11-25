@@ -130,6 +130,9 @@ public final class SbPunishments extends SbTable<SbPunishmentsRecord> {
     public final TableField<SbPunishmentsRecord, String> EXTERNAL_ID = createField(
             DSL.name("external_id"), SQLDataType.VARCHAR(128).nullable(true), this, "");
 
+    public final TableField<SbPunishmentsRecord, Boolean> ACKNOWLEDGED = createField(
+            DSL.name("acknowledged"), SbTypes.FLAG.nullable(false), this, "");
+
     public SbPunishments(final String prefix) {
         this(prefix, DSL.name(prefix + "punishments"), null);
     }

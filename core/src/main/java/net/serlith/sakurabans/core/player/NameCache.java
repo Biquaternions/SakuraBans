@@ -30,6 +30,13 @@ public final class NameCache {
         this.uuids.put(Strings.lower(name), uuid);
     }
 
+    public void forget(final UUID uuid) {
+        final String previous = this.names.asMap().remove(uuid);
+        if (previous != null) {
+            this.uuids.asMap().remove(Strings.lower(previous), uuid);
+        }
+    }
+
     public Optional<String> name(final UUID uuid) {
         return Optional.ofNullable(this.names.getIfPresent(uuid));
     }

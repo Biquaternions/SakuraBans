@@ -11,8 +11,10 @@ import java.util.concurrent.RejectedExecutionException;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.JoinConfiguration;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
+import net.serlith.sakurabans.api.appeal.Appeal;
 import net.serlith.sakurabans.api.event.EventPriority;
 import net.serlith.sakurabans.api.event.PunishmentCreatedEvent;
 import net.serlith.sakurabans.api.event.PunishmentRevokedEvent;
@@ -170,6 +172,37 @@ public final class NotificationService {
         } else {
             this.send(permissions, renderer);
         }
+    }
+
+    public void appealed(final Appeal appeal, final Punishment punishment, final String name) {
+        final Renderer renderer = (locale, showAddresses) -> this.messages.render(
+                MessageKey.NOTIFY_APPEAL, locale,
+                Placeholder.unparsed("name", name),
+                Placeholder.unparsed("id", Long.toString(appeal.id())),
+                Placeholder.unparsed("display_id", punishment.displayId()),
+                Placeholder.unparsed("message", appeal.message()));
+        this.async(() -> this.send(Permissions.APPEALS_VIEW, renderer));
+    }
+
+    public void appealDecided(final Appeal appeal, final String displayId) {
+        final Appeal.Decision decision = appeal.decision().orElse(null);
+        if (decision == null) {
+            return;
+        }
+        this.platform.player(appeal.appellant()).ifPresent(player -> player.sendMessage(
+                this.messages.render(appeal.status() == Appeal.Status.ACCEPTED
+                                ? MessageKey.APPEAL_DECIDED_ACCEPTED
+                                : MessageKey.APPEAL_DECIDED_REJECTED,
+                        player.locale().orElseGet(this.messages::defaultLocale),
+                        Placeholder.unparsed("display_id", displayId),
+                        Placeholder.unparsed("note", decision.note().orElse("")))));
+    }
+
+    public void broadcast(final String text) {
+        final Renderer renderer = (locale, showAddresses) -> this.messages.render(
+                MessageKey.BROADCAST_FORMAT, locale, Placeholder.component("message",
+                        MiniMessage.miniMessage().deserialize(text)));
+        this.async(() -> this.send(List.of(), renderer));
     }
 
     private void send(final String permission, final Renderer renderer) {

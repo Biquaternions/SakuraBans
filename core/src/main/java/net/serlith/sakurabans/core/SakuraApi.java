@@ -35,19 +35,23 @@ public record SakuraApi(PunishmentService punishments, PlayerService players,
             final PlayerService players, final ScopeService scopes, final EventBus events,
             final IntegrationRegistry integrations, final AllowListService allowList,
             final TemplateService templates, final KindService kinds,
-            final AuthorizationService authorization) {
+            final AuthorizationService authorization, final AuditService audit,
+            final SettingsService settings, final MessageTemplateService messages,
+            final MessageFormatter formatter, final StatsService stats,
+            final BanWaveService banWaves, final AppealService appeals,
+            final PlayerDataService playerData) {
         return new SakuraApi(punishments, players, scopes, events, integrations, templates,
                 allowList,
-                Unsupported.service(MessageFormatter.class, "S37a"),
+                formatter,
                 authorization,
                 kinds,
-                Unsupported.service(SettingsService.class, "S37a"),
-                Unsupported.service(MessageTemplateService.class, "S37a"),
-                Unsupported.service(StatsService.class, "S37b"),
-                Unsupported.service(AuditService.class, "S35"),
-                Unsupported.service(BanWaveService.class, "S37c"),
-                Unsupported.service(AppealService.class, "S37d"),
-                Unsupported.service(PlayerDataService.class, "S37e"),
+                settings,
+                messages,
+                stats,
+                audit,
+                banWaves,
+                appeals,
+                playerData,
                 Unsupported.service(ImportService.class, "S38"));
     }
 
@@ -59,6 +63,9 @@ public record SakuraApi(PunishmentService punishments, PlayerService players,
     @Override
     public Set<Capability> capabilities() {
         return Set.of(Capability.SHADOW_MUTE, Capability.CURSORS, Capability.TEMPLATE_EDITING,
-                Capability.KINDS);
+                Capability.KINDS, Capability.EVIDENCE, Capability.VOID, Capability.AUDIT,
+                Capability.ROLLBACK, Capability.SETTINGS_EDITING, Capability.MESSAGE_EDITING,
+                Capability.STATS, Capability.BAN_WAVES, Capability.APPEALS,
+                Capability.PLAYER_DATA);
     }
 }

@@ -30,7 +30,7 @@ public final class SbSyncMessages extends SbTable<SbSyncMessagesRecord> {
             DSL.name("created_at"), SbTypes.INSTANT.nullable(false), this, "");
 
     public final TableField<SbSyncMessagesRecord, byte[]> PAYLOAD = createField(
-            DSL.name("payload"), SQLDataType.VARBINARY(4096).nullable(false), this, "");
+            DSL.name("payload"), SQLDataType.VARBINARY(16384).nullable(false), this, "");
 
     public SbSyncMessages(final String prefix) {
         this(prefix, DSL.name(prefix + "sync_messages"), null);

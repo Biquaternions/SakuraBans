@@ -139,7 +139,6 @@ public final class StorageService {
         return current.dsl();
     }
 
-    /** {@code schemaName} is {@code null} to use the connection's default schema. */
     static Settings jooqSettings(final @Nullable String schemaName) {
         return new Settings()
                 .withRenderCatalog(false)

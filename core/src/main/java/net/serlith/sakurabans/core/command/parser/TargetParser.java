@@ -3,6 +3,7 @@ package net.serlith.sakurabans.core.command.parser;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import net.serlith.sakurabans.core.command.CommandActor;
 import net.serlith.sakurabans.core.command.SakuraCaptions;
@@ -11,6 +12,7 @@ import net.serlith.sakurabans.core.model.TargetInput;
 import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import net.serlith.sakurabans.core.platform.Platform;
 import net.serlith.sakurabans.core.player.NameCache;
+import net.serlith.sakurabans.core.storage.DisplayIdCodec;
 import net.serlith.sakurabans.core.util.Cidrs;
 import net.serlith.sakurabans.core.util.InetAddresses;
 import net.serlith.sakurabans.core.util.Strings;
@@ -24,6 +26,7 @@ import org.incendo.cloud.parser.ArgumentParser;
 import org.incendo.cloud.parser.ParserDescriptor;
 import org.incendo.cloud.suggestion.BlockingSuggestionProvider;
 import org.incendo.cloud.suggestion.SuggestionProvider;
+import org.jspecify.annotations.Nullable;
 
 public final class TargetParser implements ArgumentParser<CommandActor, TargetInput> {
 
@@ -32,12 +35,14 @@ public final class TargetParser implements ArgumentParser<CommandActor, TargetIn
     private final Platform platform;
     private final NameCache names;
     private final Lifecycle lifecycle;
+    private final DisplayIdCodec displayIds;
 
     public TargetParser(final Platform platform, final NameCache names,
-            final Lifecycle lifecycle) {
+            final Lifecycle lifecycle, final DisplayIdCodec displayIds) {
         this.platform = platform;
         this.names = names;
         this.lifecycle = lifecycle;
+        this.displayIds = displayIds;
     }
 
     public ParserDescriptor<CommandActor, TargetInput> descriptor() {
@@ -48,7 +53,7 @@ public final class TargetParser implements ArgumentParser<CommandActor, TargetIn
     public ArgumentParseResult<TargetInput> parse(final CommandContext<CommandActor> context,
             final CommandInput input) {
         final String token = input.peekString();
-        final Optional<TargetInput> parsed = parse(token);
+        final Optional<TargetInput> parsed = parse(token, this.displayIds);
         if (parsed.isEmpty()) {
             return ArgumentParseResult.failure(new TargetException(context, token));
         }
@@ -57,9 +62,21 @@ public final class TargetParser implements ArgumentParser<CommandActor, TargetIn
     }
 
     public static Optional<TargetInput> parse(final String token) {
+        return parse(token, null);
+    }
+
+    public static Optional<TargetInput> parse(final String token,
+            final @Nullable DisplayIdCodec displayIds) {
         if (token.startsWith("#")) {
+            final String text = token.substring(1);
+            if (displayIds != null) {
+                final OptionalLong id = displayIds.decode(text);
+                return id.isPresent()
+                        ? Optional.of(new TargetInput.IdInput(id.getAsLong()))
+                        : Optional.empty();
+            }
             try {
-                final long id = Long.parseLong(token.substring(1));
+                final long id = Long.parseLong(text);
                 return id >= 1 ? Optional.of(new TargetInput.IdInput(id)) : Optional.empty();
             } catch (final NumberFormatException e) {
                 return Optional.empty();

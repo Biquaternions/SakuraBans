@@ -6,6 +6,9 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
@@ -13,11 +16,9 @@ import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.serlith.sakurabans.api.audit.SubjectType;
 import net.serlith.sakurabans.api.event.ChangeType;
 import net.serlith.sakurabans.api.model.Actor;
-import net.serlith.sakurabans.api.model.ConsoleOperator;
-import net.serlith.sakurabans.api.model.CustomOperator;
 import net.serlith.sakurabans.api.model.Operator;
-import net.serlith.sakurabans.api.model.PlayerOperator;
 import net.serlith.sakurabans.api.model.Visibility;
+import net.serlith.sakurabans.core.model.ValueCodec;
 
 public final class PacketCodec {
 
@@ -26,9 +27,14 @@ public final class PacketCodec {
     private static final int REVOKE = 1;
     private static final int ALLOW_LIST = 2;
     private static final int ENTITY_CHANGED = 3;
-    private static final int CONSOLE = 0;
-    private static final int PLAYER = 1;
-    private static final int CUSTOM = 2;
+    private static final int EDITED = 4;
+    private static final int VOIDED = 5;
+    private static final int EXPUNGED = 6;
+    private static final int EVIDENCE = 7;
+    private static final int LOCKDOWN = 8;
+    private static final int BROADCAST = 9;
+    private static final int ROLLED_BACK = 10;
+    private static final int ERASED = 11;
 
     private final UUID instanceId;
     private final ComponentLogger logger;
@@ -65,7 +71,58 @@ public final class PacketCodec {
                     out.writeUTF(changed.id());
                     out.writeUTF(changed.change().name());
                     out.writeLong(changed.version());
-                    writeActor(out, changed.actor());
+                    ValueCodec.writeActor(out, changed.actor());
+                }
+                case SyncPacket.PunishmentEditedPacket edited -> {
+                    out.writeByte(EDITED);
+                    out.writeLong(edited.punishmentId());
+                    ValueCodec.writeEdit(out, edited.previous());
+                    ValueCodec.writeEdit(out, edited.edit());
+                }
+                case SyncPacket.PunishmentVoidedPacket voided -> {
+                    out.writeByte(VOIDED);
+                    out.writeLong(voided.punishmentId());
+                }
+                case SyncPacket.PunishmentExpungedPacket expunged -> {
+                    out.writeByte(EXPUNGED);
+                    ValueCodec.writePunishment(out, expunged.punishment());
+                }
+                case SyncPacket.EvidenceChangedPacket evidence -> {
+                    out.writeByte(EVIDENCE);
+                    out.writeLong(evidence.punishmentId());
+                    out.writeBoolean(evidence.attached());
+                    ValueCodec.writeEvidence(out, evidence.evidence());
+                }
+                case SyncPacket.LockdownChangedPacket lockdown -> out.writeByte(LOCKDOWN);
+                case SyncPacket.PlayerDataErasedPacket erased -> {
+                    out.writeByte(ERASED);
+                    out.writeLong(erased.uuid().getMostSignificantBits());
+                    out.writeLong(erased.uuid().getLeastSignificantBits());
+                    for (final long count : new long[] {erased.names(), erased.addresses(),
+                            erased.expunged(), erased.anonymised(), erased.issued(),
+                            erased.other()}) {
+                        out.writeLong(count);
+                    }
+                    ValueCodec.writeActor(out, erased.actor());
+                }
+                case SyncPacket.BroadcastPacket broadcast -> {
+                    out.writeByte(BROADCAST);
+                    out.writeUTF(broadcast.text());
+                }
+                case SyncPacket.PunishmentsRolledBackPacket rolledBack -> {
+                    out.writeByte(ROLLED_BACK);
+                    out.writeInt(rolledBack.punishmentIds().size());
+                    for (final long id : rolledBack.punishmentIds()) {
+                        out.writeLong(id);
+                    }
+                    ValueCodec.writeOperator(out, rolledBack.target());
+                    out.writeLong(rolledBack.since().toEpochMilli());
+                    ValueCodec.writeActor(out, rolledBack.actor());
+                    out.writeBoolean(rolledBack.reasonOrNull() != null);
+                    if (rolledBack.reasonOrNull() != null) {
+                        out.writeUTF(rolledBack.reasonOrNull());
+                    }
+                    out.writeUTF(rolledBack.visibility().name());
                 }
             }
         } catch (final IOException e) {
@@ -96,7 +153,38 @@ public final class PacketCodec {
                 case ALLOW_LIST -> Optional.of(new SyncPacket.AllowListChangedPacket());
                 case ENTITY_CHANGED -> Optional.of(new SyncPacket.EntityChangedPacket(
                         SubjectType.valueOf(in.readUTF()), in.readUTF(),
-                        ChangeType.valueOf(in.readUTF()), in.readLong(), readActor(in)));
+                        ChangeType.valueOf(in.readUTF()), in.readLong(),
+                        ValueCodec.readActor(in)));
+                case EDITED -> Optional.of(new SyncPacket.PunishmentEditedPacket(in.readLong(),
+                        ValueCodec.readEdit(in), ValueCodec.readEdit(in)));
+                case VOIDED -> Optional.of(new SyncPacket.PunishmentVoidedPacket(in.readLong()));
+                case EXPUNGED -> Optional.of(new SyncPacket.PunishmentExpungedPacket(
+                        ValueCodec.readPunishment(in)));
+                case LOCKDOWN -> Optional.of(new SyncPacket.LockdownChangedPacket());
+                case ERASED -> Optional.of(new SyncPacket.PlayerDataErasedPacket(
+                        new UUID(in.readLong(), in.readLong()), in.readLong(), in.readLong(),
+                        in.readLong(), in.readLong(), in.readLong(), in.readLong(),
+                        ValueCodec.readActor(in)));
+                case BROADCAST -> Optional.of(new SyncPacket.BroadcastPacket(in.readUTF()));
+                case ROLLED_BACK -> {
+                    final int count = in.readInt();
+                    final List<Long> ids = new ArrayList<>(count);
+                    for (int i = 0; i < count; i++) {
+                        ids.add(in.readLong());
+                    }
+                    final Operator target = ValueCodec.readOperator(in);
+                    final Instant since = Instant.ofEpochMilli(in.readLong());
+                    final Actor actor = ValueCodec.readActor(in);
+                    final String reason = in.readBoolean() ? in.readUTF() : null;
+                    yield Optional.of(new SyncPacket.PunishmentsRolledBackPacket(ids, target,
+                            since, actor, reason, Visibility.valueOf(in.readUTF())));
+                }
+                case EVIDENCE -> {
+                    final long id = in.readLong();
+                    final boolean attached = in.readBoolean();
+                    yield Optional.of(new SyncPacket.EvidenceChangedPacket(id, attached,
+                            ValueCodec.readEvidence(in)));
+                }
                 default -> {
                     this.logger.warn("Ignoring a sync message of an unknown type");
                     yield Optional.empty();
@@ -106,43 +194,6 @@ public final class PacketCodec {
             this.logger.warn("Ignoring a sync message that can't be read", e);
             return Optional.empty();
         }
-    }
-
-    private static void writeActor(final DataOutputStream out, final Actor actor)
-            throws IOException {
-        switch (actor.operator()) {
-            case ConsoleOperator console -> out.writeByte(CONSOLE);
-            case PlayerOperator player -> {
-                out.writeByte(PLAYER);
-                out.writeLong(player.uuid().getMostSignificantBits());
-                out.writeLong(player.uuid().getLeastSignificantBits());
-                out.writeUTF(player.name());
-            }
-            case CustomOperator custom -> {
-                out.writeByte(CUSTOM);
-                out.writeUTF(custom.name());
-                out.writeBoolean(custom.uuid().isPresent());
-                if (custom.uuid().isPresent()) {
-                    out.writeLong(custom.uuid().get().getMostSignificantBits());
-                    out.writeLong(custom.uuid().get().getLeastSignificantBits());
-                }
-            }
-        }
-        out.writeUTF(actor.source());
-    }
-
-    private static Actor readActor(final DataInputStream in) throws IOException {
-        final Operator operator = switch (in.readUnsignedByte()) {
-            case CONSOLE -> ConsoleOperator.INSTANCE;
-            case PLAYER -> PlayerOperator.of(new UUID(in.readLong(), in.readLong()), in.readUTF());
-            case CUSTOM -> {
-                final String name = in.readUTF();
-                yield CustomOperator.of(name,
-                        in.readBoolean() ? new UUID(in.readLong(), in.readLong()) : null);
-            }
-            default -> throw new IllegalArgumentException("unknown operator kind");
-        };
-        return Actor.of(operator, in.readUTF());
     }
 
 }

@@ -21,6 +21,15 @@ public final class SbPunishmentsRecord extends UpdatableRecordImpl<SbPunishments
         super(SakuraTables.PUNISHMENTS);
     }
 
+    public Boolean acknowledged() {
+        return this.get(SakuraTables.PUNISHMENTS.ACKNOWLEDGED);
+    }
+
+    public SbPunishmentsRecord acknowledged(final Boolean value) {
+        this.set(SakuraTables.PUNISHMENTS.ACKNOWLEDGED, value);
+        return this;
+    }
+
     public Long id() {
         return this.get(SakuraTables.PUNISHMENTS.ID);
     }

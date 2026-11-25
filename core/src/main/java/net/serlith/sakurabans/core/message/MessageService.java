@@ -1,9 +1,12 @@
 package net.serlith.sakurabans.core.message;
 
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.identity.Identity;
@@ -26,6 +29,9 @@ public final class MessageService {
     private final AtomicReference<Map<Locale, Map<String, String>>> texts =
             new AtomicReference<>(Map.of(LangLoader.BASE_LOCALE, LangLoader.builtIn()));
 
+    private final AtomicReference<Map<Locale, Map<String, String>>> overrides =
+            new AtomicReference<>(Map.of());
+
     public MessageService(final Path dataDirectory, final ConfigService config,
             final ComponentLogger logger) {
         this.dataDirectory = dataDirectory;
@@ -33,11 +39,28 @@ public final class MessageService {
         this.logger = logger;
     }
 
-    /** Reads the language files; problems are logged, never fatal. Also used by reload. */
     public void load() {
         final LangLoader.Loaded loaded = LangLoader.load(this.dataDirectory);
         loaded.problems().forEach(problem -> this.logger.warn("Messages: {}", problem));
         this.texts.set(Map.copyOf(loaded.texts()));
+    }
+
+    public void overrides(final Map<Locale, Map<String, String>> overrides) {
+        final Map<Locale, Map<String, String>> copy = new HashMap<>();
+        overrides.forEach((locale, texts) -> copy.put(locale, Map.copyOf(texts)));
+        this.overrides.set(Map.copyOf(copy));
+    }
+
+    public Map<Locale, Map<String, String>> overrides() {
+        return this.overrides.get();
+    }
+
+    public Optional<String> fileText(final String key, final Locale locale) {
+        return Optional.ofNullable(lookup(this.texts.get().get(locale), key));
+    }
+
+    public static Map<String, String> builtInTexts() {
+        return LangLoader.builtIn();
     }
 
     public Component render(final MessageKey key, final Locale locale,
@@ -54,7 +77,6 @@ public final class MessageService {
                 this.render(key, locale, resolvers));
     }
 
-    /** Sends in the audience's own locale, or the configured default when it has none. */
     public void send(final Audience audience, final MessageKey key,
             final TagResolver... resolvers) {
         audience.sendMessage(this.render(key, this.localeOf(audience), resolvers));
@@ -68,35 +90,44 @@ public final class MessageService {
         return this.config.settings().display().defaultLocale();
     }
 
-    /**
-     * The raw text: the exact locale, then any file of the same language, then the configured
-     * default locale, then English.
-     */
     String text(final MessageKey key, final Locale locale) {
         return this.find(key.key(), locale).orElseThrow(
                 () -> new IllegalStateException("no text for " + key.key()));
     }
 
-    /** {@link #text(MessageKey, Locale)} for a key given as text (Cloud captions). */
     public Optional<String> find(final String key, final Locale locale) {
         final Map<Locale, Map<String, String>> all = this.texts.get();
-        final String exact = lookup(all.get(locale), key);
+        final Map<Locale, Map<String, String>> overridden = this.overrides.get();
+        final String exact = this.lookupAt(overridden, all, locale, key);
         if (exact != null) {
             return Optional.of(exact);
         }
-        for (final Map.Entry<Locale, Map<String, String>> entry : all.entrySet()) {
-            if (entry.getKey().getLanguage().equals(locale.getLanguage())) {
-                final String sameLanguage = lookup(entry.getValue(), key);
+        for (final Locale other : this.locales(overridden, all)) {
+            if (other.getLanguage().equals(locale.getLanguage())) {
+                final String sameLanguage = this.lookupAt(overridden, all, other, key);
                 if (sameLanguage != null) {
                     return Optional.of(sameLanguage);
                 }
             }
         }
-        final String fallback = lookup(all.get(this.defaultLocale()), key);
+        final String fallback = this.lookupAt(overridden, all, this.defaultLocale(), key);
         if (fallback != null) {
             return Optional.of(fallback);
         }
-        return Optional.ofNullable(lookup(all.get(LangLoader.BASE_LOCALE), key));
+        return Optional.ofNullable(this.lookupAt(overridden, all, LangLoader.BASE_LOCALE, key));
+    }
+
+    private @Nullable String lookupAt(final Map<Locale, Map<String, String>> overridden,
+            final Map<Locale, Map<String, String>> all, final Locale locale, final String key) {
+        final String override = lookup(overridden.get(locale), key);
+        return override != null ? override : lookup(all.get(locale), key);
+    }
+
+    private Set<Locale> locales(final Map<Locale, Map<String, String>> overridden,
+            final Map<Locale, Map<String, String>> all) {
+        final Set<Locale> locales = new LinkedHashSet<>(overridden.keySet());
+        locales.addAll(all.keySet());
+        return locales;
     }
 
     private static @Nullable String lookup(

@@ -25,7 +25,8 @@ public final class Futures {
         });
     }
 
-    public static <T extends @Nullable Object> CompletableFuture<List<T>> allOf(final List<CompletableFuture<T>> futures) {
+    public static <T extends @Nullable Object> CompletableFuture<List<T>> allOf(
+            final List<CompletableFuture<T>> futures) {
         final List<CompletableFuture<T>> copy = List.copyOf(futures);
         return CompletableFuture.allOf(copy.toArray(CompletableFuture[]::new))
                 .thenApply(ignored -> copy.stream().map(CompletableFuture::join).toList());

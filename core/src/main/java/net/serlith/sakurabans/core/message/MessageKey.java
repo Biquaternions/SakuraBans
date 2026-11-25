@@ -321,6 +321,157 @@ public record MessageKey(String key) {
     public static final MessageKey KINDS_LIST_HEADER = new MessageKey("kinds.list.header");
     public static final MessageKey KINDS_LIST_ENTRY = new MessageKey("kinds.list.entry");
 
+    public static final MessageKey VICTIM_WARNED_AWAY = new MessageKey("victim.warned_away");
+
+    public static final MessageKey COMMAND_DESCRIPTION_INFO =
+            new MessageKey("command.description.info");
+    public static final MessageKey COMMAND_DESCRIPTION_EDIT =
+            new MessageKey("command.description.edit");
+    public static final MessageKey COMMAND_DESCRIPTION_VOID =
+            new MessageKey("command.description.void");
+    public static final MessageKey COMMAND_DESCRIPTION_DELETE =
+            new MessageKey("command.description.delete");
+    public static final MessageKey COMMAND_DESCRIPTION_EVIDENCE =
+            new MessageKey("command.description.evidence");
+    public static final MessageKey COMMAND_NOT_AN_ID = new MessageKey("command.not_an_id");
+    public static final MessageKey EDIT_DONE = new MessageKey("edit.done");
+    public static final MessageKey EDIT_PERMANENT = new MessageKey("edit.permanent");
+    public static final MessageKey EDIT_FAILURE_NOT_FOUND =
+            new MessageKey("edit.failure.not_found");
+    public static final MessageKey EDIT_FAILURE_NOT_ACTIVE =
+            new MessageKey("edit.failure.not_active");
+    public static final MessageKey EDIT_FAILURE_INVALID_EXPIRY =
+            new MessageKey("edit.failure.invalid_expiry");
+    public static final MessageKey EDIT_FAILURE_ALREADY_PUNISHED =
+            new MessageKey("edit.failure.already_punished");
+    public static final MessageKey EDIT_FAILURE_EXEMPT = new MessageKey("edit.failure.exempt");
+    public static final MessageKey EDIT_FAILURE_CANCELLED =
+            new MessageKey("edit.failure.cancelled");
+    public static final MessageKey EDIT_FAILURE_CONFLICT = new MessageKey("edit.failure.conflict");
+    public static final MessageKey EDIT_FAILURE_EVIDENCE_ALREADY_ATTACHED =
+            new MessageKey("edit.failure.evidence_already_attached");
+    public static final MessageKey EDIT_FAILURE_EVIDENCE_NOT_ATTACHED =
+            new MessageKey("edit.failure.evidence_not_attached");
+    public static final MessageKey EDIT_FAILURE_FORBIDDEN =
+            new MessageKey("edit.failure.forbidden");
+    public static final MessageKey EDIT_FAILURE_ALREADY_VOIDED =
+            new MessageKey("edit.failure.already_voided");
+    public static final MessageKey EDIT_WHAT_REASON = new MessageKey("edit.what.reason");
+    public static final MessageKey EDIT_WHAT_EXPIRY = new MessageKey("edit.what.expiry");
+    public static final MessageKey EDIT_WHAT_SCOPE = new MessageKey("edit.what.scope");
+    public static final MessageKey EDIT_WHAT_EVIDENCE_ADDED =
+            new MessageKey("edit.what.evidence_added");
+    public static final MessageKey EDIT_WHAT_EVIDENCE_REMOVED =
+            new MessageKey("edit.what.evidence_removed");
+    public static final MessageKey VOID_DONE = new MessageKey("void.done");
+    public static final MessageKey DELETE_CONFIRM = new MessageKey("delete.confirm");
+    public static final MessageKey DELETE_DONE = new MessageKey("delete.done");
+    public static final MessageKey INFO_EVIDENCE = new MessageKey("info.evidence");
+    public static final MessageKey INFO_ENDED = new MessageKey("info.ended");
+    public static final MessageKey INFO_VOIDED = new MessageKey("info.voided");
+    public static final MessageKey INFO_AUDIT_HEADER = new MessageKey("info.audit.header");
+    public static final MessageKey INFO_AUDIT_ENTRY = new MessageKey("info.audit.entry");
+
+    public static final MessageKey SCREEN_LOCKDOWN = new MessageKey("screen.lockdown");
+    public static final MessageKey COMMAND_DESCRIPTION_LOCKDOWN =
+            new MessageKey("command.description.lockdown");
+    public static final MessageKey COMMAND_DESCRIPTION_STAFFROLLBACK =
+            new MessageKey("command.description.staffrollback");
+    public static final MessageKey COMMAND_DESCRIPTION_PRUNEHISTORY =
+            new MessageKey("command.description.prunehistory");
+    public static final MessageKey COMMAND_DESCRIPTION_BROADCAST =
+            new MessageKey("command.description.broadcast");
+    public static final MessageKey COMMAND_DESCRIPTION_STATUS =
+            new MessageKey("command.description.status");
+    public static final MessageKey COMMAND_DESCRIPTION_RELOAD =
+            new MessageKey("command.description.reload");
+    public static final MessageKey LOCKDOWN_STARTED = new MessageKey("lockdown.started");
+    public static final MessageKey LOCKDOWN_ENDED = new MessageKey("lockdown.ended");
+    public static final MessageKey LOCKDOWN_NOT_FOUND = new MessageKey("lockdown.not_found");
+    public static final MessageKey LOCKDOWN_STATUS_NONE = new MessageKey("lockdown.status.none");
+    public static final MessageKey LOCKDOWN_STATUS_HEADER =
+            new MessageKey("lockdown.status.header");
+    public static final MessageKey LOCKDOWN_STATUS_ENTRY = new MessageKey("lockdown.status.entry");
+    public static final MessageKey ROLLBACK_CONFIRM = new MessageKey("rollback.confirm");
+    public static final MessageKey ROLLBACK_DONE = new MessageKey("rollback.done");
+    public static final MessageKey ROLLBACK_NONE = new MessageKey("rollback.none");
+    public static final MessageKey ROLLBACK_FAILURE_REASON_REQUIRED =
+            new MessageKey("rollback.failure.reason_required");
+    public static final MessageKey ROLLBACK_FAILURE_FORBIDDEN =
+            new MessageKey("rollback.failure.forbidden");
+    public static final MessageKey PRUNE_CONFIRM = new MessageKey("prune.confirm");
+    public static final MessageKey PRUNE_DONE = new MessageKey("prune.done");
+    public static final MessageKey PRUNE_NONE = new MessageKey("prune.none");
+    public static final MessageKey BROADCAST_FORMAT = new MessageKey("broadcast.format");
+    public static final MessageKey STATUS_BODY = new MessageKey("status.body");
+    public static final MessageKey RELOAD_DONE = new MessageKey("reload.done");
+    public static final MessageKey RELOAD_RESTART = new MessageKey("reload.restart");
+    public static final MessageKey RELOAD_ERROR = new MessageKey("reload.error");
+    public static final MessageKey RELOAD_FAILED = new MessageKey("reload.failed");
+
+    public static final MessageKey COMMAND_DESCRIPTION_BANWAVE =
+            new MessageKey("command.description.banwave");
+    public static final MessageKey BANWAVE_CREATED = new MessageKey("banwave.created");
+    public static final MessageKey BANWAVE_ADDED = new MessageKey("banwave.added");
+    public static final MessageKey BANWAVE_REMOVED = new MessageKey("banwave.removed");
+    public static final MessageKey BANWAVE_LIST_EMPTY = new MessageKey("banwave.list.empty");
+    public static final MessageKey BANWAVE_LIST_HEADER = new MessageKey("banwave.list.header");
+    public static final MessageKey BANWAVE_LIST_ENTRY = new MessageKey("banwave.list.entry");
+    public static final MessageKey BANWAVE_LIST_SCHEDULED =
+            new MessageKey("banwave.list.scheduled");
+    public static final MessageKey BANWAVE_INFO_ENTRY = new MessageKey("banwave.info.entry");
+    public static final MessageKey BANWAVE_RESULT_PENDING =
+            new MessageKey("banwave.result.pending");
+    public static final MessageKey BANWAVE_RESULT_DONE = new MessageKey("banwave.result.done");
+    public static final MessageKey BANWAVE_RESULT_FAILED = new MessageKey("banwave.result.failed");
+    public static final MessageKey BANWAVE_SCHEDULED = new MessageKey("banwave.scheduled");
+    public static final MessageKey BANWAVE_UNSCHEDULED = new MessageKey("banwave.unscheduled");
+    public static final MessageKey BANWAVE_CONFIRM = new MessageKey("banwave.confirm");
+    public static final MessageKey BANWAVE_RELEASED = new MessageKey("banwave.released");
+    public static final MessageKey BANWAVE_CANCELLED = new MessageKey("banwave.cancelled");
+    public static final MessageKey BANWAVE_FAILURE_NOT_FOUND =
+            new MessageKey("banwave.failure.not_found");
+    public static final MessageKey BANWAVE_FAILURE_INVALID =
+            new MessageKey("banwave.failure.invalid");
+    public static final MessageKey BANWAVE_FAILURE_CONFLICT =
+            new MessageKey("banwave.failure.conflict");
+    public static final MessageKey BANWAVE_FAILURE_FORBIDDEN =
+            new MessageKey("banwave.failure.forbidden");
+
+    public static final MessageKey NOTIFY_APPEAL = new MessageKey("notify.appeal");
+    public static final MessageKey APPEAL_DECIDED_ACCEPTED =
+            new MessageKey("appeal.decided.accepted");
+    public static final MessageKey APPEAL_DECIDED_REJECTED =
+            new MessageKey("appeal.decided.rejected");
+    public static final MessageKey APPEAL_SUBMITTED = new MessageKey("appeal.submitted");
+    public static final MessageKey APPEAL_FAILURE_NOT_YOURS =
+            new MessageKey("appeal.failure.not_yours");
+    public static final MessageKey APPEAL_FAILURE_OPEN = new MessageKey("appeal.failure.open");
+    public static final MessageKey APPEAL_FAILURE_INVALID =
+            new MessageKey("appeal.failure.invalid");
+    public static final MessageKey APPEAL_FAILURE_NOT_FOUND =
+            new MessageKey("appeal.failure.not_found");
+    public static final MessageKey APPEAL_FAILURE_CONFLICT =
+            new MessageKey("appeal.failure.conflict");
+    public static final MessageKey APPEAL_FAILURE_FORBIDDEN =
+            new MessageKey("appeal.failure.forbidden");
+    public static final MessageKey APPEALS_LIST_EMPTY = new MessageKey("appeals.list.empty");
+    public static final MessageKey APPEALS_LIST_HEADER = new MessageKey("appeals.list.header");
+    public static final MessageKey APPEALS_LIST_ENTRY = new MessageKey("appeals.list.entry");
+    public static final MessageKey APPEALS_DECIDED = new MessageKey("appeals.decided");
+    public static final MessageKey COMMAND_DESCRIPTION_APPEAL =
+            new MessageKey("command.description.appeal");
+    public static final MessageKey COMMAND_DESCRIPTION_APPEALS =
+            new MessageKey("command.description.appeals");
+
+    public static final MessageKey COMMAND_DESCRIPTION_GDPR =
+            new MessageKey("command.description.gdpr");
+    public static final MessageKey GDPR_EXPORTED = new MessageKey("gdpr.exported");
+    public static final MessageKey GDPR_ERASE_CONFIRM = new MessageKey("gdpr.erase.confirm");
+    public static final MessageKey GDPR_ERASED = new MessageKey("gdpr.erased");
+    public static final MessageKey GDPR_FAILURE_FORBIDDEN =
+            new MessageKey("gdpr.failure.forbidden");
+
     private static final List<MessageKey> ALL = Arrays.stream(MessageKey.class.getDeclaredFields())
             .filter(field -> Modifier.isStatic(field.getModifiers())
                     && field.getType() == MessageKey.class)

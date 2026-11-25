@@ -1,22 +1,14 @@
 package net.serlith.sakurabans.core.template;
 
-import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.serlith.sakurabans.api.event.EventPriority;
 import net.serlith.sakurabans.api.event.PunishmentCreatedEvent;
 import net.serlith.sakurabans.api.event.Subscription;
-import net.serlith.sakurabans.api.model.AddressRangeVictim;
-import net.serlith.sakurabans.api.model.AddressVictim;
-import net.serlith.sakurabans.api.model.CompositeVictim;
-import net.serlith.sakurabans.api.model.ConsoleOperator;
-import net.serlith.sakurabans.api.model.CustomOperator;
-import net.serlith.sakurabans.api.model.PlayerOperator;
-import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.TemplateRef;
 import net.serlith.sakurabans.api.template.TemplateInfo;
@@ -24,7 +16,7 @@ import net.serlith.sakurabans.core.event.SakuraEventBus;
 import net.serlith.sakurabans.core.event.SakuraTemplateStepEvent;
 import net.serlith.sakurabans.core.platform.Platform;
 import net.serlith.sakurabans.core.player.NameCache;
-import net.serlith.sakurabans.core.util.Durations;
+import net.serlith.sakurabans.core.punish.ConsoleActions;
 import org.jspecify.annotations.Nullable;
 
 public final class TemplateActions {
@@ -81,64 +73,12 @@ public final class TemplateActions {
         if (commands.isEmpty()) {
             return;
         }
-        final Map<String, String> values = this.values(punishment, ref);
-        for (final String command : commands) {
-            final String filled = fill(command, values);
-            try {
-                this.platform.dispatchConsoleCommand(filled);
-            } catch (final RuntimeException e) {
-                this.logger.warn("The action '{}' of template {} failed", filled, ref.name(), e);
-            }
-        }
-    }
-
-    private Map<String, String> values(final Punishment punishment, final TemplateRef ref) {
-        final String victim = switch (punishment.victim()) {
-            case PlayerVictim player -> this.names.name(player.uuid())
-                    .orElse(player.uuid().toString());
-            case CompositeVictim composite -> this.names.name(composite.uuid())
-                    .orElse(composite.uuid().toString());
-            case AddressVictim address -> address.address().getHostAddress();
-            case AddressRangeVictim range -> range.network().getHostAddress() + "/"
-                    + range.prefixLength();
-        };
-        final String uuid = switch (punishment.victim()) {
-            case PlayerVictim player -> player.uuid().toString();
-            case CompositeVictim composite -> composite.uuid().toString();
-            default -> "";
-        };
-        final String address = switch (punishment.victim()) {
-            case AddressVictim single -> single.address().getHostAddress();
-            case CompositeVictim composite -> composite.address().getHostAddress();
-            default -> "";
-        };
-        final String operator = switch (punishment.operator()) {
-            case ConsoleOperator console -> "Console";
-            case PlayerOperator player -> player.name();
-            case CustomOperator custom -> custom.name();
-        };
-        final Optional<Duration> duration = punishment.expiresAt()
-                .map(expiry -> Duration.between(punishment.createdAt(), expiry));
-        return Map.of(
-                "victim", victim,
-                "uuid", uuid,
-                "address", address,
-                "id", Long.toString(punishment.id()),
-                "operator", operator,
-                "reason", punishment.reason(),
-                "template", ref.name(),
-                "step", Integer.toString(ref.step() + 1),
-                "duration", duration.map(value -> Durations.formatCompact(value)
-                        .replace(" ", "")).orElse("permanent"));
-    }
-
-    static String fill(final String command, final Map<String, String> values) {
-        String filled = command;
-        for (final Map.Entry<String, String> value : values.entrySet()) {
-            filled = filled.replace("{" + value.getKey() + "}",
-                    value.getValue().replaceAll("\\R", " "));
-        }
-        return filled;
+        final Map<String, String> values = new HashMap<>(
+                ConsoleActions.values(punishment, this.names::name));
+        values.put("template", ref.name());
+        values.put("step", Integer.toString(ref.step() + 1));
+        ConsoleActions.run(this.platform, commands, values, this.logger,
+                "template " + ref.name());
     }
 
 }

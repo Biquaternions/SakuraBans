@@ -43,9 +43,13 @@ class SakuraCommandsTest extends CommandTest {
     @Test
     void helpRenders() {
         this.run(this.console, "sakurabans help");
-
         Assertions.assertThat(String.join("\n", this.console.texts()))
-                .contains("Help (1/", "/ban <target> [--silent", "/banlist [page]");
+                .contains("Help (1/", "/alts <target> [strictness]");
+
+        this.console.clear();
+        this.run(this.console, "sakurabans help ban");
+        Assertions.assertThat(String.join("\n", this.console.texts()))
+                .contains("/ban <target> [--silent");
     }
 
     @Test

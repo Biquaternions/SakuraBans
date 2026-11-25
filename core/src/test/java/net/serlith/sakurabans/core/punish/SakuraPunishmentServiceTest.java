@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutionException;
 import net.serlith.sakurabans.api.auth.Decision;
 import net.serlith.sakurabans.api.event.PunishmentCreateEvent;
 import net.serlith.sakurabans.api.event.PunishmentCreatedEvent;
@@ -380,13 +379,5 @@ class SakuraPunishmentServiceTest extends ServiceTest {
         Assertions.assertThat(this.service.byDisplayId(Long.toString(ban.id())).join())
                 .contains(ban);
         Assertions.assertThat(this.service.byDisplayId("not-an-id").join()).isEmpty();
-    }
-
-    @Test
-    void laterFeaturesAreUnsupported() {
-        Assertions.assertThat(this.service.voidPunishment(1, CONSOLE, null))
-                .failsWithin(Duration.ofSeconds(1))
-                .withThrowableOfType(ExecutionException.class)
-                .withCauseInstanceOf(UnsupportedOperationException.class);
     }
 }

@@ -15,21 +15,23 @@ final class ConfigFiles {
     static final String CONFIG = "config.yml";
     static final String STORAGE = "storage.yml";
     static final String LIMITS = "limits.yml";
+    static final String WEBHOOKS = "webhooks.yml";
 
     private ConfigFiles() {
     }
 
     static YamlConfigurationLoader loader(final Path file) {
+        return builder().path(file).build();
+    }
+
+    static YamlConfigurationLoader.Builder builder() {
         return YamlConfigurationLoader.builder()
-                .path(file)
                 .nodeStyle(NodeStyle.BLOCK)
                 .indent(2)
                 .defaultOptions(options -> options.serializers(builder ->
-                        builder.register(Duration.class, new DurationSerializer())))
-                .build();
+                        builder.register(Duration.class, new DurationSerializer())));
     }
 
-    /** Copies the shipped default to {@code directory} if the file doesn't exist yet. */
     static Path ensureDefault(final Path directory, final String name) throws IOException {
         final Path file = directory.resolve(name);
         if (Files.notExists(file)) {

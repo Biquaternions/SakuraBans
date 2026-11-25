@@ -74,12 +74,19 @@ screen:
     <red><bold>We couldn't check your account.</bold></red>
 
     <gray>Please try again in a moment.</gray>
+  lockdown: |-
+    <red><bold>This server is locked down.</bold></red>
+
+    <gray>Reason:</gray> <white><reason></white>
+
+    <gray>Please try again later.</gray>
 
 # Sent to the punished player.
 victim:
   muted: '<prefix><red>You were muted by <operator>: <reason></red>'
   muted_temporary: '<prefix><red>You were muted by <operator> for <duration>: <reason></red>'
   warned: '<prefix><red>You were warned by <operator>: <reason></red>'
+  warned_away: '<prefix><red>While you were away, <operator> warned you (<created>): <reason></red>'
 
 # When a muted player chats or runs a blocked command.
 chat:
@@ -104,6 +111,7 @@ notify:
     join: '<prefix><white><name></white> <gray>joined with <count> known alts:</gray> <alts>'
     name: '<white><name></white>'
     punished_name: '<red><name></red>'
+  appeal: '<prefix><white><name></white> <gray>appealed #<display_id> (appeal <id>):</gray> <message>'
 
 # Commands. Captions (command.caption.*) are the errors of the command framework; their
 # placeholders are the framework's variables.
@@ -175,6 +183,21 @@ command:
     namehistory: 'Names a player used'
     lastuuid: 'The last account that used a name'
     ipreport: 'Online players who share an address'
+    info: 'Show a punishment'
+    edit: 'Change a punishment'
+    void: 'Mark a punishment as a mistake'
+    delete: 'Delete a punishment from the history'
+    evidence: 'Attach or detach evidence'
+    lockdown: 'Keep new players out'
+    staffrollback: 'Lift what a staff member issued recently'
+    prunehistory: 'Delete a player''s ended punishments'
+    broadcast: 'Send a message to every server'
+    status: 'SakuraBans status'
+    reload: 'Reload the configuration and messages'
+    banwave: 'Collect bans and release them together'
+    appeal: 'Appeal one of your punishments'
+    appeals: 'Appeals of punished players'
+    gdpr: 'Export or erase a player''s data'
   invalid: '<prefix><red>That doesn''t work: <details></red>'
   unknown_target: '<prefix><red>Nobody is known as <input>.</red>'
   id_not_allowed: '<prefix><red>Name a player or an address here, not a punishment id.</red>'
@@ -186,6 +209,7 @@ command:
   sender_needs_name: '<prefix><red>--sender-uuid needs --sender with a name.</red>'
   players_only: '<prefix><red>Only players can use this without naming someone.</red>'
   player_required: '<prefix><red><input> is not a player.</red>'
+  not_an_id: '<prefix><red>''<input>'' is not a punishment id (like 12 or K7Q2M9XA).</red>'
 punish:
   ban: '<prefix><green>Banned <white><victim></white> (<duration>, <scope>): <white><reason></white> <gray>#<display_id></gray></green>'
   mute: '<prefix><green>Muted <white><victim></white> (<duration>, <scope>): <white><reason></white> <gray>#<display_id></gray></green>'
@@ -300,3 +324,119 @@ kinds:
   list:
     header: '<prefix><white>Kinds</white> <gray>(<count>)</gray>'
     entry: '<gray> - </gray><white><id></white> <gray>(<name>): <type><modifiers></gray>'
+edit:
+  done: '<prefix><green>Changed #<display_id>: <white><what></white>.</green>'
+  permanent: '<prefix><red>#<display_id> is permanent; set a duration instead.</red>'
+  failure:
+    not_found: '<prefix><red>There is no such punishment.</red>'
+    not_active: '<prefix><red>That punishment isn''t active any more.</red>'
+    invalid_expiry: '<prefix><red>That would end it before now.</red>'
+    already_punished: '<prefix><red>The victim already has an active <type> there.</red>'
+    exempt: '<prefix><red>You can''t change that punishment.</red>'
+    cancelled: '<prefix><red>Another plugin cancelled this.</red>'
+    conflict: '<prefix><red>Someone else changed it meanwhile; try again.</red>'
+    evidence_already_attached: '<prefix><yellow>That evidence is already attached.</yellow>'
+    evidence_not_attached: '<prefix><yellow>That evidence isn''t attached.</yellow>'
+    forbidden: '<prefix><red>You may not do that.</red>'
+    already_voided: '<prefix><yellow>That punishment is already voided.</yellow>'
+  what:
+    reason: 'reason'
+    expiry: 'now <expires>'
+    scope: 'now <scope>'
+    evidence_added: 'evidence added'
+    evidence_removed: 'evidence removed'
+void:
+  done: '<prefix><green>Voided #<display_id> (<type> of <white><victim></white>).</green>'
+delete:
+  confirm: '<prefix><yellow>This deletes #<display_id> (<type> of <victim>) for good. Run it again with --confirm within 30 seconds.</yellow>'
+  done: '<prefix><green>Deleted #<display_id> (<type> of <white><victim></white>).</green>'
+info:
+  evidence: '<gray>Evidence:</gray> <white><uri></white> <dark_gray>(<added_by>, <added>)</dark_gray>'
+  ended: '<gray>Ended:</gray> <end> <dark_gray>(<at>, <revoker>)</dark_gray> <revoke_reason>'
+  voided: '<red>Voided</red> <dark_gray>(<at>, <actor>)</dark_gray> <reason>'
+  audit:
+    header: '<gray>Changes:</gray>'
+    entry: '<dark_gray><at></dark_gray> <white><action></white> <gray>by <actor> (<source>)</gray> <old><new>'
+lockdown:
+  started: '<prefix><green>Locked down <white><scope></white> (<ends>): nobody new may join without sakurabans.lockdown.bypass.</green>'
+  ended: '<prefix><green>Ended the lockdown of <white><scope></white>.</green>'
+  not_found: '<prefix><yellow><scope> isn''t locked down.</yellow>'
+  status:
+    none: '<prefix><gray>Nothing is locked down.</gray>'
+    header: '<prefix><white>Lockdowns</white> <gray>(<count>)</gray>'
+    entry: '<gray> - </gray><white><scope></white> <gray>by <actor>, <since>, until <ends>:</gray> <reason>'
+rollback:
+  confirm: '<prefix><yellow>This lifts <count> active punishments <name> issued since <since>. Run it again with --confirm within 30 seconds.</yellow>'
+  done: '<prefix><green>Lifted <count> punishments issued by <white><name></white>.</green>'
+  none: '<prefix><gray><name> issued nothing that is still active since <since>.</gray>'
+  failure:
+    reason_required: '<prefix><red>Give a reason.</red>'
+    forbidden: '<prefix><red>You may not do that.</red>'
+prune:
+  confirm: '<prefix><yellow>This deletes <count> ended punishments of <name> for good. Run it again with --confirm within 30 seconds.</yellow>'
+  done: '<prefix><green>Deleted <count> of <total> ended punishments of <white><name></white>.</green>'
+  none: '<prefix><gray><name> has no ended punishments to delete.</gray>'
+broadcast:
+  format: '<prefix><message>'
+status:
+  body: |-
+    <prefix><white>SakuraBans <version></white> <gray>(<commit>)</gray>
+    <gray>Platform:</gray> <white><platform></white>
+    <gray>Server:</gray> <white><server></white>
+    <gray>Storage:</gray> <white><storage></white> <gray>Sync:</gray> <white><sync></white>
+    <gray>Active punishments:</gray> <white><active></white> <gray>Lockdowns:</gray> <white><lockdowns></white>
+reload:
+  done: '<prefix><green>Reloaded the configuration and messages.</green>'
+  restart: '<prefix><yellow>Changes in <files> need a restart.</yellow>'
+  error: '<prefix><red><error></red>'
+  failed: '<prefix><red>The configuration has errors; the old settings stay active.</red>'
+banwave:
+  created: '<prefix><green>Created ban wave <white>#<id> <name></white>. Add players with /banwave add <id> <player>.</green>'
+  added: '<prefix><green>Added <white><target></white> to wave #<id> (entry <entry>; <count> in all).</green>'
+  removed: '<prefix><green>Removed entry <entry> from wave #<id>.</green>'
+  list:
+    empty: '<prefix><gray>There are no ban waves.</gray>'
+    header: '<prefix><white>Ban waves</white> <gray>(<count>)</gray>'
+    entry: '<gray> - </gray><white>#<id> <name></white> <gray><status>, <count> entries<scheduled></gray>'
+    scheduled: ', at <at>'
+  info:
+    entry: '<gray> - <entry>:</gray> <white><target></white> <gray>(<duration>): <reason></gray> <result>'
+  result:
+    pending: '<dark_gray>pending</dark_gray>'
+    done: '<green>banned #<display_id></green>'
+    failed: '<red><reason></red>'
+  scheduled: '<prefix><green>Wave #<id> is released at <at>.</green>'
+  unscheduled: '<prefix><green>Wave #<id> is a draft again.</green>'
+  confirm: '<prefix><yellow>This releases wave #<id> now: <count> punishments. Run it again with --confirm within 30 seconds.</yellow>'
+  released: '<prefix><green>Released wave #<id>: <done> punished, <failed> failed.</green>'
+  cancelled: '<prefix><green>Cancelled wave #<id>.</green>'
+  failure:
+    not_found: '<prefix><red>There is no such ban wave or entry.</red>'
+    invalid: '<prefix><red>That doesn''t work: <details></red>'
+    conflict: '<prefix><red>Someone else changed the wave meanwhile; try again.</red>'
+    forbidden: '<prefix><red>You may not do that.</red>'
+appeal:
+  decided:
+    accepted: '<prefix><green>Your appeal of #<display_id> was accepted.</green> <gray><note></gray>'
+    rejected: '<prefix><red>Your appeal of #<display_id> was rejected.</red> <gray><note></gray>'
+  submitted: '<prefix><green>Your appeal (<id>) was sent to the staff.</green>'
+  failure:
+    not_yours: '<prefix><red>You can only appeal your own punishments.</red>'
+    open: '<prefix><yellow>That punishment already has an open appeal.</yellow>'
+    invalid: '<prefix><red>That doesn''t work: <details></red>'
+    not_found: '<prefix><red>There is no such appeal or punishment.</red>'
+    conflict: '<prefix><red>Someone else decided it meanwhile.</red>'
+    forbidden: '<prefix><red>You may not do that.</red>'
+appeals:
+  list:
+    empty: '<prefix><gray>There are no open appeals.</gray>'
+    header: '<prefix><white>Open appeals</white> <gray>(<total>, page <page>/<pages>)</gray>'
+    entry: '<gray> - </gray><white><id></white> <gray>#<display_id> by <name>, <created>:</gray> <message>'
+  decided: '<prefix><green>Appeal <id>: <outcome>.</green>'
+gdpr:
+  exported: '<prefix><green>Exported the data of <white><name></white> to <file>: <received> punishments received, <issued> issued.</green>'
+  erase:
+    confirm: '<prefix><yellow>This erases everything SakuraBans knows about <name> (<uuid>); active punishments stay without personal data. It can''t be undone. Run it again with --confirm within 30 seconds.</yellow>'
+  erased: '<prefix><green>Erased <white><name></white>: <names> names, <addresses> addresses, <expunged> punishments deleted, <anonymised> kept without personal data, <issued> issued ones anonymised, <other> other records.</green>'
+  failure:
+    forbidden: '<prefix><red>You may not do that.</red>'

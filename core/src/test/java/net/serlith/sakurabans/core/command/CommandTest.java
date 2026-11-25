@@ -3,9 +3,15 @@ package net.serlith.sakurabans.core.command;
 import java.util.List;
 import java.util.UUID;
 import net.serlith.sakurabans.core.ServiceTest;
+import net.serlith.sakurabans.core.audit.SakuraAuditService;
+import net.serlith.sakurabans.core.command.module.AdminCommands;
 import net.serlith.sakurabans.core.command.module.AllowCommands;
 import net.serlith.sakurabans.core.command.module.AltCommands;
+import net.serlith.sakurabans.core.command.module.AppealCommands;
+import net.serlith.sakurabans.core.command.module.BanWaveCommands;
 import net.serlith.sakurabans.core.command.module.CheckCommands;
+import net.serlith.sakurabans.core.command.module.EditCommands;
+import net.serlith.sakurabans.core.command.module.GdprCommands;
 import net.serlith.sakurabans.core.command.module.HistoryCommands;
 import net.serlith.sakurabans.core.command.module.KindCommands;
 import net.serlith.sakurabans.core.command.module.PunishCommands;
@@ -18,6 +24,7 @@ import net.serlith.sakurabans.core.integration.SakuraIntegrationRegistry;
 import net.serlith.sakurabans.core.message.Formats;
 import net.serlith.sakurabans.core.player.TargetResolver;
 import net.serlith.sakurabans.core.player.UuidResolver;
+import net.serlith.sakurabans.core.storage.repository.AuditRepository;
 import org.junit.jupiter.api.BeforeEach;
 
 /** The command layer of {@code CoreComponents}, installed on a {@link TestCommandManager}. */
@@ -34,7 +41,7 @@ public abstract class CommandTest extends ServiceTest {
         final Replies replies =
                 new Replies(runner, this.placeholders, this.names, this.config, this.clock);
         final TargetParser targetParser =
-                new TargetParser(this.platform, this.names, this.lifecycle);
+                new TargetParser(this.platform, this.names, this.lifecycle, this.displayIds);
         final PunishFlags flags = new PunishFlags(new ScopeParser(this.scopes));
         final Pager pager = new Pager(runner, replies, this.clock);
         final TargetResolver targets = new TargetResolver(this.platform, this.names,
@@ -59,7 +66,26 @@ public abstract class CommandTest extends ServiceTest {
                 new TemplateCommands(registrar, runner, this.templates,
                         new TemplateFiles(this.dir), new ConfirmationTracker(this.clock),
                         this.executors.worker(), this.clock),
-                new KindCommands(registrar, runner, this.kinds, this.scopes)),
+                new KindCommands(registrar, runner, this.kinds, this.scopes),
+                new EditCommands(registrar, runner, replies, this.placeholders,
+                        new Formats(this.messages, this.config), this.service,
+                        new SakuraAuditService(new AuditRepository(this.storage)),
+                        this.displayIds, new ScopeParser(this.scopes),
+                        new ConfirmationTracker(this.clock), this.clock),
+                new GdprCommands(registrar, runner, targetParser, targets, this.playerData,
+                        new ConfirmationTracker(this.clock), this.dir, Runnable::run,
+                        this.clock),
+                new AppealCommands(registrar, runner, new Formats(this.messages, this.config),
+                        this.appeals, this.service, this.displayIds, this.names),
+                new BanWaveCommands(registrar, runner, replies, new Formats(this.messages,
+                        this.config), flags, targetParser, targets, this.banWaves,
+                        new ConfirmationTracker(this.clock), this.clock),
+                new AdminCommands(registrar, runner, replies, this.placeholders,
+                        new Formats(this.messages, this.config), flags, targetParser, targets,
+                        this.service, this.punishments, this.lockdowns, this.scopes,
+                        this.notifications, this.syncService, this.config, this.messages,
+                        this.platform, new ConfirmationTracker(this.clock), Runnable::run,
+                        this.clock)),
                 registrar, runner, this.messages).install(this.manager);
     }
 

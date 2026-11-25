@@ -128,6 +128,13 @@ exemption:
 warnings:
   # How long a warning stays active: a duration, or never.
   expire-after: 30d
+  # Console commands run when a player reaches a number of active warnings (in every scope),
+  # on the server that issued the warning that reached it. Placeholders: {victim} (the name),
+  # {uuid}, {address}, {id} (the warning), {operator}, {reason} and {count}. For example:
+  #   actions:
+  #     3: ["tempmute {victim} 1h Three active warnings"]
+  #     5: ["tempban {victim} 1d Five active warnings"]
+  actions: {}
 
 display:
   # The language for messages when the player's own isn't known (for example ban screens).
@@ -167,7 +174,7 @@ commands:
   # Commands: sakurabans, ban, tempban, ipban, mute, tempmute, ipmute, warn, kick, unban, pardon
   # (unban under vanilla's name), unmute, unwarn, checkban, checkmute, checkwarn, history,
   # staffhistory, warns, banlist, mutelist, warnlist, alts, iphistory, namehistory, lastuuid,
-  # ipreport.
+  # ipreport, lockdown, staffrollback, prunehistory, banwave, appeal, appeals.
   labels:
     sakurabans: [sakurabans, sb]
   # Punish commands for punishment kinds: the kind's id, its base type (ban, mute, warn or kick)

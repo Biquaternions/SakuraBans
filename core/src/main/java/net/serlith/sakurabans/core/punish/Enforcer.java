@@ -9,4 +9,6 @@ public interface Enforcer {
 
     CompletableFuture<Void> ended(Punishment punishment);
 
+    CompletableFuture<Void> changed(Punishment previous, Punishment current);
+
 }

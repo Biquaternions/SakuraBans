@@ -11,6 +11,13 @@ public final class Permissions {
     public static final String NOTIFY_ATTEMPT_CHAT = ROOT + "notify.attempt.chat";
     public static final String VIEW_IPS = ROOT + "viewips";
     public static final String HELP = ROOT + "help";
+    public static final String INFO = ROOT + "info";
+    public static final String LOCKDOWN_BYPASS = ROOT + "lockdown.bypass";
+    public static final String ADMIN_LOCKDOWN = ROOT + "admin.lockdown";
+    public static final String ADMIN_PRUNEHISTORY = ROOT + "admin.prunehistory";
+    public static final String ADMIN_BROADCAST = ROOT + "admin.broadcast";
+    public static final String ADMIN_STATUS = ROOT + "admin.status";
+    public static final String ADMIN_RELOAD = ROOT + "admin.reload";
     public static final String SCOPE_GLOBAL = ROOT + "scope.global";
     public static final String SCOPE_DEFAULT = ROOT + "scope.default";
     public static final String LIST_BANLIST = ROOT + "list.banlist";
@@ -41,6 +48,7 @@ public final class Permissions {
     public static final String ADMIN_STATS = ROOT + "admin.stats";
     public static final String VIEW_HIDDEN = ROOT + "view.hidden";
     public static final String APPEALS_VIEW = ROOT + "appeals.view";
+    public static final String APPEAL = ROOT + "appeal";
     public static final String APPEALS_DECIDE = ROOT + "appeals.decide";
     public static final String COOLDOWN_BYPASS = ROOT + "cooldown.bypass";
 

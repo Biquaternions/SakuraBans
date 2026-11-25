@@ -17,6 +17,7 @@ import net.serlith.sakurabans.api.model.Scope;
 import net.serlith.sakurabans.api.model.TemplateRef;
 import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.api.model.Visibility;
+import net.serlith.sakurabans.api.punish.PunishmentEdit;
 import org.jspecify.annotations.Nullable;
 
 public record SakuraPunishment(
@@ -78,6 +79,25 @@ public record SakuraPunishment(
         if (type.instant() && (expiresAtOrNull != null || endOrNull != null)) {
             throw new IllegalArgumentException(type + " can't expire or end");
         }
+    }
+
+    public static SakuraPunishment before(final Punishment current,
+            final PunishmentEdit previous) {
+        String reason = current.reason();
+        Instant expiresAt = current.expiresAt().orElse(null);
+        Scope scope = current.scope();
+        switch (previous) {
+            case PunishmentEdit.NewReason value -> reason = value.reason();
+            case PunishmentEdit.NewExpiry value -> expiresAt = value.expiresAt().orElse(null);
+            case PunishmentEdit.NewScope value -> scope = value.scope();
+        }
+        return new SakuraPunishment(current.id(), current.displayId(), current.type(),
+                current.kind(), current.shadow(), current.strictness().orElse(null),
+                current.victim(), current.operator(), current.source(), scope, reason,
+                current.createdAt(), expiresAt, current.originServer().orElse(null),
+                current.visibility(), current.template().orElse(null),
+                current.end().orElse(null), current.voiding().orElse(null), current.evidence(),
+                Math.max(1, current.version() - 1));
     }
 
     @Override

@@ -5,6 +5,7 @@ import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
@@ -81,6 +82,60 @@ public final class LocalEnforcer implements Enforcer {
                 "reload the range punishments"));
     }
 
+    public CompletableFuture<Void> joined(final UUID uuid) {
+        final OnlinePlayer player = this.platform.player(uuid).orElse(null);
+        if (player == null) {
+            return CompletableFuture.completedFuture(null);
+        }
+        final CompletableFuture<Void> work = this.punishments
+                .unacknowledgedWarnings(uuid, this.clock.instant())
+                .thenCompose(warnings -> {
+                    // One after another, oldest first, so they are shown in order.
+                    CompletableFuture<Void> shown = CompletableFuture.completedFuture(null);
+                    for (final Punishment warning : warnings) {
+                        // Acknowledged first, so a proxy and a backend can't both show it.
+                        shown = shown.thenCompose(ignored -> this.punishments
+                                .acknowledge(warning.id())
+                                .thenAccept(mine -> {
+                                    if (mine) {
+                                        player.sendMessage(this.messages.warnedAway(warning,
+                                                this.messages.localeOf(player)));
+                                    }
+                                }));
+                    }
+                    return shown;
+                });
+        return quiet(Futures.logged(work, this.logger,
+                "show " + player.name() + " their warnings"));
+    }
+
+    @Override
+    public CompletableFuture<Void> changed(final Punishment previous, final Punishment current) {
+        final boolean ranged = previous.victim() instanceof AddressRangeVictim
+                || current.victim() instanceof AddressRangeVictim;
+        final CompletableFuture<Void> ranges = ranged
+                ? this.ranges.reload()
+                : CompletableFuture.completedFuture(null);
+        final CompletableFuture<Void> work = ranges.thenCompose(ignored -> {
+            if (!current.isActiveAt(this.clock.instant())) {
+                return this.ended(current);
+            }
+            return switch (current.type()) {
+                // Reloaded without a message: the player was told when it was issued.
+                case MUTE -> this.scopes.proxy()
+                        ? CompletableFuture.completedFuture(null)
+                        : CompletableFuture.allOf(this.platform.onlinePlayers().stream()
+                                .map(player -> this.mutes.load(player.uuid(), player.address()))
+                                .toArray(CompletableFuture[]::new));
+                case BAN -> previous.scope().equals(current.scope())
+                        ? CompletableFuture.completedFuture(null)
+                        : this.created(current);
+                case WARN, KICK -> CompletableFuture.completedFuture(null);
+            };
+        });
+        return quiet(Futures.logged(work, this.logger, "apply the edit of " + current.id()));
+    }
+
     private CompletableFuture<Void> rangesChanged(final Punishment punishment) {
         return punishment.victim() instanceof AddressRangeVictim
                 ? this.ranges.reload()
@@ -107,7 +162,7 @@ public final class LocalEnforcer implements Enforcer {
             case WARN -> {
                 player.sendMessage(this.messages.warned(punishment,
                         this.messages.localeOf(player)));
-                yield CompletableFuture.completedFuture(null);
+                yield this.punishments.acknowledge(punishment.id()).thenRun(() -> { });
             }
         };
     }

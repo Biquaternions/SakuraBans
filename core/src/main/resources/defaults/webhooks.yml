@@ -1,0 +1,120 @@
+# SakuraBans Discord webhooks.
+#
+# SakuraBans never rewrites this file. Only the server where something happens posts it, so a
+# network posts each punishment once. /sb reload applies changes.
+
+# Whether webhooks are sent at all.
+enabled: false
+# The webhook URL routes use unless they name their own (Server settings > Integrations >
+# Webhooks in Discord).
+url: ""
+# The name and avatar the messages show.
+username: SakuraBans
+avatar-url: ""
+# Whether silent punishments are posted (hidden ones never are).
+include-silent: false
+
+# One route per event: ban, mute, warn, kick, unban, unmute, unwarn, void, delete, edit and
+# rollback. Each has its own url (empty: the one above) and an embed. Texts may use Discord
+# markdown and these placeholders: {victim} {uuid} {address} {id} {display_id} {operator}
+# {reason} {duration} {expires} {type} {kind} {scope} {server} {revoker} {revoke_reason}
+# {edit} (what changed) and {count} (rollbacks). Fields are shown in this order.
+routes:
+  ban:
+    enabled: true
+    url: ""
+    title: Ban
+    color: "#e74c3c"
+    description: "{victim} was banned by {operator}"
+    fields:
+      Reason: "{reason}"
+      Duration: "{duration}"
+      Scope: "{scope}"
+      Id: "#{display_id}"
+  mute:
+    enabled: true
+    url: ""
+    title: Mute
+    color: "#e67e22"
+    description: "{victim} was muted by {operator}"
+    fields:
+      Reason: "{reason}"
+      Duration: "{duration}"
+      Scope: "{scope}"
+      Id: "#{display_id}"
+  warn:
+    enabled: true
+    url: ""
+    title: Warning
+    color: "#f1c40f"
+    description: "{victim} was warned by {operator}"
+    fields:
+      Reason: "{reason}"
+      Id: "#{display_id}"
+  kick:
+    enabled: true
+    url: ""
+    title: Kick
+    color: "#f39c12"
+    description: "{victim} was kicked by {operator}"
+    fields:
+      Reason: "{reason}"
+  unban:
+    enabled: true
+    url: ""
+    title: Unban
+    color: "#2ecc71"
+    description: "{victim} was unbanned by {revoker}"
+    fields:
+      Reason: "{revoke_reason}"
+      Id: "#{display_id}"
+  unmute:
+    enabled: true
+    url: ""
+    title: Unmute
+    color: "#2ecc71"
+    description: "{victim} was unmuted by {revoker}"
+    fields:
+      Reason: "{revoke_reason}"
+      Id: "#{display_id}"
+  unwarn:
+    enabled: true
+    url: ""
+    title: Warning removed
+    color: "#2ecc71"
+    description: "A warning of {victim} was removed by {revoker}"
+    fields:
+      Id: "#{display_id}"
+  void:
+    enabled: true
+    url: ""
+    title: Voided
+    color: "#95a5a6"
+    description: "The {type} of {victim} was voided by {revoker}"
+    fields:
+      Reason: "{revoke_reason}"
+      Id: "#{display_id}"
+  delete:
+    enabled: true
+    url: ""
+    title: Deleted
+    color: "#7f8c8d"
+    description: "The {type} of {victim} was deleted"
+    fields:
+      Id: "#{display_id}"
+  edit:
+    enabled: true
+    url: ""
+    title: Changed
+    color: "#3498db"
+    description: "The {type} of {victim} was changed: {edit}"
+    fields:
+      Id: "#{display_id}"
+  rollback:
+    enabled: true
+    url: ""
+    title: Staff rollback
+    color: "#9b59b6"
+    description: "{count} punishments by {victim} were lifted by {revoker}"
+    fields:
+      Reason: "{revoke_reason}"

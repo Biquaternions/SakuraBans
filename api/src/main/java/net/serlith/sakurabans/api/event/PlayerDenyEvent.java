@@ -90,6 +90,9 @@ public interface PlayerDenyEvent extends Cancellable {
         /** Switching to a server (proxy only), because of a ban in that server's scope. */
         SERVER_SWITCH_BANNED,
 
+        /** A proxy keeps a player from a server whose scope is locked down. */
+        SERVER_SWITCH_LOCKDOWN,
+
         /**
          * Switching to a server (proxy only), because the ban check timed out or failed. There is
          * no punishment; cancelling lets the switch through unchecked.

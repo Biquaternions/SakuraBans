@@ -104,7 +104,7 @@ public final class AuditRepository {
         return conditions;
     }
 
-    private static AuditEntry entry(final SbAuditLogRecord row) {
+    static AuditEntry entry(final SbAuditLogRecord row) {
         return new SakuraAuditEntry(row.id(), row.at(), StoredOperator.actor(row.actorKind(),
                 row.actorUuid(), row.actorName(), row.source()), row.action(),
                 row.subjectType(), row.subjectId(), row.oldValue(), row.newValue());

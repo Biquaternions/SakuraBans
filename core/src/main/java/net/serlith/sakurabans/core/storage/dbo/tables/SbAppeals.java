@@ -39,7 +39,7 @@ public final class SbAppeals extends SbTable<SbAppealsRecord> {
             DSL.name("appellant"), SbTypes.UUID.nullable(false), this, "");
 
     public final TableField<SbAppealsRecord, String> MESSAGE = createField(
-            DSL.name("message"), SQLDataType.VARCHAR(1024).nullable(false), this, "");
+            DSL.name("message"), SQLDataType.VARCHAR(2000).nullable(false), this, "");
 
     public final TableField<SbAppealsRecord, Instant> CREATED_AT = createField(
             DSL.name("created_at"), SbTypes.INSTANT.nullable(false), this, "");

@@ -49,11 +49,17 @@ public sealed interface EditResult permits EditResult.Success, EditResult.Failur
             /** No punishment has this id. */
             NOT_FOUND,
 
-            /** The expiry of an ended punishment or of a kick can't change. */
+            /** The expiry or scope of an ended punishment or of a kick can't change. */
             NOT_ACTIVE,
 
-            /** The new expiry is not after the punishment's creation. */
+            /** The new expiry is not after the punishment's creation, or already passed. */
             INVALID_EXPIRY,
+
+            /**
+             * The victim already has an active punishment of this type in the new scope (only
+             * bans and mutes; warnings stack).
+             */
+            ALREADY_PUNISHED,
 
             /** The punishment's operator is protected from this operator (exemption). */
             EXEMPT,

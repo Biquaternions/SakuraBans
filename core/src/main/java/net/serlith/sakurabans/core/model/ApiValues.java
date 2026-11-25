@@ -16,7 +16,9 @@ import net.serlith.sakurabans.api.model.Scope;
 import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.api.punish.DraftPunishment;
+import net.serlith.sakurabans.api.punish.EditRequest;
 import net.serlith.sakurabans.api.punish.PunishOptions;
+import net.serlith.sakurabans.api.punish.PunishmentEdit;
 import net.serlith.sakurabans.api.punish.RevocationRequest;
 import net.serlith.sakurabans.api.punish.RevocationTarget;
 import org.jspecify.annotations.Nullable;
@@ -93,6 +95,22 @@ public final class ApiValues {
                 .visibility(request.visibility())
                 .ownOnly(request.ownOnly())
                 .build();
+    }
+
+    public static EditRequest edit(final EditRequest request) {
+        final EditRequest.Builder builder = EditRequest.builder(request.id(),
+                edit(request.edit()), actor(request.actor()));
+        request.expectedVersion().ifPresent(builder::expectedVersion);
+        return builder.build();
+    }
+
+    public static PunishmentEdit edit(final PunishmentEdit edit) {
+        return switch (edit) {
+            case PunishmentEdit.NewReason reason -> PunishmentEdit.NewReason.of(reason.reason());
+            case PunishmentEdit.NewExpiry expiry ->
+                    PunishmentEdit.NewExpiry.of(expiry.expiresAt().orElse(null));
+            case PunishmentEdit.NewScope scope -> PunishmentEdit.NewScope.of(scope(scope.scope()));
+        };
     }
 
     public static boolean sameOperator(final Operator first, final Operator second) {

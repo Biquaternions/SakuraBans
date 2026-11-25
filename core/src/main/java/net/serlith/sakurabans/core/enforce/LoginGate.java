@@ -56,6 +56,8 @@ public final class LoginGate {
     private final SakuraAllowListService allowList;
     private final AltService alts;
     private final ActiveRangeCache ranges;
+    private final LocalEnforcer enforcer;
+    private final LockdownService lockdowns;
     private final ComponentLogger logger;
 
     public LoginGate(final Lifecycle lifecycle, final ConfigService config,
@@ -64,7 +66,8 @@ public final class LoginGate {
             final EnforcementMessages messages, final NotificationService notifications,
             final SakuraEventBus events, final InstantSource clock,
             final SakuraAllowListService allowList, final AltService alts,
-            final ActiveRangeCache ranges, final ComponentLogger logger) {
+            final ActiveRangeCache ranges, final LocalEnforcer enforcer,
+            final LockdownService lockdowns, final ComponentLogger logger) {
         this.lifecycle = lifecycle;
         this.config = config;
         this.scopes = scopes;
@@ -79,6 +82,8 @@ public final class LoginGate {
         this.allowList = allowList;
         this.alts = alts;
         this.ranges = ranges;
+        this.enforcer = enforcer;
+        this.lockdowns = lockdowns;
         this.logger = logger;
     }
 
@@ -93,7 +98,11 @@ public final class LoginGate {
             Futures.logged(this.mutes.load(attempt.uuid(), attempt.address()), this.logger,
                     "load the mutes of " + attempt.name());
         }
-        return this.bounded(attempt, Denial.LOGIN_CHECK_FAILED, this.limited(attempt, settings)
+        return this.bounded(attempt, Denial.LOGIN_CHECK_FAILED, this.locked(attempt,
+                        this.scopes.localScopes(), Denial.LOGIN_LOCKDOWN)
+                .thenCompose(locked -> locked.isPresent()
+                        ? CompletableFuture.completedFuture(locked)
+                        : this.limited(attempt, settings))
                 .thenCompose(limited -> {
                     if (limited.isPresent()) {
                         return CompletableFuture.completedFuture(limited.get());
@@ -115,6 +124,13 @@ public final class LoginGate {
                         this.noticeAlts(attempt);
                     }
                 });
+    }
+
+    private CompletableFuture<Optional<LoginDecision>> locked(final LoginAttempt attempt,
+            final Set<? extends Scope> scopes, final Denial denial) {
+        return this.lockdowns.blocking(attempt.uuid(), attempt.name(), scopes)
+                .thenApply(lockdown -> lockdown.map(found -> this.denied(attempt, denial,
+                        this.messages.lockdownScreen(found, this.messages.defaultLocale()))));
     }
 
     private CompletableFuture<Optional<LoginDecision>> limited(final LoginAttempt attempt,
@@ -175,7 +191,10 @@ public final class LoginGate {
         final Set<Scope> scopes = new HashSet<>(this.scopes.scopesOn(server));
         fallbacks.forEach(fallback -> scopes.addAll(this.scopes.scopesOn(fallback)));
         return this.bounded(attempt, Denial.SERVER_SWITCH_CHECK_FAILED,
-                this.bans(attempt, settings, scopes)
+                this.locked(attempt, this.scopes.scopesOn(server), Denial.SERVER_SWITCH_LOCKDOWN)
+                .thenCompose(locked -> locked.isPresent()
+                        ? CompletableFuture.completedFuture(locked.get())
+                        : this.bans(attempt, settings, scopes)
                 .thenApply(bans -> {
                     final List<Punishment> here = this.on(server, bans);
                     final String fallback = fallbacks.stream()
@@ -183,7 +202,7 @@ public final class LoginGate {
                             .findFirst()
                             .orElse(null);
                     return this.decide(attempt, here, Denial.SERVER_SWITCH_BANNED, fallback);
-                }));
+                })));
     }
 
     private CompletableFuture<List<Punishment>> bans(final LoginAttempt attempt,
@@ -205,6 +224,12 @@ public final class LoginGate {
     private List<Punishment> on(final String server, final List<Punishment> bans) {
         final Set<Scope> scopes = this.scopes.scopesOn(server);
         return bans.stream().filter(ban -> scopes.contains(ban.scope())).toList();
+    }
+
+    public void joined(final UUID uuid) {
+        if (this.lifecycle.running()) {
+            this.enforcer.joined(uuid);
+        }
     }
 
     public void quit(final UUID uuid) {

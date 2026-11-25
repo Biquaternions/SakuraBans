@@ -7,6 +7,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
 final class PaperLoginListener implements Listener {
@@ -27,6 +28,11 @@ final class PaperLoginListener implements Listener {
         if (decision instanceof LoginDecision.Denied denied) {
             event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_BANNED, denied.screen());
         }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    void onJoin(final PlayerJoinEvent event) {
+        this.gate.joined(event.getPlayer().getUniqueId());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

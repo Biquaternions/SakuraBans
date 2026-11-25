@@ -72,7 +72,11 @@ public record Settings(
             boolean protectsEdits) {
     }
 
-    public record Warnings(@Nullable Duration expireAfter) {
+    public record Warnings(@Nullable Duration expireAfter, Map<Integer, List<String>> actions) {
+
+        public Warnings {
+            actions = Map.copyOf(actions);
+        }
     }
 
     public record Display(Locale defaultLocale, String dateFormat, ZoneId zone, IdStyle idStyle,

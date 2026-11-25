@@ -87,6 +87,10 @@ final class VelocityLoginListener {
         if (notice != null) {
             event.getPlayer().sendMessage(notice);
         }
+        // A proxy can't show chat before the first server, so warnings wait for it.
+        if (event.getPreviousServer() == null) {
+            this.gate.joined(player.getUniqueId());
+        }
     }
 
     @Subscribe

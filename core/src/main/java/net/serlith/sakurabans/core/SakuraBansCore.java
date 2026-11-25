@@ -4,6 +4,8 @@ import java.time.Duration;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.serlith.sakurabans.api.SakuraBans;
 import net.serlith.sakurabans.api.SakuraBansApi;
+import net.serlith.sakurabans.core.admin.SakuraMessageTemplateService;
+import net.serlith.sakurabans.core.admin.SakuraSettingsService;
 import net.serlith.sakurabans.core.alts.SakuraAllowListService;
 import net.serlith.sakurabans.core.command.SakuraCommands;
 import net.serlith.sakurabans.core.concurrent.Lifecycle;
@@ -13,23 +15,28 @@ import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.configuration.ReloadResult;
 import net.serlith.sakurabans.core.enforce.ChannelReceiver;
 import net.serlith.sakurabans.core.enforce.ChatGate;
+import net.serlith.sakurabans.core.enforce.LockdownService;
 import net.serlith.sakurabans.core.enforce.LoginGate;
 import net.serlith.sakurabans.core.enforce.SyncReceiver;
 import net.serlith.sakurabans.core.kind.SakuraKindService;
 import net.serlith.sakurabans.core.message.MessageService;
 import net.serlith.sakurabans.core.messaging.ProxyChannel;
 import net.serlith.sakurabans.core.notify.NotificationService;
+import net.serlith.sakurabans.core.notify.WebhookService;
 import net.serlith.sakurabans.core.platform.LatePlatform;
 import net.serlith.sakurabans.core.platform.Platform;
 import net.serlith.sakurabans.core.punish.ActiveRangeCache;
 import net.serlith.sakurabans.core.punish.ExpirySweeper;
 import net.serlith.sakurabans.core.punish.SakuraPunishmentService;
+import net.serlith.sakurabans.core.punish.WarningActions;
 import net.serlith.sakurabans.core.scope.ServerNameDetector;
+import net.serlith.sakurabans.core.storage.DisplayIdCodec;
 import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.sync.SyncService;
 import net.serlith.sakurabans.core.template.SakuraTemplateService;
 import net.serlith.sakurabans.core.template.TemplateActions;
 import net.serlith.sakurabans.core.util.BuildConstants;
+import net.serlith.sakurabans.core.wave.BanWaveScheduler;
 
 public final class SakuraBansCore {
 
@@ -50,7 +57,10 @@ public final class SakuraBansCore {
             ChannelReceiver channelReceiver, SyncService sync, SyncReceiver syncReceiver,
             SakuraAllowListService allowList, ActiveRangeCache ranges,
             SakuraKindService kinds, SakuraTemplateService templates,
-            TemplateActions templateActions, SakuraApi api) {
+            TemplateActions templateActions, WarningActions warningActions,
+            DisplayIdCodec displayIds, LockdownService lockdowns, WebhookService webhooks,
+            SakuraSettingsService settings, SakuraMessageTemplateService messageTemplates,
+            BanWaveScheduler banWaveScheduler, SakuraApi api) {
     }
 
     public SakuraBansCore(final ComponentLogger logger, final Lifecycle lifecycle,
@@ -74,14 +84,21 @@ public final class SakuraBansCore {
             this.services.serverNames().load();
             this.storage.start();
             this.services.channel().load();
+            this.services.displayIds().load().join();
+            this.services.settings().reload().join();
+            this.services.messageTemplates().reload().join();
+            this.services.lockdowns().reload().join();
             this.services.allowList().reload().join();
             this.services.ranges().reload().join();
             this.services.kinds().start().join();
             this.services.templates().start().join();
             this.services.templateActions().start();
+            this.services.warningActions().start();
             this.services.sync().start(this.services.syncReceiver());
             this.services.notifications().start();
+            this.services.webhooks().start();
             this.services.sweeper().start();
+            this.services.banWaveScheduler().start();
             SakuraBans.register(this.services.api());
         } catch (final RuntimeException | Error e) {
             this.stop();
@@ -108,10 +125,14 @@ public final class SakuraBansCore {
             return;
         }
         SakuraBans.unregister(this.services.api());
+        this.services.lockdowns().stop();
         this.services.sync().stop();
         this.services.sweeper().stop();
+        this.services.banWaveScheduler().stop();
         this.services.notifications().stop();
+        this.services.webhooks().stop();
         this.services.templateActions().stop();
+        this.services.warningActions().stop();
         if (!this.executors.shutdown(SHUTDOWN_TIMEOUT)) {
             this.logger.warn("Background tasks didn't finish within {} s and were interrupted",
                     SHUTDOWN_TIMEOUT.toSeconds());

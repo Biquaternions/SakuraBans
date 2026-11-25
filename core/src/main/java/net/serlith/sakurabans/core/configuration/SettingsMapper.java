@@ -1,5 +1,7 @@
 package net.serlith.sakurabans.core.configuration;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.ZoneId;
@@ -15,6 +17,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import net.serlith.sakurabans.api.model.CategoryScope;
 import net.serlith.sakurabans.api.model.GlobalScope;
@@ -29,11 +32,14 @@ import net.serlith.sakurabans.core.configuration.file.LimitsConfig;
 import net.serlith.sakurabans.core.configuration.file.MainConfig;
 import net.serlith.sakurabans.core.configuration.file.ReasonsSection;
 import net.serlith.sakurabans.core.configuration.file.StorageConfig;
+import net.serlith.sakurabans.core.configuration.file.WarningsSection;
+import net.serlith.sakurabans.core.configuration.file.WebhooksConfig;
 import net.serlith.sakurabans.core.configuration.settings.LimitSettings;
 import net.serlith.sakurabans.core.configuration.settings.Settings;
 import net.serlith.sakurabans.core.configuration.settings.StorageSettings;
 import net.serlith.sakurabans.core.configuration.settings.StorageType;
 import net.serlith.sakurabans.core.configuration.settings.SyncMode;
+import net.serlith.sakurabans.core.configuration.settings.WebhookSettings;
 import net.serlith.sakurabans.core.util.Durations;
 import org.jspecify.annotations.Nullable;
 
@@ -45,6 +51,7 @@ final class SettingsMapper {
     private static final Pattern SQL_NAME = Pattern.compile("[a-z_][a-z0-9_]{0,62}");
     private static final Duration MAX_LOGIN_TIMEOUT = Duration.ofSeconds(30);
     private static final Pattern LABEL = Pattern.compile("[a-z0-9_-]{1,32}");
+    private static final Pattern COLOR = Pattern.compile("#([0-9a-fA-F]{6})");
 
     private final String file;
     private final List<ConfigIssue> errors = new ArrayList<>();
@@ -53,16 +60,16 @@ final class SettingsMapper {
         this.file = file;
     }
 
-    record Mapped<T>(@Nullable T value, List<ConfigIssue> errors) {
+    record Mapped<T extends @Nullable Object>(T value, List<ConfigIssue> errors) {
     }
 
-    static Mapped<Settings> settings(final MainConfig config) {
+    static Mapped<@Nullable Settings> settings(final MainConfig config) {
         final SettingsMapper mapper = new SettingsMapper(ConfigFiles.CONFIG);
         final Settings settings = mapper.mapSettings(config);
         return new Mapped<>(mapper.errors.isEmpty() ? settings : null, List.copyOf(mapper.errors));
     }
 
-    static Mapped<LimitSettings> limits(final LimitsConfig config) {
+    static Mapped<@Nullable LimitSettings> limits(final LimitsConfig config) {
         final SettingsMapper mapper = new SettingsMapper(ConfigFiles.LIMITS);
         final LimitSettings limits = mapper.mapLimits(config);
         return new Mapped<>(mapper.errors.isEmpty() ? limits : null, List.copyOf(mapper.errors));
@@ -97,6 +104,61 @@ final class SettingsMapper {
         return new LimitSettings(config.reduceToLimit(), groups);
     }
 
+    static Mapped<@Nullable WebhookSettings> webhooks(final WebhooksConfig config) {
+        final SettingsMapper mapper = new SettingsMapper(ConfigFiles.WEBHOOKS);
+        final WebhookSettings webhooks = mapper.mapWebhooks(config);
+        return new Mapped<>(mapper.errors.isEmpty() ? webhooks : null,
+                List.copyOf(mapper.errors));
+    }
+
+    private WebhookSettings mapWebhooks(final WebhooksConfig config) {
+        final URI url = this.uri("url", config.url());
+        final Map<String, WebhookSettings.Route> routes = new LinkedHashMap<>();
+        config.routes().forEach((name, route) -> {
+            final String path = "routes." + name;
+            if (!WebhookSettings.ROUTES.contains(name)) {
+                this.error(path, "is not an event; use " + String.join(", ",
+                        WebhookSettings.ROUTES.stream().sorted().toList()));
+                return;
+            }
+            final URI own = this.uri(path + ".url", route.url());
+            this.check(!config.enabled() || !route.enabled() || own != null || url != null,
+                    path + ".url", "is empty, and so is the default url");
+            int color = 0;
+            final Matcher hex = COLOR.matcher(route.color().strip());
+            if (hex.matches()) {
+                color = Integer.parseInt(hex.group(1), 16);
+            } else {
+                this.error(path + ".color", "\"" + route.color()
+                        + "\" is not a colour like #e74c3c");
+            }
+            final List<WebhookSettings.Field> fields = new ArrayList<>();
+            route.fields().forEach((field, value) -> fields.add(
+                    new WebhookSettings.Field(field, value)));
+            routes.put(name, new WebhookSettings.Route(route.enabled(), own, route.title(),
+                    color, route.description(), fields));
+        });
+        return new WebhookSettings(config.enabled(), url, config.username(),
+                this.uri("avatar-url", config.avatarUrl()), config.includeSilent(), routes);
+    }
+
+    private @Nullable URI uri(final String path, final String text) {
+        if (text.isBlank()) {
+            return null;
+        }
+        try {
+            final URI uri = new URI(text.strip());
+            if (("https".equals(uri.getScheme()) || "http".equals(uri.getScheme()))
+                    && uri.getHost() != null) {
+                return uri;
+            }
+        } catch (final URISyntaxException e) {
+            // Reported below.
+        }
+        this.error(path, "is not an http(s) URL");
+        return null;
+    }
+
     private Optional<PunishmentType> type(final String path, final String value) {
         for (final PunishmentType type : PunishmentType.values()) {
             if (type.name().equalsIgnoreCase(value.strip())) {
@@ -115,7 +177,7 @@ final class SettingsMapper {
         return duration;
     }
 
-    static Mapped<StorageSettings> storage(final StorageConfig config) {
+    static Mapped<@Nullable StorageSettings> storage(final StorageConfig config) {
         final SettingsMapper mapper = new SettingsMapper(ConfigFiles.STORAGE);
         final StorageSettings storage = mapper.mapStorage(config);
         return new Mapped<>(mapper.errors.isEmpty() ? storage : null, List.copyOf(mapper.errors));
@@ -154,9 +216,7 @@ final class SettingsMapper {
         final Settings.Exemption exemption = new Settings.Exemption(
                 config.exemption().provider(), config.exemption().permitSameWeight(),
                 config.exemption().protectsEdits());
-        final Settings.Warnings warnings = new Settings.Warnings(
-                this.durationOrNever("warnings.expire-after", config.warnings().expireAfter())
-                        .orElse(null));
+        final Settings.Warnings warnings = this.warnings(config.warnings());
         final Settings.Display display = this.display(config.display());
         this.check(!config.notifications().attemptThrottle().isNegative(),
                 "notifications.attempt-throttle", "must not be negative");
@@ -218,6 +278,34 @@ final class SettingsMapper {
         });
         return new Settings.Reasons(reasons.defaultReason(), Set.copyOf(required),
                 require.revoke(), reasons.allowNewlines(), shortcuts);
+    }
+
+    private Settings.Warnings warnings(final WarningsSection warnings) {
+        final Map<Integer, List<String>> actions = new HashMap<>();
+        warnings.actions().forEach((count, commands) -> {
+            final String path = "warnings.actions." + count;
+            int parsed = 0;
+            try {
+                parsed = Integer.parseInt(count.strip());
+            } catch (final NumberFormatException e) {
+                // Reported below.
+            }
+            this.check(parsed >= 1, path, "must be a number of warnings (1 or more)");
+            final List<String> valid = new ArrayList<>();
+            for (final String command : commands) {
+                final String stripped = command.strip().replaceFirst("^/", "");
+                this.check(!stripped.isEmpty(), path, "has an empty command");
+                if (!stripped.isEmpty()) {
+                    valid.add(stripped);
+                }
+            }
+            if (parsed >= 1) {
+                actions.put(parsed, List.copyOf(valid));
+            }
+        });
+        return new Settings.Warnings(
+                this.durationOrNever("warnings.expire-after", warnings.expireAfter())
+                        .orElse(null), actions);
     }
 
     private Settings.Display display(final DisplaySection display) {

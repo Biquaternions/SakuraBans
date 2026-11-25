@@ -2,6 +2,8 @@ package net.serlith.sakurabans.core.enforce;
 
 import java.time.Duration;
 import net.serlith.sakurabans.api.event.PunishmentCreatedEvent;
+import net.serlith.sakurabans.api.event.PunishmentEditedEvent;
+import net.serlith.sakurabans.api.event.PunishmentExpungedEvent;
 import net.serlith.sakurabans.api.event.PunishmentRevokedEvent;
 import net.serlith.sakurabans.api.model.EndKind;
 import net.serlith.sakurabans.api.model.PlayerVictim;
@@ -9,9 +11,11 @@ import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.api.punish.DraftPunishment;
+import net.serlith.sakurabans.api.punish.EditRequest;
 import net.serlith.sakurabans.api.punish.Enforcement;
 import net.serlith.sakurabans.api.punish.PunishOptions;
 import net.serlith.sakurabans.api.punish.PunishResult;
+import net.serlith.sakurabans.api.punish.PunishmentEdit;
 import net.serlith.sakurabans.api.punish.RevocationRequest;
 import net.serlith.sakurabans.api.punish.RevocationTarget;
 import net.serlith.sakurabans.core.ServiceTest;
@@ -30,9 +34,7 @@ class SyncReceiverTest extends ServiceTest {
 
     @BeforeEach
     void receiver() {
-        this.receiver = new SyncReceiver(this.punishments, this.enforcer, this.mutes, this.scopes,
-                this.platform, this.bus, this.config, this.clock, this.allowList,
-                this.templates, this.kinds, this.log.logger());
+        this.receiver = this.syncReceiver();
         this.loginGate.check(new LoginAttempt(STEVE, "Steve", this.home, null)).join();
         eventually(() -> this.mutes.loaded(STEVE));
         this.steve = this.platform.join(STEVE, "Steve", this.home);
@@ -114,4 +116,26 @@ class SyncReceiverTest extends ServiceTest {
         eventually(() -> this.service.cachedMute(STEVE).isPresent());
     }
 
+    @Test
+    void remoteEditsVoidsAndExpungesArriveWithTheirValues() {
+        final Punishment ban = this.elsewhere(PunishmentType.BAN);
+        this.service.edit(EditRequest.builder(ban.id(), PunishmentEdit.NewReason.of("new"),
+                MODERATOR).build()).join();
+        this.events.clear();
+
+        this.receiver.handle(new SyncPacket.PunishmentEditedPacket(ban.id(),
+                PunishmentEdit.NewReason.of(ban.reason()), PunishmentEdit.NewReason.of("new")))
+                .join();
+        Assertions.assertThat(this.events(PunishmentEditedEvent.class)).singleElement()
+                .satisfies(event -> {
+                    Assertions.assertThat(event.remote()).isTrue();
+                    Assertions.assertThat(event.previous().reason()).isEqualTo(ban.reason());
+                    Assertions.assertThat(event.punishment().reason()).isEqualTo("new");
+                });
+
+        final Punishment gone = this.service.byId(ban.id()).join().orElseThrow();
+        this.receiver.handle(new SyncPacket.PunishmentExpungedPacket(gone)).join();
+        Assertions.assertThat(this.events(PunishmentExpungedEvent.class)).singleElement()
+                .satisfies(event -> Assertions.assertThat(event.punishment()).isEqualTo(gone));
+    }
 }

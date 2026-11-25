@@ -3,10 +3,12 @@ package net.serlith.sakurabans.core.enforce;
 import java.time.InstantSource;
 import java.util.Locale;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.core.message.MessageKey;
 import net.serlith.sakurabans.core.message.MessageService;
 import net.serlith.sakurabans.core.message.Placeholders;
+import net.serlith.sakurabans.core.model.Lockdown;
 import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import net.serlith.sakurabans.core.player.NameCache;
 
@@ -43,6 +45,14 @@ public final class EnforcementMessages {
         return this.render(MessageKey.VICTIM_WARNED, warn, locale);
     }
 
+    public Component summary(final Punishment punishment, final Locale locale) {
+        return this.render(MessageKey.CHECK_DETAIL, punishment, locale);
+    }
+
+    public Component warnedAway(final Punishment warn, final Locale locale) {
+        return this.render(MessageKey.VICTIM_WARNED_AWAY, warn, locale);
+    }
+
     public Component chatMuted(final Punishment mute, final Locale locale) {
         return this.render(mute.permanent() ? MessageKey.CHAT_MUTED
                 : MessageKey.CHAT_MUTED_TEMPORARY, mute, locale);
@@ -54,6 +64,11 @@ public final class EnforcementMessages {
 
     public Component connectionLimit(final Locale locale) {
         return this.messages.render(MessageKey.SCREEN_CONNECTION_LIMIT, locale);
+    }
+
+    public Component lockdownScreen(final Lockdown lockdown, final Locale locale) {
+        return this.messages.render(MessageKey.SCREEN_LOCKDOWN, locale,
+                Placeholder.unparsed("reason", lockdown.reason()));
     }
 
     public Component checkFailed(final Locale locale) {

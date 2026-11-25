@@ -12,11 +12,14 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import net.serlith.sakurabans.api.audit.AuditAction;
+import net.serlith.sakurabans.api.audit.SubjectType;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.EndKind;
 import net.serlith.sakurabans.api.model.EvidenceRef;
 import net.serlith.sakurabans.api.model.Lengths;
+import net.serlith.sakurabans.api.model.Operator;
 import net.serlith.sakurabans.api.model.Page;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentType;
@@ -24,6 +27,7 @@ import net.serlith.sakurabans.api.model.Scope;
 import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.api.punish.OverridePolicy;
+import net.serlith.sakurabans.api.punish.PunishmentEdit;
 import net.serlith.sakurabans.api.punish.PunishmentQuery;
 import net.serlith.sakurabans.api.punish.PunishmentQuery.Applicability;
 import net.serlith.sakurabans.core.model.EndKinds;
@@ -32,6 +36,7 @@ import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import net.serlith.sakurabans.core.storage.dbo.VictimKind;
 import net.serlith.sakurabans.core.storage.dbo.records.SbActivePunishmentsRecord;
+import net.serlith.sakurabans.core.storage.dbo.records.SbPunishmentsRecord;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbActivePunishments;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbPunishments;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbVictims;
@@ -129,7 +134,10 @@ public final class PunishmentRepository {
                     .set(SakuraTables.PUNISHMENT_EVIDENCE.ADDED_AT, punishment.createdAt())
                     .execute();
         }
-        return new InsertOutcome.Inserted(this.fetch(dsl, id).orElseThrow(), superseded);
+        final Punishment inserted = this.fetch(dsl, id).orElseThrow();
+        AuditRepository.append(dsl, punishment.createdAt(), punishment.actor(), AuditAction.CREATE,
+                SubjectType.PUNISHMENT, Long.toString(id), null, AuditValues.summary(inserted));
+        return new InsertOutcome.Inserted(inserted, superseded);
     }
 
     private static long insertRow(final DSLContext dsl, final NewPunishment punishment,
@@ -157,6 +165,7 @@ public final class PunishmentRepository {
                         : punishment.templateStep().shortValue())
                 .set(p.VERSION, 1L)
                 .set(p.EXTERNAL_ID, punishment.externalId())
+                .set(p.ACKNOWLEDGED, false)
                 .returningResult(p.ID)
                 .fetchSingle()
                 .value1();
@@ -176,13 +185,19 @@ public final class PunishmentRepository {
                 "reason is longer than %s characters", Lengths.MAX_REASON);
         return this.storage.write(configuration -> {
             final DSLContext dsl = configuration.dsl();
-            return endInTransaction(dsl, id, kind, at, actor, reason)
-                    ? this.fetch(dsl, id)
-                    : Optional.<Punishment>empty();
+            if (!endInTransaction(dsl, id, kind, at, actor, reason)) {
+                return Optional.<Punishment>empty();
+            }
+            if (actor != null && (kind == EndKind.REVOKED || kind == EndKind.ROLLED_BACK)) {
+                AuditRepository.append(dsl, at, actor, kind == EndKind.REVOKED
+                                ? AuditAction.REVOKE : AuditAction.ROLLBACK,
+                        SubjectType.PUNISHMENT, Long.toString(id), null, reason);
+            }
+            return this.fetch(dsl, id);
         });
     }
 
-    private static boolean endInTransaction(final DSLContext dsl, final long id,
+    static boolean endInTransaction(final DSLContext dsl, final long id,
             final EndKind kind, final Instant at, final @Nullable Actor actor,
             final @Nullable String reason) {
         final SbPunishments p = SakuraTables.PUNISHMENTS;
@@ -205,6 +220,201 @@ public final class PunishmentRepository {
         return true;
     }
 
+    public CompletableFuture<ChangeOutcome> edit(final long id, final PunishmentEdit edit,
+            final Actor actor, final @Nullable Long expectedVersion, final Instant now) {
+        return this.storage.writeRetryingConflicts(configuration -> {
+            final DSLContext dsl = configuration.dsl();
+            final SbPunishmentsRecord row = lock(dsl, id);
+            if (row == null) {
+                return new ChangeOutcome.NotFound();
+            }
+            if (expectedVersion != null && row.version() != expectedVersion.longValue()) {
+                return new ChangeOutcome.Conflict(row.version());
+            }
+            final SbPunishments p = SakuraTables.PUNISHMENTS;
+            final SbActivePunishments active = SakuraTables.ACTIVE_PUNISHMENTS;
+            final Punishment previous = this.fetch(dsl, id).orElseThrow();
+            final SbActivePunishmentsRecord activeRow = dsl.selectFrom(active)
+                    .where(active.PUNISHMENT_ID.eq(id)).forUpdate().fetchOne();
+            final boolean isActive = activeRow != null && (activeRow.expiresAt() == null
+                    || activeRow.expiresAt().isAfter(now));
+            final String subject = Long.toString(id);
+            switch (edit) {
+                case PunishmentEdit.NewReason reason -> {
+                    dsl.update(p).set(p.REASON, reason.reason()).where(p.ID.eq(id)).execute();
+                    AuditRepository.append(dsl, now, actor, AuditAction.EDIT_REASON,
+                            SubjectType.PUNISHMENT, subject, row.reason(), reason.reason());
+                }
+                case PunishmentEdit.NewExpiry expiry -> {
+                    if (!isActive) {
+                        return new ChangeOutcome.Refused(ChangeOutcome.Problem.NOT_ACTIVE,
+                                row.version());
+                    }
+                    final Instant at = expiry.expiresAt().orElse(null);
+                    if (at != null && (!at.isAfter(row.createdAt()) || !at.isAfter(now))) {
+                        return new ChangeOutcome.Refused(ChangeOutcome.Problem.INVALID_EXPIRY,
+                                row.version());
+                    }
+                    dsl.update(p).set(p.EXPIRES_AT, at).where(p.ID.eq(id)).execute();
+                    dsl.update(active).set(active.EXPIRES_AT, at)
+                            .where(active.PUNISHMENT_ID.eq(id)).execute();
+                    AuditRepository.append(dsl, now, actor, AuditAction.EDIT_EXPIRY,
+                            SubjectType.PUNISHMENT, subject, AuditValues.expiry(row.expiresAt()),
+                            AuditValues.expiry(at));
+                }
+                case PunishmentEdit.NewScope scope -> {
+                    if (!isActive) {
+                        return new ChangeOutcome.Refused(ChangeOutcome.Problem.NOT_ACTIVE,
+                                row.version());
+                    }
+                    final int scopeId = ScopeRepository.resolve(dsl, scope.scope());
+                    if (!row.type().stacks()) {
+                        final SbActivePunishmentsRecord occupant = dsl.selectFrom(active)
+                                .where(active.TYPE.eq(row.type()))
+                                .and(active.VICTIM_ID.eq(row.victimId()))
+                                .and(active.SCOPE_ID.eq(scopeId))
+                                .and(active.PUNISHMENT_ID.ne(id))
+                                .forUpdate()
+                                .fetchOne();
+                        if (occupant != null) {
+                            final Instant expiry = occupant.expiresAt();
+                            if (expiry == null || expiry.isAfter(now)) {
+                                return new ChangeOutcome.Refused(
+                                        ChangeOutcome.Problem.ALREADY_PUNISHED, row.version());
+                            }
+                            endInTransaction(dsl, occupant.punishmentId(), EndKind.EXPIRED,
+                                    expiry, null, null);
+                        }
+                    }
+                    dsl.update(p).set(p.SCOPE_ID, scopeId).where(p.ID.eq(id)).execute();
+                    dsl.update(active).set(active.SCOPE_ID, scopeId)
+                            .where(active.PUNISHMENT_ID.eq(id)).execute();
+                    AuditRepository.append(dsl, now, actor, AuditAction.EDIT_SCOPE,
+                            SubjectType.PUNISHMENT, subject, AuditValues.scope(previous.scope()),
+                            AuditValues.scope(scope.scope()));
+                }
+            }
+            bumpVersion(dsl, id);
+            return new ChangeOutcome.Changed(previous, this.fetch(dsl, id).orElseThrow());
+        });
+    }
+
+    public CompletableFuture<ChangeOutcome> voidPunishment(final long id, final Actor actor,
+            final @Nullable String reason, final @Nullable Long expectedVersion,
+            final Instant now) {
+        return this.storage.write(configuration -> {
+            final DSLContext dsl = configuration.dsl();
+            final SbPunishmentsRecord row = lock(dsl, id);
+            if (row == null) {
+                return new ChangeOutcome.NotFound();
+            }
+            if (expectedVersion != null && row.version() != expectedVersion.longValue()) {
+                return new ChangeOutcome.Conflict(row.version());
+            }
+            if (row.voidedAt() != null) {
+                return new ChangeOutcome.Refused(ChangeOutcome.Problem.ALREADY_VOIDED,
+                        row.version());
+            }
+            final Punishment previous = this.fetch(dsl, id).orElseThrow();
+            final SbPunishments p = SakuraTables.PUNISHMENTS;
+            final StoredOperator by = StoredOperator.of(actor.operator());
+            dsl.update(p)
+                    .set(p.VOIDED_AT, now)
+                    .set(p.VOIDER_KIND, by.kind())
+                    .set(p.VOIDER_UUID, by.uuid())
+                    .set(p.VOIDER_NAME, by.name())
+                    .set(p.VOIDER_SOURCE, actor.source())
+                    .set(p.VOID_REASON, reason)
+                    .where(p.ID.eq(id))
+                    .execute();
+            if (!endInTransaction(dsl, id, EndKind.VOIDED, now, actor, reason)) {
+                bumpVersion(dsl, id);
+            }
+            AuditRepository.append(dsl, now, actor, AuditAction.VOID, SubjectType.PUNISHMENT,
+                    Long.toString(id), null, reason);
+            return new ChangeOutcome.Changed(previous, this.fetch(dsl, id).orElseThrow());
+        });
+    }
+
+    public CompletableFuture<ChangeOutcome> expunge(final long id, final Actor actor,
+            final @Nullable Long expectedVersion, final Instant now) {
+        return this.storage.write(configuration -> {
+            final DSLContext dsl = configuration.dsl();
+            final SbPunishmentsRecord row = lock(dsl, id);
+            if (row == null) {
+                return new ChangeOutcome.NotFound();
+            }
+            if (expectedVersion != null && row.version() != expectedVersion.longValue()) {
+                return new ChangeOutcome.Conflict(row.version());
+            }
+            final Punishment previous = this.fetch(dsl, id).orElseThrow();
+            dsl.deleteFrom(SakuraTables.PUNISHMENT_EVIDENCE)
+                    .where(SakuraTables.PUNISHMENT_EVIDENCE.PUNISHMENT_ID.eq(id)).execute();
+            dsl.deleteFrom(SakuraTables.APPEALS)
+                    .where(SakuraTables.APPEALS.PUNISHMENT_ID.eq(id)).execute();
+            dsl.update(SakuraTables.BAN_WAVE_ENTRIES)
+                    .setNull(SakuraTables.BAN_WAVE_ENTRIES.PUNISHMENT_ID)
+                    .where(SakuraTables.BAN_WAVE_ENTRIES.PUNISHMENT_ID.eq(id)).execute();
+            dsl.deleteFrom(SakuraTables.ACTIVE_PUNISHMENTS)
+                    .where(SakuraTables.ACTIVE_PUNISHMENTS.PUNISHMENT_ID.eq(id)).execute();
+            dsl.deleteFrom(SakuraTables.PUNISHMENTS)
+                    .where(SakuraTables.PUNISHMENTS.ID.eq(id)).execute();
+            AuditRepository.append(dsl, now, actor, AuditAction.EXPUNGE, SubjectType.PUNISHMENT,
+                    Long.toString(id), AuditValues.summary(previous), null);
+            return new ChangeOutcome.Changed(previous, previous);
+        });
+    }
+
+    public CompletableFuture<ChangeOutcome> evidence(final long id, final EvidenceRef ref,
+            final boolean attach, final Actor actor, final Instant now) {
+        return this.storage.write(configuration -> {
+            final DSLContext dsl = configuration.dsl();
+            final SbPunishmentsRecord row = lock(dsl, id);
+            if (row == null) {
+                return new ChangeOutcome.NotFound();
+            }
+            final var evidence = SakuraTables.PUNISHMENT_EVIDENCE;
+            final Condition same = evidence.PUNISHMENT_ID.eq(id).and(evidence.URI.eq(ref.uri()));
+            final Punishment previous = this.fetch(dsl, id).orElseThrow();
+            if (attach) {
+                if (dsl.fetchExists(evidence, same)) {
+                    return new ChangeOutcome.Refused(
+                            ChangeOutcome.Problem.EVIDENCE_ALREADY_ATTACHED, row.version());
+                }
+                final StoredOperator by = StoredOperator.of(actor.operator());
+                dsl.insertInto(evidence)
+                        .set(evidence.PUNISHMENT_ID, id)
+                        .set(evidence.URI, ref.uri())
+                        .set(evidence.ADDED_BY_KIND, by.kind())
+                        .set(evidence.ADDED_BY_UUID, by.uuid())
+                        .set(evidence.ADDED_BY_NAME, by.name())
+                        .set(evidence.ADDED_BY_SOURCE, actor.source())
+                        .set(evidence.ADDED_AT, now)
+                        .execute();
+            } else if (dsl.deleteFrom(evidence).where(same).execute() == 0) {
+                return new ChangeOutcome.Refused(ChangeOutcome.Problem.EVIDENCE_NOT_ATTACHED,
+                        row.version());
+            }
+            bumpVersion(dsl, id);
+            AuditRepository.append(dsl, now, actor, attach ? AuditAction.EVIDENCE_ATTACH
+                            : AuditAction.EVIDENCE_DETACH, SubjectType.PUNISHMENT,
+                    Long.toString(id), attach ? null : ref.uri(), attach ? ref.uri() : null);
+            return new ChangeOutcome.Changed(previous, this.fetch(dsl, id).orElseThrow());
+        });
+    }
+
+    private static @Nullable SbPunishmentsRecord lock(final DSLContext dsl, final long id) {
+        return dsl.selectFrom(SakuraTables.PUNISHMENTS)
+                .where(SakuraTables.PUNISHMENTS.ID.eq(id))
+                .forUpdate()
+                .fetchOne();
+    }
+
+    private static void bumpVersion(final DSLContext dsl, final long id) {
+        final SbPunishments p = SakuraTables.PUNISHMENTS;
+        dsl.update(p).set(p.VERSION, p.VERSION.plus(1L)).where(p.ID.eq(id)).execute();
+    }
+
     public CompletableFuture<List<Punishment>> active(final PunishmentType type,
             final Victim victim, final @Nullable Scope scope, final Instant now) {
         final SbPunishments p = SakuraTables.PUNISHMENTS;
@@ -219,7 +429,47 @@ public final class PunishmentRepository {
                 .fetch()));
     }
 
-    /** Every active, unexpired punishment on an address range (`ActiveRangeCache`, S30). */
+    public CompletableFuture<List<Punishment>> namingAccount(final UUID uuid,
+            final boolean activeOnly, final int limit, final Instant now) {
+        final SbPunishments p = SakuraTables.PUNISHMENTS;
+        final SbActivePunishments active = SakuraTables.ACTIVE_PUNISHMENTS;
+        return this.storage.read(dsl -> this.mapper.map(dsl, PunishmentMapper.select(dsl)
+                .where(StatsRepository.naming(uuid))
+                .and(activeOnly
+                        ? p.ID.in(DSL.select(active.PUNISHMENT_ID).from(active)
+                                .where(unexpired(now)))
+                        : p.VOIDED_AT.isNull())
+                .orderBy(p.CREATED_AT.desc(), p.ID.desc())
+                .limit(limit)
+                .fetch()));
+    }
+
+    public CompletableFuture<List<Punishment>> activeIssuedBy(final Operator operator,
+            final Instant since, final Instant now) {
+        final SbPunishments p = SakuraTables.PUNISHMENTS;
+        final SbActivePunishments active = SakuraTables.ACTIVE_PUNISHMENTS;
+        return this.storage.read(dsl -> this.mapper.map(dsl, PunishmentMapper.select(dsl)
+                .join(active).on(active.PUNISHMENT_ID.eq(p.ID))
+                .where(StoredOperator.identity(operator, p.OPERATOR_KIND, p.OPERATOR_UUID,
+                        p.OPERATOR_NAME))
+                .and(p.CREATED_AT.ge(since))
+                .and(unexpired(now))
+                .orderBy(p.ID.asc())
+                .fetch()));
+    }
+
+    public CompletableFuture<List<Punishment>> endedOf(final Victim victim,
+            final @Nullable Instant before) {
+        final SbPunishments p = SakuraTables.PUNISHMENTS;
+        return this.storage.read(dsl -> this.mapper.map(dsl, PunishmentMapper.select(dsl)
+                .where(StoredVictim.of(victim).matches(SakuraTables.VICTIMS))
+                .and(p.ID.notIn(DSL.select(SakuraTables.ACTIVE_PUNISHMENTS.PUNISHMENT_ID)
+                        .from(SakuraTables.ACTIVE_PUNISHMENTS)))
+                .and(before == null ? DSL.noCondition() : p.CREATED_AT.lt(before))
+                .orderBy(p.ID.asc())
+                .fetch()));
+    }
+
     public CompletableFuture<List<Punishment>> activeRanges(final Instant now) {
         final SbPunishments p = SakuraTables.PUNISHMENTS;
         final SbActivePunishments active = SakuraTables.ACTIVE_PUNISHMENTS;
@@ -230,7 +480,6 @@ public final class PunishmentRepository {
                 .fetch()));
     }
 
-    /** Active rows whose expiry has passed (the sweeper ends them), oldest expiry first. */
     public CompletableFuture<List<Punishment>> expiredActive(final Instant now, final int limit) {
         final SbPunishments p = SakuraTables.PUNISHMENTS;
         final SbActivePunishments active = SakuraTables.ACTIVE_PUNISHMENTS;
@@ -242,6 +491,44 @@ public final class PunishmentRepository {
                 .fetch()));
     }
 
+    public CompletableFuture<Long> activeWarnings(final UUID uuid, final long upToId,
+            final Instant now) {
+        final SbActivePunishments active = SakuraTables.ACTIVE_PUNISHMENTS;
+        final SbVictims victims = SakuraTables.VICTIMS;
+        return this.storage.read(dsl -> (long) dsl.fetchCount(DSL.selectOne().from(active)
+                .join(victims).on(victims.ID.eq(active.VICTIM_ID))
+                .where(active.TYPE.eq(PunishmentType.WARN))
+                .and(victims.UUID.eq(uuid))
+                .and(victims.KIND.in(VictimKind.PLAYER, VictimKind.COMPOSITE))
+                .and(active.PUNISHMENT_ID.le(upToId))
+                .and(unexpired(now))));
+    }
+
+    public CompletableFuture<List<Punishment>> unacknowledgedWarnings(final UUID uuid,
+            final Instant now) {
+        final SbPunishments p = SakuraTables.PUNISHMENTS;
+        final SbActivePunishments active = SakuraTables.ACTIVE_PUNISHMENTS;
+        final SbVictims victims = SakuraTables.VICTIMS;
+        return this.storage.read(dsl -> this.mapper.map(dsl, PunishmentMapper.select(dsl)
+                .join(active).on(active.PUNISHMENT_ID.eq(p.ID))
+                .where(active.TYPE.eq(PunishmentType.WARN))
+                .and(victims.UUID.eq(uuid))
+                .and(victims.KIND.in(VictimKind.PLAYER, VictimKind.COMPOSITE))
+                .and(p.ACKNOWLEDGED.eq(false))
+                .and(unexpired(now))
+                .orderBy(p.CREATED_AT.asc(), p.ID.asc())
+                .fetch()));
+    }
+
+    public CompletableFuture<Boolean> acknowledge(final long id) {
+        final SbPunishments p = SakuraTables.PUNISHMENTS;
+        return this.storage.write(configuration -> configuration.dsl().update(p)
+                .set(p.ACKNOWLEDGED, true)
+                .where(p.ID.eq(id))
+                .and(p.ACKNOWLEDGED.eq(false))
+                .execute() == 1);
+    }
+
     public CompletableFuture<List<Punishment>> activeApplicable(final PunishmentType type,
             final Applicability applicability, final Collection<? extends Scope> scopes,
             final Instant now) {
@@ -249,7 +536,6 @@ public final class PunishmentRepository {
                 applicability, scopes, now, this.policy, this.levels.levels()).fetch()));
     }
 
-    /** The types of punishment active on these accounts (victims naming them), per account. */
     public CompletableFuture<Map<UUID, Set<PunishmentType>>> activeTypes(
             final Collection<UUID> uuids, final Instant now) {
         if (uuids.isEmpty()) {
@@ -271,7 +557,6 @@ public final class PunishmentRepository {
         });
     }
 
-    /** Whether a punishment reaches this account and address (who to enforce it on). */
     public CompletableFuture<Boolean> reaches(final long punishmentId,
             final Applicability applicability, final Instant now) {
         final SbPunishments p = SakuraTables.PUNISHMENTS;
@@ -369,7 +654,7 @@ public final class PunishmentRepository {
                 .value1();
     }
 
-    private static List<Condition> conditions(final PunishmentQuery query, final Instant now,
+    static List<Condition> conditions(final PunishmentQuery query, final Instant now,
             final AltPolicy policy) {
         final SbPunishments p = SakuraTables.PUNISHMENTS;
         final SbActivePunishments active = SakuraTables.ACTIVE_PUNISHMENTS;

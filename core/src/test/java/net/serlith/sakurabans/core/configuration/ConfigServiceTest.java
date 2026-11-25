@@ -15,8 +15,10 @@ import net.serlith.sakurabans.core.RecordingLogger;
 import net.serlith.sakurabans.core.configuration.file.LimitsConfig;
 import net.serlith.sakurabans.core.configuration.file.MainConfig;
 import net.serlith.sakurabans.core.configuration.file.StorageConfig;
+import net.serlith.sakurabans.core.configuration.file.WebhooksConfig;
 import net.serlith.sakurabans.core.configuration.settings.Settings;
 import net.serlith.sakurabans.core.configuration.settings.StorageType;
+import net.serlith.sakurabans.core.configuration.settings.WebhookSettings;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -47,7 +49,7 @@ class ConfigServiceTest {
         service.load();
 
         for (final String name : List.of(ConfigFiles.CONFIG, ConfigFiles.STORAGE,
-                ConfigFiles.LIMITS)) {
+                ConfigFiles.LIMITS, ConfigFiles.WEBHOOKS)) {
             try (InputStream shipped = ConfigFiles.defaultResource(name)) {
                 assertThat(Files.readAllBytes(this.dir.resolve(name)))
                         .isEqualTo(shipped.readAllBytes());
@@ -60,6 +62,9 @@ class ConfigServiceTest {
                 .isEqualTo(SettingsMapper.storage(new StorageConfig()).value());
         assertThat(service.limits())
                 .isEqualTo(SettingsMapper.limits(new LimitsConfig()).value());
+        assertThat(service.webhooks())
+                .isEqualTo(SettingsMapper.webhooks(new WebhooksConfig()).value());
+        assertThat(service.webhooks().routes()).containsOnlyKeys(WebhookSettings.ROUTES);
     }
 
     @Test
@@ -181,7 +186,7 @@ class ConfigServiceTest {
         try (var files = Files.list(this.dir)) {
             assertThat(files.map(path -> path.getFileName().toString()))
                     .containsExactlyInAnyOrder(ConfigFiles.CONFIG, ConfigFiles.STORAGE,
-                            ConfigFiles.LIMITS);
+                            ConfigFiles.LIMITS, ConfigFiles.WEBHOOKS);
         }
     }
 
