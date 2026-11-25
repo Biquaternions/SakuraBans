@@ -491,6 +491,24 @@
     </module>
 
     <!-- SakuraBans: api and core stay platform-neutral and framework-free (plan 5.1, D9, D12). -->
+    <!-- No Optional parameters or record components: absent values are @Nullable (CLAUDE.md).
+         Only the declared type counts, so a Function returning an Optional is fine. The only
+         exception: the api's local records (Impl in of methods and builders), see
+         suppressions.xml. -->
+    <module name="MatchXpath">
+      <property name="id" value="optionalParameters"/>
+      <property name="query"
+                value="//PARAMETER_DEF/TYPE[IDENT[@text='Optional' or @text='OptionalLong' or @text='OptionalInt' or @text='OptionalDouble'] or DOT/IDENT[last()][@text='Optional' or @text='OptionalLong' or @text='OptionalInt' or @text='OptionalDouble']]"/>
+      <message key="matchxpath.match"
+               value="Optional parameters are not allowed: take a @Nullable value instead."/>
+    </module>
+    <module name="MatchXpath">
+      <property name="id" value="optionalComponents"/>
+      <property name="query"
+                value="//RECORD_COMPONENT_DEF/TYPE[IDENT[@text='Optional' or @text='OptionalLong' or @text='OptionalInt' or @text='OptionalDouble'] or DOT/IDENT[last()][@text='Optional' or @text='OptionalLong' or @text='OptionalInt' or @text='OptionalDouble']]"/>
+      <message key="matchxpath.match"
+               value="Optional record components are not allowed: take @Nullable xOrNull and override x()."/>
+    </module>
     <module name="IllegalImport">
       <property name="id" value="neutralImports"/>
       <property name="illegalPkgs" value="org.bukkit, io.papermc, com.destroystokyo, com.velocitypowered,

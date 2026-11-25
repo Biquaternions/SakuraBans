@@ -345,6 +345,8 @@ public final class SakuraPunishmentService implements PunishmentService {
             return CompletableFuture.failedFuture(e);
         }
         final PunishmentEdit edit = this.normalized(checked.edit());
+        final Long expectedVersion = checked.expectedVersion().isPresent()
+                ? checked.expectedVersion().getAsLong() : null;
         return this.changeable(checked.id(), checked.actor(),
                 Action.ChangePunishment.Operation.EDIT).thenComposeAsync(found -> {
                     if (found instanceof Changeable.Refused(String reason)) {
@@ -357,7 +359,7 @@ public final class SakuraPunishmentService implements PunishmentService {
                                 editFailure(EditResult.Failure.Reason.CANCELLED));
                     }
                     return this.punishments.edit(checked.id(), edit, checked.actor(),
-                                    expected(checked.expectedVersion()), this.clock.instant())
+                                    expectedVersion, this.clock.instant())
                             .thenCompose(outcome -> this.edited(outcome, edit));
                 }, this.worker);
     }
@@ -578,10 +580,6 @@ public final class SakuraPunishmentService implements PunishmentService {
                                     : new Changeable.Refused(decision.denial().orElse(null)
                                             == Decision.Denial.EXEMPT ? "EXEMPT" : "FORBIDDEN"));
                 });
-    }
-
-    private static @Nullable Long expected(final OptionalLong version) {
-        return version.isPresent() ? version.getAsLong() : null;
     }
 
     private static EditResult editFailure(final String reason) {

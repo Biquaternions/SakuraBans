@@ -23,4 +23,7 @@
 
     <!-- The API-only import bans apply to the api module alone. -->
     <suppress id="apiImports" files="[\\/](core|platforms[\\/][^\\/]+)[\\/]src[\\/]"/>
+
+    <!-- The api's local records (Impl in of methods and builders) may keep Optional components. -->
+    <suppress id="optionalComponents" files="[\\/]api[\\/]src[\\/]main[\\/]"/>
 </suppressions>

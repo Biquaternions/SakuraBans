@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import net.kyori.adventure.text.Component;
@@ -17,7 +16,6 @@ import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.serlith.sakurabans.api.model.AddressRecord;
 import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.AddressVictim;
-import net.serlith.sakurabans.api.model.PlayerProfileView;
 import net.serlith.sakurabans.api.player.AltEntry;
 import net.serlith.sakurabans.core.alts.AltService;
 import net.serlith.sakurabans.core.command.CommandActor;
@@ -38,7 +36,6 @@ import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import net.serlith.sakurabans.core.platform.Platform;
 import net.serlith.sakurabans.core.player.TargetResolver;
 import net.serlith.sakurabans.core.storage.repository.PlayerRepository;
-import net.serlith.sakurabans.core.util.Futures;
 import net.serlith.sakurabans.core.util.InetAddresses;
 import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
@@ -273,7 +270,7 @@ public final class AltCommands implements CommandModule {
     private CompletableFuture<?> lastUuid(final CommandContext<CommandActor> context) {
         final CommandActor actor = context.sender();
         final String name = context.get("name");
-        return this.players.lastUuid(name).thenAccept((Optional<UUID> uuid) -> uuid.ifPresentOrElse(
+        return this.players.lastUuid(name).thenAccept(uuid -> uuid.ifPresentOrElse(
                 found -> this.runner.send(actor, MessageKey.LASTUUID_RESULT,
                         Placeholder.unparsed("name", name),
                         Placeholder.unparsed("uuid", found.toString())),
