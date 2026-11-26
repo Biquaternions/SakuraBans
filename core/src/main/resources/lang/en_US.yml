@@ -92,6 +92,10 @@ chat:
   muted_temporary: '<prefix><red>You are muted for <remaining>: <reason></red>'
   command_muted: '<prefix><red>You can''t use this command while you are muted.</red>'
   loading: '<prefix><gray>Your chat is still being checked. Try again in a moment.</gray>'
+  # Velocity only: a shadow-muted player's chat is dropped on the proxy and this line is shown to
+  # them alone, so they think it was sent. The proxy can't know the backends' chat format: make
+  # this look like your servers' chat. Default: vanilla's "<Name> message".
+  shadow_echo: '\<<player>> <message>'
 
 # Staff notices. <silent> is the silent tag below for silent punishments, else empty.
 notify:

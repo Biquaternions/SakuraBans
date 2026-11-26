@@ -8,7 +8,4 @@ public interface ServerIdentity {
     Set<String> backends();
 
     List<String> fallbackServers();
-
-    boolean behindProxy();
-
 }

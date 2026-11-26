@@ -8,6 +8,5 @@ import org.spongepowered.configurate.objectmapping.ConfigSerializable;
 public final class NotificationsSection {
 
     private String attemptThrottle = "30s";
-    private boolean sendToPlayers = true;
 
 }

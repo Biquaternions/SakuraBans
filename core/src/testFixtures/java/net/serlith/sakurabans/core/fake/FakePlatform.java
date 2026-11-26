@@ -35,7 +35,6 @@ public final class FakePlatform implements Platform {
     private final Set<String> backends;
     private final List<String> fallbacks;
     private volatile boolean onlineMode = true;
-    private volatile boolean behindProxy;
     private volatile ProfileLookup profiles = ProfileLookup.NONE;
 
     public FakePlatform() {
@@ -113,11 +112,6 @@ public final class FakePlatform implements Platform {
             public List<String> fallbackServers() {
                 return FakePlatform.this.fallbacks;
             }
-
-            @Override
-            public boolean behindProxy() {
-                return FakePlatform.this.behindProxy;
-            }
         };
     }
 
@@ -128,11 +122,6 @@ public final class FakePlatform implements Platform {
 
     public FakePlatform profiles(final ProfileLookup profiles) {
         this.profiles = profiles;
-        return this;
-    }
-
-    public FakePlatform behindProxy(final boolean behindProxy) {
-        this.behindProxy = behindProxy;
         return this;
     }
 

@@ -536,6 +536,13 @@ public final class PunishmentRepository {
                 applicability, scopes, now, this.policy, this.levels.levels()).fetch()));
     }
 
+    public CompletableFuture<List<Punishment>> activeApplicableInEveryScope(
+            final PunishmentType type, final Applicability applicability, final Instant now) {
+        return this.storage.read(dsl -> this.mapper.map(dsl, activeApplicableQuery(dsl, type,
+                applicability, DSL.noCondition(), now, this.policy, this.levels.levels())
+                .fetch()));
+    }
+
     public CompletableFuture<Optional<List<Punishment>>> restoreErased(
             final List<Punishment> matched, final UUID uuid, final InetAddress address) {
         final String hash = HexFormat.of().formatHex(AddressHashes.of(address));
@@ -623,14 +630,23 @@ public final class PunishmentRepository {
             final PunishmentType type, final Applicability applicability,
             final Collection<? extends Scope> scopes, final Instant now,
             final AltPolicy policy, final Set<AddressStrictness> levels) {
+        final Condition inScopes = DSL.or(scopes.stream().map(ScopeRepository::matches).toList());
+        return activeApplicableQuery(dsl, type, applicability,
+                SakuraTables.ACTIVE_PUNISHMENTS.SCOPE_ID.in(DSL.select(SakuraTables.SCOPES.ID)
+                        .from(SakuraTables.SCOPES).where(inScopes)),
+                now, policy, levels);
+    }
+
+    private static ResultQuery<Record> activeApplicableQuery(final DSLContext dsl,
+            final PunishmentType type, final Applicability applicability,
+            final Condition scoped, final Instant now, final AltPolicy policy,
+            final Set<AddressStrictness> levels) {
         final SbPunishments p = SakuraTables.PUNISHMENTS;
         final SbActivePunishments active = SakuraTables.ACTIVE_PUNISHMENTS;
-        final Condition inScopes = DSL.or(scopes.stream().map(ScopeRepository::matches).toList());
         return PunishmentMapper.select(dsl)
                 .join(active).on(active.PUNISHMENT_ID.eq(p.ID))
                 .where(active.TYPE.eq(type))
-                .and(active.SCOPE_ID.in(DSL.select(SakuraTables.SCOPES.ID)
-                        .from(SakuraTables.SCOPES).where(inScopes)))
+                .and(scoped)
                 .and(reached(active.VICTIM_ID, applicability, policy, levels, now))
                 .and(unexpired(now))
                 .orderBy(active.EXPIRES_AT.desc().nullsFirst(), p.ID.desc());

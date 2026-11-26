@@ -89,10 +89,8 @@ public final class LoginGate {
         }
         final Settings settings = this.config.settings();
         this.names.put(attempt.uuid(), attempt.name());
-        if (!this.scopes.proxy()) {
-            Futures.logged(this.mutes.load(attempt.uuid(), attempt.address()), this.logger,
-                    "load the mutes of " + attempt.name());
-        }
+        Futures.logged(this.mutes.load(attempt.uuid(), attempt.address()), this.logger,
+                "load the mutes of " + attempt.name());
         return this.bounded(attempt, Denial.LOGIN_CHECK_FAILED, this.locked(attempt,
                         this.scopes.localScopes(), Denial.LOGIN_LOCKDOWN)
                 .thenCompose(locked -> {
@@ -101,9 +99,6 @@ public final class LoginGate {
                     }
                     // A proxy records the address when the player reaches a server.
                     this.record(attempt, settings, !this.scopes.proxy());
-                    if (!settings.enforcement().denyBannedJoins()) {
-                        return CompletableFuture.completedFuture(new LoginDecision.Allowed());
-                    }
                     return this.bans(attempt, settings, this.scopes.localScopes())
                             .thenApply(bans -> this.decide(attempt, bans, Denial.LOGIN_BANNED,
                                     null));

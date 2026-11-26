@@ -8,7 +8,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.serlith.sakurabans.api.model.CategoryScope;
@@ -30,17 +29,13 @@ public final class SakuraScopeService implements ScopeService {
     private final ConfigService config;
     private final Platform platform;
     private final boolean proxy;
-    private final ServerNameDetector detector;
     private final ComponentLogger logger;
-    private final AtomicBoolean warnedLocal = new AtomicBoolean();
 
     public SakuraScopeService(final ConfigService config, final Platform platform,
-            final boolean proxy, final ServerNameDetector detector,
-            final ComponentLogger logger) {
+            final boolean proxy, final ComponentLogger logger) {
         this.config = config;
         this.platform = platform;
         this.proxy = proxy;
-        this.detector = detector;
         this.logger = logger;
     }
 
@@ -96,16 +91,23 @@ public final class SakuraScopeService implements ScopeService {
                     .<Scope>map(ServerScope::of)
                     .orElse(GlobalScope.INSTANCE);
         }
-        final Optional<ServerScope> own = this.thisServer();
-        if (own.isPresent()) {
-            return own.get();
+        return this.thisServer().map(Scope.class::cast).orElse(GlobalScope.INSTANCE);
+    }
+
+    public void checkServerName() {
+        if (this.proxy() || this.config.settings().server().name() != null) {
+            return;
         }
-        if (!this.warnedLocal.getAndSet(true)) {
-            this.logger.warn("scopes.default is local, but this server's name isn't known yet"
-                    + " (set server.name, or let a player join behind the proxy); punishing"
-                    + " globally until then");
+        final Settings.Scopes scopes = this.config.settings().scopes();
+        final boolean local = scopes.defaultScope() instanceof Settings.DefaultScope.Local;
+        if (!local && scopes.categories().isEmpty()) {
+            return;
         }
-        return GlobalScope.INSTANCE;
+        this.logger.warn("server.name isn't set, so this server has no name for scopes:"
+                + " punishments scoped to it, or to the categories scopes.categories gives it,"
+                + " don't apply here{}. Set server.name in config.yml to the name the network"
+                + " knows this server by", local ? ", and scopes.default: local punishes globally"
+                : "");
     }
 
     @Override
@@ -113,8 +115,7 @@ public final class SakuraScopeService implements ScopeService {
         if (this.proxy()) {
             return Optional.empty();
         }
-        final String configured = this.config.settings().server().name();
-        return Optional.ofNullable(configured).or(this.detector::name).map(ServerScope::of);
+        return Optional.ofNullable(this.config.settings().server().name()).map(ServerScope::of);
     }
 
     public Optional<String> originServer() {
@@ -172,6 +173,15 @@ public final class SakuraScopeService implements ScopeService {
         return Validator.normalizeIdentifier(server)
                 .map(name -> this.applicableScopes(ServerScope.of(name)))
                 .orElseGet(this::localScopes);
+    }
+
+    public Set<Scope> scopesOf(final UUID player) {
+        if (!this.proxy()) {
+            return this.localScopes();
+        }
+        return this.scopesOn(this.platform.player(player)
+                .flatMap(OnlinePlayer::currentServer)
+                .orElse(null));
     }
 
     public List<String> fallbackServers() {

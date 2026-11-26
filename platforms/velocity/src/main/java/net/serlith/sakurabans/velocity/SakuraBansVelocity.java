@@ -15,6 +15,7 @@ import net.serlith.sakurabans.core.SakuraBansCore;
 import net.serlith.sakurabans.core.bootstrap.CoreBootstrap;
 import net.serlith.sakurabans.core.bootstrap.CoreEnvironment;
 import net.serlith.sakurabans.core.command.CommandActor;
+import net.serlith.sakurabans.core.enforce.SignedChatPolicy;
 import net.serlith.sakurabans.core.util.BuildConstants;
 import org.incendo.cloud.execution.ExecutionCoordinator;
 import org.incendo.cloud.velocity.VelocityCommandManager;
@@ -26,10 +27,14 @@ import org.incendo.cloud.velocity.VelocityCommandManager;
         authors = {"Biquaternions"},
         dependencies = {
             @Dependency(id = "luckperms", optional = true),
-            @Dependency(id = "floodgate", optional = true)
+            @Dependency(id = "floodgate", optional = true),
+            // Lets mutes cancel signed chat without kicking (D29); without it, chat passes.
+            @Dependency(id = SakuraBansVelocity.SIGNED_VELOCITY, optional = true)
         }
 )
 public final class SakuraBansVelocity {
+
+    static final String SIGNED_VELOCITY = "signedvelocity";
 
     private final ProxyServer proxy;
     private final ComponentLogger logger;
@@ -52,11 +57,15 @@ public final class SakuraBansVelocity {
                 this.container, this.proxy, ExecutionCoordinator.simpleCoordinator(),
                 new VelocitySenderMapper());
         this.core.commands().install(commands);
-        this.core.start(new VelocityPlatform(this.proxy, this.logger));
+        final VelocityPlatform platform = new VelocityPlatform(this.proxy, this.logger);
+        this.core.start(platform);
+        final SignedChatPolicy signedChat = new SignedChatPolicy(
+                this.proxy.getPluginManager().isLoaded(SIGNED_VELOCITY));
+        signedChat.warnIfMissing(this.logger);
         this.proxy.getEventManager().register(this,
                 new VelocityLoginListener(this.proxy, this.core.loginGate()));
-        new VelocityChannelListener(this.core.channel(), this.core.channelReceiver())
-                .register(this.proxy, this);
+        this.proxy.getEventManager().register(this,
+                new VelocityChatListener(this.core.chatGate(), platform, signedChat));
     }
 
     @Subscribe

@@ -71,10 +71,4 @@ final class VelocityOnlinePlayer implements OnlinePlayer, ForwardingAudience.Sin
                         .thenApply(ConnectionRequestBuilder.Result::isSuccessful))
                 .orElseGet(() -> CompletableFuture.completedFuture(false));
     }
-
-    @Override
-    public void sendChannelMessage(final byte[] data) {
-        this.player.getCurrentServer().ifPresent(connection ->
-                connection.sendPluginMessage(VelocityChannelListener.CHANNEL, data));
-    }
 }

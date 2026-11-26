@@ -30,7 +30,7 @@ public final class SettingsSchema {
 
     public static final List<Entry> ENTRIES = List.of(
             entry("server.name", SettingType.STRING, Scope.INSTANCE,
-                    "This server's name for scopes, or auto", List.of(), null, null),
+                    "This server's name for scopes (empty for none)", List.of(), null, null),
             entry("server.categories", SettingType.STRING_LIST, Scope.INSTANCE,
                     "Categories this server belongs to", List.of(), null, null),
             entry("scopes.default", SettingType.STRING, Scope.INSTANCE,
@@ -46,8 +46,6 @@ public final class SettingsSchema {
                     "Whether bans also ban the current address", List.of(), null, null),
             entry("enforcement.mute-command-blacklist", SettingType.STRING_LIST, Scope.INSTANCE,
                     "Commands muted players can't use", List.of(), null, null),
-            entry("enforcement.deny-banned-joins", SettingType.BOOLEAN, Scope.INSTANCE,
-                    "Whether this instance turns banned players away", List.of(), null, null),
             entry("enforcement.enforce-server-switch", SettingType.BOOLEAN, Scope.INSTANCE,
                     "Whether a proxy checks server scopes on switches", List.of(), null, null),
             entry("enforcement.login-check-timeout", SettingType.DURATION, Scope.INSTANCE,
@@ -108,8 +106,6 @@ public final class SettingsSchema {
                     "Whether lockdowns survive a restart", List.of(), null, null),
             entry("notifications.attempt-throttle", SettingType.DURATION, Scope.NETWORK,
                     "The shortest time between attempt notices", List.of(), null, null),
-            entry("notifications.send-to-players", SettingType.BOOLEAN, Scope.INSTANCE,
-                    "Whether this instance tells its players", List.of(), null, null),
             entry("players.remote-lookup", SettingType.BOOLEAN, Scope.INSTANCE,
                     "Whether unknown names are looked up remotely", List.of(), null, null),
             entry("commands.labels", SettingType.MAP, Scope.RESTART,

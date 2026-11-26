@@ -360,6 +360,7 @@ public final class AdminCommands implements CommandModule {
         switch (result) {
             case ReloadResult.Reloaded reloaded -> {
                 this.messages.load();
+                this.scopes.checkServerName();
                 this.runner.send(actor, MessageKey.RELOAD_DONE);
                 if (!reloaded.restartRequired().isEmpty()) {
                     this.runner.send(actor, MessageKey.RELOAD_RESTART, Placeholder.unparsed(

@@ -44,7 +44,7 @@ public record Settings(
     }
 
     public record Enforcement(AddressStrictness addressStrictness, boolean compositeByDefault,
-            Set<String> muteCommandBlacklist, boolean denyBannedJoins, boolean enforceServerSwitch,
+            Set<String> muteCommandBlacklist, boolean enforceServerSwitch,
             Duration loginCheckTimeout) {
     }
 
@@ -87,7 +87,7 @@ public record Settings(
     public record Lockdown(boolean persist) {
     }
 
-    public record Notifications(Duration attemptThrottle, boolean sendToPlayers) {
+    public record Notifications(Duration attemptThrottle) {
     }
 
     public record Players(boolean remoteLookup) {

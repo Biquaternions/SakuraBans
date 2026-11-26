@@ -14,6 +14,7 @@ import net.serlith.sakurabans.api.punish.DraftPunishment;
 import net.serlith.sakurabans.api.punish.PunishOptions;
 import net.serlith.sakurabans.api.punish.PunishResult;
 import net.serlith.sakurabans.core.ServiceTest;
+import net.serlith.sakurabans.core.concurrent.LifecycleState;
 import net.serlith.sakurabans.core.fake.FakeOnlinePlayer;
 import net.serlith.sakurabans.core.model.LoginAttempt;
 import net.serlith.sakurabans.core.permission.Permissions;
@@ -130,6 +131,16 @@ class LoginGateTest extends ServiceTest {
         Assertions.assertThat(this.login(ALEX, "Alex", null))
                 .isInstanceOfSatisfying(LoginDecision.Denied.class, denied ->
                         Assertions.assertThat(plain(denied.screen())).isEqualTo("custom"));
+    }
+
+    @Test
+    void joinsAreRefusedWhileSakuraBansIsntRunning() {
+        this.lifecycle.advance(LifecycleState.RUNNING, LifecycleState.STOPPING);
+
+        Assertions.assertThat(this.login(STEVE, "Steve", null))
+                .isInstanceOfSatisfying(LoginDecision.Denied.class, denied ->
+                        Assertions.assertThat(denied.denial())
+                                .isEqualTo(PlayerDenyEvent.Denial.LOGIN_CHECK_FAILED));
     }
 
     @Test

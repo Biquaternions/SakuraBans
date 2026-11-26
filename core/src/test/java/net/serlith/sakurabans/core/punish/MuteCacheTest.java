@@ -19,9 +19,9 @@ import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.api.punish.OverridePolicy;
+import net.serlith.sakurabans.core.fake.FakeOnlinePlayer;
 import net.serlith.sakurabans.core.fake.FakePlatform;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
-import net.serlith.sakurabans.core.scope.ServerNameDetector;
 import net.serlith.sakurabans.core.storage.DatabaseTest;
 import net.serlith.sakurabans.core.storage.repository.AltPolicy;
 import net.serlith.sakurabans.core.storage.repository.InsertOutcome;
@@ -55,8 +55,6 @@ class MuteCacheTest extends DatabaseTest {
                 new PunishmentRepository(this.storage, new PunishmentMapper(Long::toString));
         final SakuraScopeService scopes =
                 new SakuraScopeService(this.config, new FakePlatform(), false,
-                        new ServerNameDetector(this.dir, this.config, Runnable::run,
-                                this.log.logger()),
                         this.log.logger());
         this.cache = new MuteCache(this.punishments, scopes, this.config, this.clock,
                 new ActiveRangeCache(this.punishments, new PlayerRepository(this.storage),
@@ -96,6 +94,27 @@ class MuteCacheTest extends DatabaseTest {
         this.cache.reload(STEVE).join();
 
         Assertions.assertThat(this.cache.activeMute(STEVE)).contains(byAddress);
+    }
+
+    @Test
+    void proxiesLoadEveryScopeAndApplyThoseOfTheCurrentServer() {
+        final FakePlatform platform = new FakePlatform(Set.of("lobby", "survival"), List.of());
+        final MuteCache proxy = new MuteCache(this.punishments,
+                new SakuraScopeService(this.config, platform, true, this.log.logger()),
+                this.config, this.clock, new ActiveRangeCache(this.punishments,
+                        new PlayerRepository(this.storage), AltPolicy.NONE, this.clock));
+        final Punishment survival = this.mute(PlayerVictim.of(STEVE), ServerScope.of("survival"),
+                null);
+        final FakeOnlinePlayer steve = platform.join(STEVE, "Steve", this.home, null, "lobby");
+        proxy.load(STEVE, this.home).join();
+
+        Assertions.assertThat(proxy.lookup(steve)).isInstanceOf(MuteCache.Lookup.NotMuted.class);
+        Assertions.assertThat(proxy.activeMute(STEVE)).isEmpty();
+
+        steve.connect("survival").join();
+
+        Assertions.assertThat(proxy.lookup(steve)).isEqualTo(new MuteCache.Lookup.Muted(survival));
+        Assertions.assertThat(proxy.activeMute(STEVE)).contains(survival);
     }
 
     @Test

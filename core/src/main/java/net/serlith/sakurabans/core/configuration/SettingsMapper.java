@@ -242,10 +242,13 @@ final class SettingsMapper {
     }
 
     private Settings mapSettings(final MainConfig config) {
-        final String name = config.server().name();
-        final Optional<String> serverName = name.equalsIgnoreCase("auto")
-                ? Optional.empty()
-                : this.identifier("server.name", name);
+        final String name = config.server().name().strip();
+        final Optional<String> serverName;
+        if (name.isEmpty()) {
+            serverName = Optional.empty();
+        } else {
+            serverName = this.identifier("server.name", name);
+        }
         final List<String> categories = config.server().categories().stream()
                 .flatMap(category -> this.identifier("server.categories", category).stream())
                 .toList();
@@ -265,8 +268,7 @@ final class SettingsMapper {
                 blacklist.add(command.strip().toLowerCase(Locale.ROOT).replaceFirst("^/", "")));
         final Settings.Enforcement enforcementSettings = new Settings.Enforcement(
                 enforcement.addressStrictness(), enforcement.compositeByDefault(),
-                Set.copyOf(blacklist), enforcement.denyBannedJoins(),
-                enforcement.enforceServerSwitch(),
+                Set.copyOf(blacklist), enforcement.enforceServerSwitch(),
                 enforcement.loginCheckTimeout());
 
         final Settings.Alts alts = this.alts(config.alts());
@@ -280,8 +282,7 @@ final class SettingsMapper {
                 config.notifications().attemptThrottle());
         return new Settings(server, scopes, enforcementSettings, alts, reasons, exemption,
                 warnings, display, new Settings.Lockdown(config.lockdown().persist()),
-                new Settings.Notifications(attemptThrottle,
-                        config.notifications().sendToPlayers()),
+                new Settings.Notifications(attemptThrottle),
                 new Settings.Players(config.players().remoteLookup()),
                 this.commands(config.commands()));
     }

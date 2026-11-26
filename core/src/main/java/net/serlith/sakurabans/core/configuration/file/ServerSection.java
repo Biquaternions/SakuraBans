@@ -9,6 +9,6 @@ import org.spongepowered.configurate.objectmapping.ConfigSerializable;
 @ConfigSerializable
 public final class ServerSection {
 
-    private String name = "auto";
+    private String name = "";
     private List<String> categories = new ArrayList<>();
 }

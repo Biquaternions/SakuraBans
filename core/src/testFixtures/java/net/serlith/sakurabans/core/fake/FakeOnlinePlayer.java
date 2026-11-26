@@ -23,7 +23,6 @@ public final class FakeOnlinePlayer implements OnlinePlayer {
     private final AtomicReference<@Nullable String> currentServer;
     private final Set<String> permissions = ConcurrentHashMap.newKeySet();
     private final List<Component> messages = new CopyOnWriteArrayList<>();
-    private final List<byte[]> channelMessages = new CopyOnWriteArrayList<>();
     private final AtomicReference<@Nullable Component> disconnectReason = new AtomicReference<>();
     private final FakePlatform platform;
 
@@ -83,16 +82,6 @@ public final class FakeOnlinePlayer implements OnlinePlayer {
         }
         this.currentServer.set(server);
         return CompletableFuture.completedFuture(true);
-    }
-
-    @Override
-    public void sendChannelMessage(final byte[] data) {
-        this.channelMessages.add(data.clone());
-    }
-
-    /** What was sent on {@code sakurabans:main}, oldest first. */
-    public List<byte[]> channelMessages() {
-        return List.copyOf(this.channelMessages);
     }
 
     @Override

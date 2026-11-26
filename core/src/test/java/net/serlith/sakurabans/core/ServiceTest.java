@@ -24,7 +24,6 @@ import net.serlith.sakurabans.core.concurrent.Lifecycle;
 import net.serlith.sakurabans.core.concurrent.LifecycleState;
 import net.serlith.sakurabans.core.configuration.TemplateFiles;
 import net.serlith.sakurabans.core.data.SakuraPlayerDataService;
-import net.serlith.sakurabans.core.enforce.ChannelReceiver;
 import net.serlith.sakurabans.core.enforce.ChatGate;
 import net.serlith.sakurabans.core.enforce.CommandBlacklist;
 import net.serlith.sakurabans.core.enforce.EnforcementMessages;
@@ -45,7 +44,6 @@ import net.serlith.sakurabans.core.limit.LimitService;
 import net.serlith.sakurabans.core.message.Formats;
 import net.serlith.sakurabans.core.message.MessageService;
 import net.serlith.sakurabans.core.message.Placeholders;
-import net.serlith.sakurabans.core.messaging.ProxyChannel;
 import net.serlith.sakurabans.core.notify.NotificationService;
 import net.serlith.sakurabans.core.notify.Throttle;
 import net.serlith.sakurabans.core.permission.ExemptionService;
@@ -60,7 +58,6 @@ import net.serlith.sakurabans.core.punish.PunishmentFactory;
 import net.serlith.sakurabans.core.punish.SakuraPunishmentService;
 import net.serlith.sakurabans.core.punish.WarningActions;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
-import net.serlith.sakurabans.core.scope.ServerNameDetector;
 import net.serlith.sakurabans.core.storage.DatabaseTest;
 import net.serlith.sakurabans.core.storage.DisplayIdCodec;
 import net.serlith.sakurabans.core.storage.Lease;
@@ -104,7 +101,6 @@ public abstract class ServiceTest extends DatabaseTest {
     protected MessageService messages;
     protected Placeholders placeholders;
     protected NameCache names;
-    protected ServerNameDetector serverNames;
     protected SakuraScopeService scopes;
     protected PlayerRepository players;
     protected DisplayIdCodec displayIds;
@@ -112,9 +108,7 @@ public abstract class ServiceTest extends DatabaseTest {
     protected Lease lease;
     protected MuteCache mutes;
     protected EnforcementMessages enforcementMessages;
-    protected ProxyChannel channel;
     protected LocalEnforcer enforcer;
-    protected ChannelReceiver channelReceiver;
     protected SakuraPunishmentService service;
     protected NotificationService notifications;
     protected LoginGate loginGate;
@@ -146,6 +140,11 @@ public abstract class ServiceTest extends DatabaseTest {
         return false;
     }
 
+    @Override
+    protected String baseConfigYaml() {
+        return this.proxy() ? "" : "server:\n  name: lobby\n";
+    }
+
     protected ServiceTest() {
         this(new FakePlatform());
     }
@@ -164,12 +163,8 @@ public abstract class ServiceTest extends DatabaseTest {
         this.placeholders =
                 new Placeholders(this.messages, new Formats(this.messages, this.config));
         this.names = new NameCache();
-        // As if the proxy had named this backend "lobby".
-        this.serverNames = new ServerNameDetector(this.dir, this.config, Runnable::run,
-                this.log.logger());
-        this.serverNames.detected("lobby");
         this.scopes = new SakuraScopeService(this.config, this.platform, this.proxy(),
-                this.serverNames, this.log.logger());
+                this.log.logger());
         this.players = new PlayerRepository(this.storage);
         this.displayIds = new DisplayIdCodec(new MetaRepository(this.storage), this.config);
         this.displayIds.load().join();
@@ -208,13 +203,9 @@ public abstract class ServiceTest extends DatabaseTest {
         this.lockdowns = new LockdownService(new LockdownRepository(this.storage),
                 this.permissions, this.allowList, this.syncService, this.config, this.clock,
                 this.log.logger());
-        this.channel = new ProxyChannel(new MetaRepository(this.storage), this.log.logger());
-        this.channel.load();
         this.enforcer = new LocalEnforcer(this.platform, this.scopes, this.punishments, this.mutes,
-                this.enforcementMessages, this.config, this.channel, this.clock,
-                this.ranges, this.log.logger());
-        this.channelReceiver = new ChannelReceiver(this.channel, this.scopes, this.serverNames,
-                this.punishments, this.enforcer, this.clock, this.log.logger());
+                this.enforcementMessages, this.config, this.clock, this.ranges,
+                this.log.logger());
         this.exemption = new ExemptionService(this.config, this.permissions, this.log.logger());
         this.authorization = new SakuraAuthorizationService(this.permissions, this.exemption,
                 this.kinds, this.punishments, this.integrations, this.config, this.log.logger());
@@ -248,7 +239,8 @@ public abstract class ServiceTest extends DatabaseTest {
                 this.enforcementMessages, this.notifications, this.bus, this.clock,
                 this.altService, this.ranges, this.enforcer, this.lockdowns, this.log.logger());
         this.chatGate = new ChatGate(this.mutes, new CommandBlacklist(this.config),
-                this.enforcementMessages, this.notifications, this.bus, this.log.logger());
+                this.enforcementMessages, this.notifications, this.bus, this.clock,
+                this.log.logger());
         this.sweeper = new ExpirySweeper(this.lease, this.punishments, this.mutes, this.enforcer,
                 this.syncService, this.bus, this.executors, this.platform, this.clock,
                 this.log.logger());

@@ -47,13 +47,19 @@ public abstract class DatabaseTest {
         return "";
     }
 
+    /** Written before {@link #configYaml()}, for keys a whole family of tests shares. */
+    protected String baseConfigYaml() {
+        return "";
+    }
+
     @BeforeEach
     final void openDatabase() throws Exception {
         final Optional<String> yaml = this.database().freshStorageYaml();
         if (yaml.isPresent()) {
             Files.writeString(this.dir.resolve("storage.yml"), yaml.get());
         }
-        this.config = TestConfig.load(this.dir, this.configYaml(), this.log);
+        this.config = TestConfig.load(this.dir, this.baseConfigYaml() + this.configYaml(),
+                this.log);
         this.storage = new StorageService(this.dir, this.config,
                 new SchemaManager(this.log.logger()), this.executors, this.log.logger());
         this.storage.start();

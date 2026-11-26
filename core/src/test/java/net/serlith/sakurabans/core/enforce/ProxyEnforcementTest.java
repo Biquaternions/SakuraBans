@@ -1,24 +1,28 @@
 package net.serlith.sakurabans.core.enforce;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import net.serlith.sakurabans.api.event.PlayerDenyEvent;
 import net.serlith.sakurabans.api.model.CategoryScope;
+import net.serlith.sakurabans.api.model.GlobalScope;
 import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.PunishmentType;
+import net.serlith.sakurabans.api.model.Scope;
 import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.api.punish.DraftPunishment;
-import net.serlith.sakurabans.api.punish.Enforcement;
 import net.serlith.sakurabans.api.punish.PunishOptions;
-import net.serlith.sakurabans.api.punish.PunishResult;
 import net.serlith.sakurabans.core.ServiceTest;
 import net.serlith.sakurabans.core.fake.FakeOnlinePlayer;
 import net.serlith.sakurabans.core.fake.FakePlatform;
 import net.serlith.sakurabans.core.model.LoginAttempt;
+import net.serlith.sakurabans.core.permission.Permissions;
+import net.serlith.sakurabans.core.punish.MuteCache;
 import org.assertj.core.api.Assertions;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
-/** A proxy: server bans apply to the players on that backend; mutes are left to it (D4). */
+/** A proxy: server bans and mutes apply to the players on that backend (D29). */
 class ProxyEnforcementTest extends ServiceTest {
 
     @Override
@@ -59,16 +63,158 @@ class ProxyEnforcementTest extends ServiceTest {
                 .isInstanceOf(LoginDecision.Allowed.class);
     }
 
-    @Test
-    void proxiesLeaveMutesToTheBackends() {
+    private FakeOnlinePlayer online(final @Nullable String server) {
         final FakeOnlinePlayer steve = this.platform.join(STEVE, "Steve", this.home, null,
-                "survival");
+                server);
         this.loginGate.check(this.steve()).join();
+        eventually(() -> this.mutes.loaded(STEVE));
+        return steve;
+    }
 
-        this.punish(PunishmentType.MUTE, "survival");
+    private void mute(final Scope scope, final @Nullable String kind) {
+        final DraftPunishment.Builder draft = DraftPunishment.builder(PunishmentType.MUTE,
+                PlayerVictim.of(STEVE), MODERATOR).scope(scope).reason("spam");
+        if (kind != null) {
+            draft.kind(kind);
+        }
+        this.service.punish(draft.build(), PunishOptions.defaults()).join();
+    }
 
-        Assertions.assertThat(this.mutes.loaded(STEVE)).isFalse();
+    private ChatDecision chat(final FakeOnlinePlayer player) {
+        return this.chatGate.checkChat(player, "hi");
+    }
+
+    @Test
+    void serverMutesFollowThePlayerAcrossServers() {
+        final FakeOnlinePlayer steve = this.online("survival");
+
+        this.mute(ServerScope.of("survival"), null);
+
+        Assertions.assertThat(steve.messages()).hasSize(1);
+        Assertions.assertThat(plain(steve.messages().getFirst())).contains("spam");
+        Assertions.assertThat(this.chat(steve)).isInstanceOf(ChatDecision.Denied.class);
+        steve.connect("lobby").join();
+        Assertions.assertThat(this.chat(steve)).isInstanceOf(ChatDecision.Allowed.class);
+        Assertions.assertThat(this.service.cachedMute(STEVE)).isEmpty();
+        steve.connect("survival").join();
+        Assertions.assertThat(this.chat(steve)).isInstanceOf(ChatDecision.Denied.class);
+        Assertions.assertThat(this.service.cachedMute(STEVE)).isPresent();
+    }
+
+    @Test
+    void mutesForAnotherServerAreCachedButNotAnnounced() {
+        final FakeOnlinePlayer steve = this.online("lobby");
+
+        this.mute(ServerScope.of("survival"), null);
+
         Assertions.assertThat(steve.messages()).isEmpty();
+        Assertions.assertThat(this.chat(steve)).isInstanceOf(ChatDecision.Allowed.class);
+        // punish waits for the local enforcement, so the switch alone must make it apply.
+        steve.connect("survival").join();
+        Assertions.assertThat(this.chat(steve)).isInstanceOf(ChatDecision.Denied.class);
+    }
+
+    @Test
+    void categoryMutesApplyOnTheCategorysServers() {
+        final FakeOnlinePlayer steve = this.online("survival");
+
+        this.mute(CategoryScope.of("hubs"), null);
+
+        Assertions.assertThat(this.chat(steve)).isInstanceOf(ChatDecision.Allowed.class);
+        steve.connect("hub").join();
+        Assertions.assertThat(this.chat(steve)).isInstanceOf(ChatDecision.Denied.class);
+        steve.connect("lobby").join();
+        Assertions.assertThat(this.chat(steve)).isInstanceOf(ChatDecision.Denied.class);
+        Assertions.assertThat(steve.messages()).as("muted elsewhere: not told").isEmpty();
+    }
+
+    @Test
+    void globalMutesApplyEverywhereEvenBeforeTheFirstServer() {
+        final FakeOnlinePlayer steve = this.online(null);
+
+        this.mute(GlobalScope.INSTANCE, null);
+
+        Assertions.assertThat(this.chat(steve)).isInstanceOf(ChatDecision.Denied.class);
+        steve.connect("creative").join();
+        Assertions.assertThat(this.chat(steve)).isInstanceOf(ChatDecision.Denied.class);
+    }
+
+    @Test
+    void serverMutesDontApplyBeforeTheFirstServer() {
+        final FakeOnlinePlayer steve = this.online(null);
+
+        this.mute(ServerScope.of("survival"), null);
+
+        Assertions.assertThat(this.chat(steve)).isInstanceOf(ChatDecision.Allowed.class);
+        Assertions.assertThat(this.mutes.lookup(STEVE))
+                .isInstanceOf(MuteCache.Lookup.NotMuted.class);
+        steve.connect("survival").join();
+        Assertions.assertThat(this.mutes.lookup(STEVE))
+                .isInstanceOf(MuteCache.Lookup.Muted.class);
+    }
+
+    @Test
+    void shadowMutedChatIsEchoedToTheSender() {
+        final FakeOnlinePlayer steve = this.online("survival");
+
+        this.mute(ServerScope.of("survival"), "shadow-mute");
+
+        Assertions.assertThat(this.chat(steve)).isInstanceOf(ChatDecision.ShadowMuted.class);
+        Assertions.assertThat(steve.messages()).isEmpty();
+        Assertions.assertThat(plain(this.chatGate.shadowEcho(steve, "hi <b>there</b>")))
+                .isEqualTo("<Steve> hi <b>there</b>");
+        Assertions.assertThat(this.chatGate.checkCommand(steve, "msg Alex hi"))
+                .isInstanceOf(ChatDecision.ShadowMuted.class);
+    }
+
+    @Test
+    void withoutSignedVelocityMutedChatPassesButSafeCommandsAreBlocked() {
+        final FakeOnlinePlayer staff = this.platform.join(MOD, "Mod", this.home, null, "survival")
+                .grant(Permissions.NOTIFY_ATTEMPT_CHAT);
+        final FakeOnlinePlayer steve = this.online("survival");
+        this.mute(ServerScope.of("survival"), null);
+        final int deniesBefore = this.events(PlayerDenyEvent.class).size();
+        final int staffBefore = staff.messages().size();
+        final SignedChatPolicy policy = new SignedChatPolicy(false);
+
+        Assertions.assertThat(this.chatGate.checkChat(steve, "hi", policy.chatCancellable()))
+                .isInstanceOf(ChatDecision.Allowed.class);
+        Assertions.assertThat(this.chatGate.checkChat(steve, "again", policy.chatCancellable()))
+                .isInstanceOf(ChatDecision.Allowed.class);
+        Assertions.assertThat(this.chatGate.checkCommand(steve, "msg Alex hi",
+                policy.commandCancellable(true))).isInstanceOf(ChatDecision.Allowed.class);
+        Assertions.assertThat(this.events(PlayerDenyEvent.class)).hasSize(deniesBefore);
+        Assertions.assertThat(staff.messages()).hasSize(staffBefore);
+        Assertions.assertThat(this.log.entries("warn"))
+                .filteredOn(entry -> entry.format().contains("went through")).singleElement()
+                .satisfies(entry -> Assertions.assertThat(entry.format()).contains("Steve"));
+
+        Assertions.assertThat(this.chatGate.checkCommand(steve, "msg Alex hi",
+                policy.commandCancellable(false))).isInstanceOf(ChatDecision.Denied.class);
+
+        this.now.set(this.now.get().plus(Duration.ofMinutes(1)));
+        this.chatGate.checkChat(steve, "later", policy.chatCancellable());
+        Assertions.assertThat(this.log.entries("warn"))
+                .filteredOn(entry -> entry.format().contains("went through")).hasSize(2);
+    }
+
+    @Test
+    void signedChatPolicy() {
+        final SignedChatPolicy with = new SignedChatPolicy(true);
+        final SignedChatPolicy without = new SignedChatPolicy(false);
+
+        Assertions.assertThat(with.chatCancellable()).isTrue();
+        Assertions.assertThat(with.commandCancellable(true)).isTrue();
+        Assertions.assertThat(without.chatCancellable()).isFalse();
+        Assertions.assertThat(without.commandCancellable(true)).isFalse();
+        Assertions.assertThat(without.commandCancellable(false)).isTrue();
+
+        with.warnIfMissing(this.log.logger());
+        Assertions.assertThat(this.log.entries("warn"))
+                .noneMatch(entry -> entry.format().contains("SignedVelocity"));
+        without.warnIfMissing(this.log.logger());
+        Assertions.assertThat(this.log.entries("warn"))
+                .filteredOn(entry -> entry.format().contains("SignedVelocity")).hasSize(1);
     }
 
     @Test
@@ -138,30 +284,6 @@ class ProxyEnforcementTest extends ServiceTest {
 
         Assertions.assertThat(this.service.activeBan(STEVE, null, ServerScope.of("survival"))
                 .join().orElseThrow().originServer()).contains("proxy");
-    }
-
-    @Test
-    void enforceRequestsFromBackendsApplyActiveBans() {
-        final FakeOnlinePlayer steve = this.platform.join(STEVE, "Steve", this.home, null,
-                "creative");
-        // Issued elsewhere (no enforcement here), as a backend would.
-        final long id = ((PunishResult.Success) this.service.punish(DraftPunishment.builder(
-                PunishmentType.BAN, PlayerVictim.of(STEVE), MODERATOR).build(),
-                PunishOptions.builder().enforcement(Enforcement.NONE).build()).join())
-                .punishment().id();
-        Assertions.assertThat(steve.disconnectReason()).isEmpty();
-
-        this.channelReceiver.received(this.channel.enforce(id + 1000)).join();
-        Assertions.assertThat(steve.disconnectReason()).isEmpty();
-        this.channelReceiver.received(this.channel.enforce(id)).join();
-        Assertions.assertThat(steve.disconnectReason()).isPresent();
-    }
-
-    @Test
-    void proxiesIgnoreServerNames() {
-        this.channelReceiver.received(this.channel.serverName("survival")).join();
-
-        Assertions.assertThat(this.scopes.thisServer()).isEmpty();
     }
 
     @Test

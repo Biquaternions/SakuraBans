@@ -9,7 +9,6 @@ import java.util.concurrent.CompletableFuture;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.audience.ForwardingAudience;
 import net.kyori.adventure.text.Component;
-import net.serlith.sakurabans.core.messaging.ProxyChannel;
 import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerKickEvent;
@@ -72,11 +71,5 @@ final class PaperOnlinePlayer implements OnlinePlayer, ForwardingAudience.Single
     @Override
     public CompletableFuture<Boolean> connect(final String server) {
         return CompletableFuture.completedFuture(false);
-    }
-
-    @Override
-    public void sendChannelMessage(final byte[] data) {
-        this.scheduler.runFor(this.player, () -> this.player.sendPluginMessage(
-                this.scheduler.plugin(), ProxyChannel.NAME, data));
     }
 }

@@ -28,10 +28,4 @@ final class VelocityServerIdentity implements ServerIdentity {
     public List<String> fallbackServers() {
         return List.copyOf(this.proxy.getConfiguration().getAttemptConnectionOrder());
     }
-
-    @Override
-    public boolean behindProxy() {
-        return false;
-    }
-
 }

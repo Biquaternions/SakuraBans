@@ -1,5 +1,6 @@
 package net.serlith.sakurabans.velocity;
 
+import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
 import java.util.Collection;
 import java.util.Optional;
@@ -36,6 +37,10 @@ final class VelocityPlatform implements Platform {
     public Optional<OnlinePlayer> player(final UUID uuid) {
         return this.proxy.getPlayer(uuid)
                 .map(player -> new VelocityOnlinePlayer(this.proxy, player));
+    }
+
+    OnlinePlayer online(final Player player) {
+        return new VelocityOnlinePlayer(this.proxy, player);
     }
 
     @Override

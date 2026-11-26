@@ -62,6 +62,11 @@ public final class EnforcementMessages {
         return this.render(MessageKey.CHAT_COMMAND_MUTED, mute, locale);
     }
 
+    public Component shadowEcho(final String name, final String message, final Locale locale) {
+        return this.messages.render(MessageKey.CHAT_SHADOW_ECHO, locale,
+                Placeholder.unparsed("player", name), Placeholder.unparsed("message", message));
+    }
+
     public Component lockdownScreen(final Lockdown lockdown, final Locale locale) {
         return this.messages.render(MessageKey.SCREEN_LOCKDOWN, locale,
                 Placeholder.unparsed("reason", lockdown.reason()));

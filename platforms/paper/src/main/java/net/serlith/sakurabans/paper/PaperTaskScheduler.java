@@ -26,10 +26,6 @@ final class PaperTaskScheduler implements TaskScheduler {
         }
     }
 
-    Plugin plugin() {
-        return this.plugin;
-    }
-
     void runFor(final Player player, final Runnable task) {
         player.getScheduler().run(this.plugin, ignored -> task.run(), null);
     }

@@ -55,6 +55,7 @@ public record MessageKey(String key) {
     public static final MessageKey CHAT_MUTED_TEMPORARY = new MessageKey("chat.muted_temporary");
     public static final MessageKey CHAT_COMMAND_MUTED = new MessageKey("chat.command_muted");
     public static final MessageKey CHAT_LOADING = new MessageKey("chat.loading");
+    public static final MessageKey CHAT_SHADOW_ECHO = new MessageKey("chat.shadow_echo");
 
     public static final MessageKey NOTIFY_SILENT_TAG = new MessageKey("notify.silent_tag");
     public static final MessageKey NOTIFY_BAN = new MessageKey("notify.ban");

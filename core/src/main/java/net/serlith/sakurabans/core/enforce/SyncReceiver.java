@@ -232,9 +232,7 @@ public final class SyncReceiver implements SyncPacketHandler {
         work.add(this.settings.reload());
         work.add(this.messageTemplates.reload());
         for (final OnlinePlayer player : this.platform.onlinePlayers()) {
-            if (!this.scopes.proxy()) {
-                work.add(this.mutes.load(player.uuid(), player.address()));
-            }
+            work.add(this.mutes.load(player.uuid(), player.address()));
             if (!enforce) {
                 continue;
             }

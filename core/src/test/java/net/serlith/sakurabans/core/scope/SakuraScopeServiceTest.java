@@ -25,21 +25,15 @@ class SakuraScopeServiceTest {
     Path dir;
 
     private final RecordingLogger log = new RecordingLogger();
-    private ServerNameDetector detector;
 
     private SakuraScopeService service(final String yaml, final boolean proxy,
             final FakePlatform platform) {
         final ConfigService config = TestConfig.load(this.dir, yaml, this.log);
-        this.detector = new ServerNameDetector(this.dir, config, Runnable::run, this.log.logger());
-        return new SakuraScopeService(config, platform, proxy, this.detector, this.log.logger());
+        return new SakuraScopeService(config, platform, proxy, this.log.logger());
     }
 
     private SakuraScopeService paper(final String yaml) {
         return this.service(yaml, false, new FakePlatform());
-    }
-
-    private void detect(final String name) {
-        this.detector.detected(name);
     }
 
     @Test
@@ -62,15 +56,20 @@ class SakuraScopeServiceTest {
     }
 
     @Test
-    void theConfiguredNameWinsOverTheDetectedOne() {
-        final SakuraScopeService configured = this.paper("server:\n  name: lobby\n");
-        this.detect("detected");
-        Assertions.assertThat(configured.thisServer()).contains(ServerScope.of("lobby"));
+    void anEmptyNameMeansNoName() {
+        Assertions.assertThat(this.paper("server:\n  name: Lobby\n").thisServer())
+                .contains(ServerScope.of("lobby"));
+        Assertions.assertThat(this.paper("").thisServer()).isEmpty();
+        Assertions.assertThat(this.paper("server:\n  name: ''\n").thisServer()).isEmpty();
+        Assertions.assertThat(this.paper("server:\n  name: '  '\n").thisServer()).isEmpty();
+        Assertions.assertThat(this.paper("server:\n  name:\n").thisServer()).isEmpty();
+    }
 
-        final SakuraScopeService auto = this.paper("");
-        Assertions.assertThat(auto.thisServer()).isEmpty();
-        this.detect("Detected");
-        Assertions.assertThat(auto.thisServer()).contains(ServerScope.of("detected"));
+    @Test
+    void autoIsRejectedAsAnError() {
+        Assertions.assertThatThrownBy(() -> this.paper("server:\n  name: auto\n"))
+                .hasMessageContaining("server.name")
+                .hasMessageContaining("\"auto\" was removed");
     }
 
     @Test
@@ -98,7 +97,7 @@ class SakuraScopeServiceTest {
     }
 
     @Test
-    void ownCategoriesApplyBeforeTheNameIsKnown() {
+    void ownCategoriesApplyWithoutName() {
         final SakuraScopeService scopes = this.paper("server:\n  categories: [minigames]\n");
 
         Assertions.assertThat(scopes.localScopes()).containsExactlyInAnyOrder(
@@ -160,16 +159,30 @@ class SakuraScopeServiceTest {
     }
 
     @Test
-    void localIsGlobalWithWarningWhileTheNameIsUnknown() {
+    void localIsGlobalWithoutName() {
         final SakuraScopeService scopes = this.paper("scopes:\n  default: local\n");
         final int before = this.log.entries("warn").size();
 
         Assertions.assertThat(scopes.defaultScope()).isEqualTo(GlobalScope.INSTANCE);
-        Assertions.assertThat(scopes.defaultScope()).isEqualTo(GlobalScope.INSTANCE);
-        Assertions.assertThat(this.log.entries("warn")).hasSize(before + 1);
+        Assertions.assertThat(this.log.entries("warn")).hasSize(before);
+    }
 
-        this.detect("lobby");
-        Assertions.assertThat(scopes.defaultScope()).isEqualTo(ServerScope.of("lobby"));
+    @Test
+    void missingNameIsReportedOnlyWhenScopesAreInUse() {
+        this.assertNameWarnings(this.paper("scopes:\n  default: local\n"), 1);
+        this.assertNameWarnings(this.paper(NETWORK), 1);
+        this.assertNameWarnings(this.paper(""), 0);
+        this.assertNameWarnings(this.paper("scopes:\n  default: category:pvp\n"), 0);
+        this.assertNameWarnings(this.paper("server:\n  name: lobby\n"
+                + "scopes:\n  default: local\n" + NETWORK), 0);
+        this.assertNameWarnings(this.service("scopes:\n  default: local\n" + NETWORK, true,
+                new FakePlatform()), 0);
+    }
+
+    private void assertNameWarnings(final SakuraScopeService scopes, final int expected) {
+        final int before = this.log.entries("warn").size();
+        scopes.checkServerName();
+        Assertions.assertThat(this.log.entries("warn")).hasSize(before + expected);
     }
 
     @Test

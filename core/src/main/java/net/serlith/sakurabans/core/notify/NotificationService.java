@@ -178,9 +178,7 @@ public final class NotificationService {
 
     private void send(final List<String> permissions, final Renderer renderer) {
         final boolean censor = this.config.settings().display().censorIpAddresses();
-        final boolean players = this.config.settings().notifications().sendToPlayers();
-        for (final OnlinePlayer player : players ? this.platform.onlinePlayers()
-                : List.<OnlinePlayer>of()) {
+        for (final OnlinePlayer player : this.platform.onlinePlayers()) {
             if (permissions.stream().allMatch(player::hasPermission)) {
                 player.sendMessage(renderer.render(
                         player.locale().orElseGet(this.messages::defaultLocale),

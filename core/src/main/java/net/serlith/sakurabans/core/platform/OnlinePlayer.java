@@ -25,7 +25,4 @@ public interface OnlinePlayer extends Audience {
     void disconnect(Component reason);
 
     CompletableFuture<Boolean> connect(String server);
-
-    void sendChannelMessage(byte[] data);
-
 }

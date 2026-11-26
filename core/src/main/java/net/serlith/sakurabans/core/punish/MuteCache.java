@@ -19,7 +19,9 @@ import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Scope;
+import net.serlith.sakurabans.api.punish.PunishmentQuery.Applicability;
 import net.serlith.sakurabans.core.configuration.ConfigService;
+import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
 import net.serlith.sakurabans.core.storage.repository.PunishmentRepository;
 import org.jspecify.annotations.Nullable;
@@ -69,15 +71,24 @@ public final class MuteCache {
         final Instant now = this.clock.instant();
         final AddressStrictness strictness =
                 this.config.settings().enforcement().addressStrictness();
+        final Applicability applicability = Applicabilities.of(uuid, address, strictness);
+        final boolean everyScope = this.scopes.proxy();
         final Set<Scope> scopes = this.scopes.localScopes();
-        return this.punishments.activeApplicable(PunishmentType.MUTE,
-                        Applicabilities.of(uuid, address, strictness), scopes, now)
+        final CompletableFuture<List<Punishment>> direct = everyScope
+                ? this.punishments.activeApplicableInEveryScope(PunishmentType.MUTE,
+                        applicability, now)
+                : this.punishments.activeApplicable(PunishmentType.MUTE, applicability, scopes,
+                        now);
+        return direct
                 .thenCompose(mutes -> address == null
                         ? CompletableFuture.completedFuture(mutes)
                         : this.punishments.restoreErased(mutes, uuid, address)
                                 .thenApply(restored -> restored.orElse(mutes)))
-                .thenCompose(mutes -> this.ranges.matching(PunishmentType.MUTE, uuid, address,
-                                strictness, scopes, now)
+                .thenCompose(mutes -> (everyScope
+                                ? this.ranges.matchingInEveryScope(PunishmentType.MUTE, uuid,
+                                        address, strictness, now)
+                                : this.ranges.matching(PunishmentType.MUTE, uuid, address,
+                                        strictness, scopes, now))
                         .thenAccept(ranged -> {
                             final List<Punishment> all = new ArrayList<>(mutes);
                             all.addAll(ranged);
@@ -98,9 +109,21 @@ public final class MuteCache {
         if (entry == null) {
             return new Lookup.Unknown();
         }
+        return this.lookup(entry, this.scopes.scopesOf(uuid));
+    }
+
+    public Lookup lookup(final OnlinePlayer player) {
+        final Entry entry = this.entries.get(player.uuid());
+        if (entry == null) {
+            return new Lookup.Unknown();
+        }
+        return this.lookup(entry, this.scopes.scopesOn(player.currentServer().orElse(null)));
+    }
+
+    private Lookup lookup(final Entry entry, final Set<Scope> scopes) {
         final Instant now = this.clock.instant();
         for (final Punishment mute : entry.mutes()) {
-            if (mute.isActiveAt(now) && this.notEnded(mute)) {
+            if (scopes.contains(mute.scope()) && mute.isActiveAt(now) && this.notEnded(mute)) {
                 return new Lookup.Muted(mute);
             }
         }

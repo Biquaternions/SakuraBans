@@ -180,7 +180,8 @@ public interface PunishmentService {
 
     /**
      * The mute that applies to a player online on this instance, from memory, without I/O. Safe
-     * to call on chat and command threads; it is what SakuraBans' own chat check uses.
+     * to call on chat and command threads; it is what SakuraBans' own chat check uses. On a proxy,
+     * "here" is the server the player is on (only global mutes before they reach one).
      *
      * @param uuid the account
      * @return the mute that applies here, or empty if there is none or the player isn't online

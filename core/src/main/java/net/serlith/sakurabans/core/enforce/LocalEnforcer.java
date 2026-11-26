@@ -16,7 +16,6 @@ import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.punish.PunishmentQuery.Applicability;
 import net.serlith.sakurabans.core.configuration.ConfigService;
-import net.serlith.sakurabans.core.messaging.ProxyChannel;
 import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import net.serlith.sakurabans.core.platform.Platform;
 import net.serlith.sakurabans.core.punish.ActiveRangeCache;
@@ -34,7 +33,6 @@ public final class LocalEnforcer implements Enforcer {
     private final MuteCache mutes;
     private final EnforcementMessages messages;
     private final ConfigService config;
-    private final ProxyChannel channel;
     private final InstantSource clock;
     private final ActiveRangeCache ranges;
     private final ComponentLogger logger;
@@ -42,7 +40,7 @@ public final class LocalEnforcer implements Enforcer {
     public LocalEnforcer(final Platform platform, final SakuraScopeService scopes,
             final PunishmentRepository punishments, final MuteCache mutes,
             final EnforcementMessages messages, final ConfigService config,
-            final ProxyChannel channel, final InstantSource clock, final ActiveRangeCache ranges,
+            final InstantSource clock, final ActiveRangeCache ranges,
             final ComponentLogger logger) {
         this.platform = platform;
         this.scopes = scopes;
@@ -50,7 +48,6 @@ public final class LocalEnforcer implements Enforcer {
         this.mutes = mutes;
         this.messages = messages;
         this.config = config;
-        this.channel = channel;
         this.clock = clock;
         this.ranges = ranges;
         this.logger = logger;
@@ -66,6 +63,10 @@ public final class LocalEnforcer implements Enforcer {
                         // On a proxy, a server's punishments reach the players on that server.
                         if (this.scopes.appliesTo(punishment.scope(), player)) {
                             steps.add(this.apply(punishment, player));
+                        } else if (punishment.type() == PunishmentType.MUTE
+                                && this.scopes.proxy()) {
+                            // Cached for when they switch there; told only where it applies.
+                            steps.add(this.mutes.load(player.uuid(), player.address()));
                         }
                     }
                     return CompletableFuture.allOf(steps.toArray(CompletableFuture[]::new));
@@ -93,7 +94,7 @@ public final class LocalEnforcer implements Enforcer {
                     // One after another, oldest first, so they are shown in order.
                     CompletableFuture<Void> shown = CompletableFuture.completedFuture(null);
                     for (final Punishment warning : warnings) {
-                        // Acknowledged first, so a proxy and a backend can't both show it.
+                        // Acknowledged first, so two instances can't both show it.
                         shown = shown.thenCompose(ignored -> this.punishments
                                 .acknowledge(warning.id())
                                 .thenAccept(mine -> {
@@ -122,11 +123,9 @@ public final class LocalEnforcer implements Enforcer {
             }
             return switch (current.type()) {
                 // Reloaded without a message: the player was told when it was issued.
-                case MUTE -> this.scopes.proxy()
-                        ? CompletableFuture.completedFuture(null)
-                        : CompletableFuture.allOf(this.platform.onlinePlayers().stream()
-                                .map(player -> this.mutes.load(player.uuid(), player.address()))
-                                .toArray(CompletableFuture[]::new));
+                case MUTE -> CompletableFuture.allOf(this.platform.onlinePlayers().stream()
+                        .map(player -> this.mutes.load(player.uuid(), player.address()))
+                        .toArray(CompletableFuture[]::new));
                 case BAN -> previous.scope().equals(current.scope())
                         ? CompletableFuture.completedFuture(null)
                         : this.created(current);
@@ -150,15 +149,12 @@ public final class LocalEnforcer implements Enforcer {
                         this.messages.localeOf(player)));
                 yield CompletableFuture.completedFuture(null);
             }
-            // Mutes are enforced on the backends only (D4).
-            case MUTE -> this.scopes.proxy()
-                    ? CompletableFuture.completedFuture(null)
-                    : this.mutes.load(player.uuid(), player.address()).thenRun(() -> {
-                        if (!punishment.shadow()) {
-                            player.sendMessage(this.messages.muted(punishment,
-                                    this.messages.localeOf(player)));
-                        }
-                    });
+            case MUTE -> this.mutes.load(player.uuid(), player.address()).thenRun(() -> {
+                if (!punishment.shadow()) {
+                    player.sendMessage(this.messages.muted(punishment,
+                            this.messages.localeOf(player)));
+                }
+            });
             case WARN -> {
                 player.sendMessage(this.messages.warned(punishment,
                         this.messages.localeOf(player)));
@@ -171,11 +167,6 @@ public final class LocalEnforcer implements Enforcer {
         final Component screen = this.messages.banScreen(punishment,
                 this.messages.localeOf(player));
         if (!this.scopes.proxy()) {
-            // Ask the proxy to apply it to the network (it may move them to another server).
-            // Sent first: the kick would make the proxy move them before it reads the message.
-            if (this.platform.serverIdentity().behindProxy()) {
-                player.sendChannelMessage(this.channel.enforce(punishment.id()));
-            }
             player.disconnect(screen);
             return CompletableFuture.completedFuture(null);
         }

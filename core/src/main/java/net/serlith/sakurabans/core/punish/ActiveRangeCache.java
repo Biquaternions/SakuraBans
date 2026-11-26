@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import net.serlith.sakurabans.api.model.AddressRangeVictim;
 import net.serlith.sakurabans.api.model.AddressRecord;
 import net.serlith.sakurabans.api.model.AddressStrictness;
@@ -52,9 +53,22 @@ public final class ActiveRangeCache {
             final UUID uuid, final @Nullable InetAddress address,
             final AddressStrictness strictness, final Collection<? extends Scope> scopes,
             final Instant now) {
+        return this.matchingWhere(type, uuid, address, strictness, scopes::contains, now);
+    }
+
+    public CompletableFuture<List<Punishment>> matchingInEveryScope(final PunishmentType type,
+            final UUID uuid, final @Nullable InetAddress address,
+            final AddressStrictness strictness, final Instant now) {
+        return this.matchingWhere(type, uuid, address, strictness, scope -> true, now);
+    }
+
+    private CompletableFuture<List<Punishment>> matchingWhere(final PunishmentType type,
+            final UUID uuid, final @Nullable InetAddress address,
+            final AddressStrictness strictness, final Predicate<Scope> scopes,
+            final Instant now) {
         final List<Punishment> candidates = this.ranges.get().stream()
                 .filter(punishment -> punishment.type() == type)
-                .filter(punishment -> scopes.contains(punishment.scope()))
+                .filter(punishment -> scopes.test(punishment.scope()))
                 .filter(punishment -> punishment.isActiveAt(now))
                 .toList();
         if (candidates.isEmpty() || this.policy.allowedAccounts().contains(uuid)) {

@@ -41,9 +41,10 @@ public interface ScopeService {
     Scope defaultScope();
 
     /**
-     * The scope of the server this instance runs. A proxy has none of its own.
+     * The scope of the server this instance runs: its {@code server.name}. A proxy has none of
+     * its own, and neither has a backend whose name isn't set.
      *
-     * @return this server's scope, or empty on a proxy
+     * @return this server's scope, or empty on a proxy or an unnamed backend
      */
     Optional<ServerScope> thisServer();
 

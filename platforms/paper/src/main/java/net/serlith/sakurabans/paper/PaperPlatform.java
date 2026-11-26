@@ -22,7 +22,7 @@ final class PaperPlatform implements Platform {
 
     PaperPlatform(final Plugin plugin) {
         this.server = plugin.getServer();
-        this.identity = new PaperServerIdentity(this.server);
+        this.identity = new PaperServerIdentity();
         this.scheduler = new PaperTaskScheduler(plugin);
         this.profiles = new PaperProfileLookup(plugin);
     }
