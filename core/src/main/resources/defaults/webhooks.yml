@@ -21,8 +21,8 @@ include-silent: false
 # (#rrggbb), description and fields (name: text, at most 25, shown in this order; a field whose
 # text comes out empty is left out). Texts may use Discord markdown and these placeholders:
 # {victim} {uuid} {address} {id} (the number) {display_id} (the id as display.id-style shows
-# it) {operator} {reason} {duration} {expires} {type} {kind} {scope} {server} (where it was
-# issued) {revoker} {revoke_reason} {edit} (what changed, edit only) and {count}. The rollback
+# it) {operator} {reason} {duration} {expires} {type} {scope} {server} (where it was issued)
+# {revoker} {revoke_reason} {edit} (what changed, edit only) and {count}. The rollback
 # route only knows {victim} (the staff member whose punishments were lifted), {revoker},
 # {revoke_reason} and {count} (how many).
 routes:

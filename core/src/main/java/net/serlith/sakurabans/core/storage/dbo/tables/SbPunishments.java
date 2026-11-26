@@ -4,7 +4,6 @@ import java.io.Serial;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.EndKind;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Visibility;
@@ -37,14 +36,8 @@ public final class SbPunishments extends SbTable<SbPunishmentsRecord> {
     public final TableField<SbPunishmentsRecord, PunishmentType> TYPE = createField(
             DSL.name("type"), SbTypes.PUNISHMENT_TYPE.nullable(false), this, "");
 
-    public final TableField<SbPunishmentsRecord, String> KIND = createField(
-            DSL.name("kind"), SQLDataType.VARCHAR(64).nullable(false), this, "");
-
     public final TableField<SbPunishmentsRecord, Boolean> SHADOW = createField(
             DSL.name("shadow"), SbTypes.FLAG.nullable(false), this, "");
-
-    public final TableField<SbPunishmentsRecord, AddressStrictness> STRICTNESS = createField(
-            DSL.name("strictness"), SbTypes.STRICTNESS.nullable(true), this, "");
 
     public final TableField<SbPunishmentsRecord, Long> VICTIM_ID = createField(
             DSL.name("victim_id"), SQLDataType.BIGINT.nullable(false), this, "");

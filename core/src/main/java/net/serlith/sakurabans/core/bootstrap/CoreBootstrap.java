@@ -45,19 +45,16 @@ public final class CoreBootstrap {
                         components.loginGate(), components.chatGate(),
                         components.commands(), components.scopeService(), components.sync(),
                         components.syncReceiver(), components.allowList(), components.ranges(),
-                        components.kindService(), components.templates(),
+                        components.templates(),
                         components.templateActions(), components.warningActions(),
                         components.displayIds(), components.lockdowns(), components.webhooks(),
                         components.settingsService(), components.messageTemplates(),
-                        SakuraApi.create(components.punishmentService(),
+                        new SakuraApi(components.punishmentService(),
                                 new SakuraPlayerService(components.players(),
                                         components.clock(), components.altService()),
                                 components.scopeService(), components.events(),
-                                components.integrations(), components.allowList(),
-                                components.templates(), components.kindService(),
-                                components.authorization(),
-                                components.auditService(), components.formatter(),
-                                components.stats(), components.playerData(),
-                                components.importService())));
+                                components.integrations(), components.templates(),
+                                components.allowList(), components.formatter(),
+                                components.playerData())));
     }
 }

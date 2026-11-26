@@ -6,7 +6,6 @@ import net.serlith.sakurabans.api.model.AddressRangeVictim;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.punish.DraftPunishment;
-import net.serlith.sakurabans.api.punish.Enforcement;
 import net.serlith.sakurabans.api.punish.PunishOptions;
 import net.serlith.sakurabans.api.punish.PunishResult;
 import net.serlith.sakurabans.api.punish.RevocationRequest;
@@ -26,9 +25,9 @@ class RangeTest extends ServiceTest {
     private static final AddressRangeVictim DOCS = Cidrs.parse("2001:db8::/32").orElseThrow();
 
     private Punishment punish(final PunishmentType type, final AddressRangeVictim range,
-            final Enforcement enforcement) {
+            final boolean enforce) {
         return ((PunishResult.Success) this.service.punish(DraftPunishment.builder(type, range,
-                MODERATOR).build(), PunishOptions.builder().enforcement(enforcement).build())
+                MODERATOR).build(), PunishOptions.builder().enforce(enforce).build())
                 .join()).punishment();
     }
 
@@ -39,8 +38,8 @@ class RangeTest extends ServiceTest {
 
     @Test
     void ipv4AndIpv6RangesDenyJoinsInside() throws Exception {
-        this.punish(PunishmentType.BAN, TEN, Enforcement.GLOBAL);
-        this.punish(PunishmentType.BAN, DOCS, Enforcement.GLOBAL);
+        this.punish(PunishmentType.BAN, TEN, true);
+        this.punish(PunishmentType.BAN, DOCS, true);
 
         Assertions.assertThat(this.join(STEVE, "10.20.30.40"))
                 .isInstanceOf(LoginDecision.Denied.class);
@@ -57,7 +56,7 @@ class RangeTest extends ServiceTest {
     void fromNormalOnAddressesUsedBeforeCount() throws Exception {
         this.players.recordConnection(STEVE, "Steve", this.now.get(),
                 InetAddress.getByName("10.9.9.9"), null).join();
-        this.punish(PunishmentType.BAN, TEN, Enforcement.GLOBAL);
+        this.punish(PunishmentType.BAN, TEN, true);
 
         Assertions.assertThat(this.join(STEVE, "203.0.113.7"))
                 .isInstanceOf(LoginDecision.Denied.class);
@@ -65,7 +64,7 @@ class RangeTest extends ServiceTest {
 
     @Test
     void allowListedAddressesInsideRangesAreNotReached() throws Exception {
-        this.punish(PunishmentType.BAN, TEN, Enforcement.GLOBAL);
+        this.punish(PunishmentType.BAN, TEN, true);
         this.allowList.allow(InetAddress.getByName("10.1.1.1"), MODERATOR, null).join();
 
         Assertions.assertThat(this.join(STEVE, "10.1.1.1"))
@@ -76,7 +75,7 @@ class RangeTest extends ServiceTest {
 
     @Test
     void rangeMutesReachTheMuteCache() throws Exception {
-        this.punish(PunishmentType.MUTE, TEN, Enforcement.GLOBAL);
+        this.punish(PunishmentType.MUTE, TEN, true);
 
         this.mutes.load(STEVE, InetAddress.getByName("10.0.0.1")).join();
 
@@ -89,7 +88,7 @@ class RangeTest extends ServiceTest {
                 InetAddress.getByName("10.0.0.7"));
         final FakeOnlinePlayer outside = this.platform.join(ALEX, "Alex", this.home);
 
-        this.punish(PunishmentType.BAN, TEN, Enforcement.GLOBAL);
+        this.punish(PunishmentType.BAN, TEN, true);
 
         eventually(() -> inside.disconnectReason().isPresent());
         Assertions.assertThat(outside.disconnectReason()).isEmpty();
@@ -98,7 +97,7 @@ class RangeTest extends ServiceTest {
     @Test
     void theCacheFollowsOtherInstancesAndRevocations() throws Exception {
         // Issued "elsewhere": stored, but this instance hasn't heard of it.
-        final Punishment ban = this.punish(PunishmentType.BAN, TEN, Enforcement.NONE);
+        final Punishment ban = this.punish(PunishmentType.BAN, TEN, false);
         Assertions.assertThat(this.join(STEVE, "10.0.0.1"))
                 .isInstanceOf(LoginDecision.Allowed.class);
 

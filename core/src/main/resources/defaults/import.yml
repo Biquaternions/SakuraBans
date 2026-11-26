@@ -18,8 +18,8 @@
 # table-prefix is the prefix the other plugin was set up with (up to 32 characters of A-Z, a-z,
 # 0-9 and _; empty for none). Leave jdbc-url empty to disable the section's source.
 
-# Another SakuraBans database, for moving everything (punishments, players, kinds, templates,
-# allow list, audit log, ...) to this one, for example from H2 to MariaDB. Only works while
+# Another SakuraBans database, for moving everything (punishments, players, templates, allow
+# list, audit log, ...) to this one, for example from H2 to MariaDB. Only works while
 # this database is still empty, and both must be of the same SakuraBans version.
 self:
   # For example jdbc:h2:./plugins/SakuraBans/sakurabans for the default H2 file (the server

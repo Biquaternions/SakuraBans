@@ -7,13 +7,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
-import net.serlith.sakurabans.api.audit.AuditAction;
-import net.serlith.sakurabans.api.audit.SubjectType;
-import net.serlith.sakurabans.api.kind.AddressMode;
-import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.EndKind;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Visibility;
+import net.serlith.sakurabans.core.model.AuditAction;
+import net.serlith.sakurabans.core.model.SubjectType;
 import net.serlith.sakurabans.core.storage.converter.DurationMillisConverter;
 import net.serlith.sakurabans.core.storage.converter.EnumCode;
 import net.serlith.sakurabans.core.storage.converter.EnumCodeConverter;
@@ -66,19 +64,6 @@ public final class SbTypes {
             EndKind.PRUNED, 4,
             EndKind.VOIDED, 5));
 
-    public static final EnumCode<AddressStrictness> STRICTNESS_CODES =
-            EnumCode.of(AddressStrictness.class, Map.of(
-                    AddressStrictness.LENIENT, 0,
-                    AddressStrictness.NORMAL, 1,
-                    AddressStrictness.STERN, 2,
-                    AddressStrictness.STRICT, 3));
-
-    public static final EnumCode<AddressMode> ADDRESS_MODE_CODES =
-            EnumCode.of(AddressMode.class, Map.of(
-                    AddressMode.AS_GIVEN, 0,
-                    AddressMode.ADDRESS, 1,
-                    AddressMode.COMPOSITE, 2));
-
     public static final EnumCode<AuditAction> AUDIT_ACTION_CODES =
             EnumCode.of(AuditAction.class, Map.ofEntries(
                     entry(AuditAction.CREATE, 0),
@@ -103,7 +88,6 @@ public final class SbTypes {
     public static final EnumCode<SubjectType> SUBJECT_TYPE_CODES =
             EnumCode.of(SubjectType.class, Map.of(
                     SubjectType.PUNISHMENT, 0,
-                    SubjectType.KIND, 1,
                     SubjectType.TEMPLATE, 2,
                     SubjectType.SETTINGS, 3,
                     SubjectType.MESSAGE, 4,
@@ -128,8 +112,6 @@ public final class SbTypes {
     public static final DataType<OperatorKind> OPERATOR_KIND = enumType(OPERATOR_KIND_CODES);
     public static final DataType<Visibility> VISIBILITY = enumType(VISIBILITY_CODES);
     public static final DataType<EndKind> END_KIND = enumType(END_KIND_CODES);
-    public static final DataType<AddressStrictness> STRICTNESS = enumType(STRICTNESS_CODES);
-    public static final DataType<AddressMode> ADDRESS_MODE = enumType(ADDRESS_MODE_CODES);
     public static final DataType<AuditAction> AUDIT_ACTION = enumType(AUDIT_ACTION_CODES);
     public static final DataType<SubjectType> SUBJECT_TYPE = enumType(SUBJECT_TYPE_CODES);
 

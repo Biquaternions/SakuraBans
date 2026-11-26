@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
-import net.serlith.sakurabans.core.model.SakuraImportReport;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import net.serlith.sakurabans.core.storage.repository.ImportRepository;
 
@@ -44,7 +43,7 @@ public final class SelfImport {
         return ImportRepository.sourceCounts(source.dsl(), source.prefix());
     }
 
-    public SakuraImportReport run(final SourceDatabase source, final boolean dryRun,
+    public ImportReport run(final SourceDatabase source, final boolean dryRun,
             final int batchSize) {
         final Map<String, Long> tables;
         if (dryRun) {
@@ -55,7 +54,7 @@ public final class SelfImport {
                     .join();
             this.repository.resetIdentities().join();
         }
-        return new SakuraImportReport(dryRun, tables.getOrDefault(PUNISHMENTS, 0L), 0,
+        return new ImportReport(dryRun, tables.getOrDefault(PUNISHMENTS, 0L), 0,
                 List.of(), 0, tables.getOrDefault(PLAYERS, 0L), 0, 0, tables);
     }
 

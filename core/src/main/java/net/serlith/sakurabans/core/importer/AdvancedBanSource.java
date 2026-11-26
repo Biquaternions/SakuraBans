@@ -8,14 +8,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import net.serlith.sakurabans.api.imports.ImportedPunishment;
 import net.serlith.sakurabans.api.model.AddressVictim;
 import net.serlith.sakurabans.api.model.EndKind;
+import net.serlith.sakurabans.api.model.GlobalScope;
 import net.serlith.sakurabans.api.model.Operator;
 import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Victim;
-import net.serlith.sakurabans.api.validation.ValidationException;
+import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.core.configuration.settings.ImportSettings;
 import net.serlith.sakurabans.core.model.ImportedPlayer;
 import net.serlith.sakurabans.core.util.Uuids;
@@ -219,21 +219,15 @@ public final class AdvancedBanSource implements ImportSource {
                 reader.player(ImportedPlayer.named(uuid, valid.get(), created));
             }
         }
-        final ImportedPunishment.Builder builder = ImportedPunishment.builder(kind.type, victim,
-                        operator, created)
-                .expiresAt(expires)
-                .reason(reader.reason(row.get(REASON)))
-                .externalId(context.externalId(idTable, id));
         // Gone from the active table and still running: someone removed it, at an unknown time.
         // AdvancedBan keeps no revoker: the runner names the unknown one.
-        if (history && kind.type != PunishmentType.KICK && (expires == null
-                || expires.isAfter(now))) {
-            builder.ended(EndKind.REVOKED, now.isAfter(created) ? now : created, null, null);
-        }
-        try {
-            reader.punishment(builder.build());
-        } catch (final ValidationException e) {
-            reader.failure(table, id, e.getMessage());
-        }
+        final ImportedPunishment.End ended = history && kind.type != PunishmentType.KICK
+                && (expires == null || expires.isAfter(now))
+                ? new ImportedPunishment.End(EndKind.REVOKED, now.isAfter(created) ? now : created,
+                        null, null)
+                : null;
+        reader.punishment(new ImportedPunishment(kind.type, victim, operator, created, expires,
+                GlobalScope.INSTANCE, reader.reason(row.get(REASON)), Visibility.NORMAL, false,
+                null, ended, context.externalId(idTable, id)));
     }
 }

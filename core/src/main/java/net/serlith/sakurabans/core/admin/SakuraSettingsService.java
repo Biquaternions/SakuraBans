@@ -7,24 +7,22 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
-import net.serlith.sakurabans.api.admin.AdminResult;
-import net.serlith.sakurabans.api.audit.SubjectType;
-import net.serlith.sakurabans.api.auth.Action;
-import net.serlith.sakurabans.api.event.ChangeType;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.validation.FieldError;
 import net.serlith.sakurabans.core.configuration.ConfigIssue;
 import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.configuration.ReloadResult;
 import net.serlith.sakurabans.core.configuration.SettingsSchema;
-import net.serlith.sakurabans.core.event.SakuraEventBus;
-import net.serlith.sakurabans.core.event.SakuraOverridesChangedEvents;
+import net.serlith.sakurabans.core.model.AdminResult;
 import net.serlith.sakurabans.core.model.ApiValues;
-import net.serlith.sakurabans.core.model.SakuraAdminResult;
-import net.serlith.sakurabans.core.punish.ActionCheck;
+import net.serlith.sakurabans.core.model.SubjectType;
+import net.serlith.sakurabans.core.permission.Action;
+import net.serlith.sakurabans.core.permission.AuthorizationService;
 import net.serlith.sakurabans.core.storage.repository.OverrideRepository;
 import net.serlith.sakurabans.core.sync.SyncPacket;
 import net.serlith.sakurabans.core.sync.SyncService;
@@ -36,21 +34,19 @@ public final class SakuraSettingsService {
 
     private final ConfigService config;
     private final OverrideRepository repository;
-    private final ActionCheck actions;
+    private final AuthorizationService authorization;
     private final SyncService sync;
-    private final SakuraEventBus events;
     private final InstantSource clock;
     private final ComponentLogger logger;
     private final AtomicLong version = new AtomicLong(1);
 
     public SakuraSettingsService(final ConfigService config, final OverrideRepository repository,
-            final ActionCheck actions, final SyncService sync, final SakuraEventBus events,
+            final AuthorizationService authorization, final SyncService sync,
             final InstantSource clock, final ComponentLogger logger) {
         this.config = config;
         this.repository = repository;
-        this.actions = actions;
+        this.authorization = authorization;
         this.sync = sync;
-        this.events = events;
         this.clock = clock;
         this.logger = logger;
     }
@@ -67,11 +63,6 @@ public final class SakuraSettingsService {
                         + " server's config.yml and were left out: {}", errors);
             }
         });
-    }
-
-    public CompletableFuture<Void> changed(final SyncPacket.EntityChangedPacket packet) {
-        return this.reload().thenRun(() -> this.events.post(new SakuraOverridesChangedEvents
-                .Settings(packet.change(), packet.id(), packet.version(), packet.actor(), true)));
     }
 
     public List<SettingField> schema() {
@@ -96,6 +87,14 @@ public final class SakuraSettingsService {
                     : this.config.inFile(entry.key()) ? ValueOrigin.FILE : ValueOrigin.DEFAULT);
         }
         return new SettingsSnapshot(this.version.get(), values, origins);
+    }
+
+    public SortedMap<String, String> overrides() {
+        return new TreeMap<>(this.config.overrides());
+    }
+
+    public String fileValue(final String key) {
+        return this.config.fileValue(key).map(String::valueOf).orElse("");
     }
 
     public CompletableFuture<AdminResult<SettingsSnapshot>> update(
@@ -149,15 +148,15 @@ public final class SakuraSettingsService {
         } catch (final RuntimeException e) {
             return CompletableFuture.failedFuture(e);
         }
-        return this.actions.check(checked, Action.Manage.of(Action.Manage.Area.SETTINGS))
+        return this.authorization.check(checked, new Action.Manage(Action.Manage.Area.SETTINGS))
                 .thenCompose(decision -> {
                     if (!decision.allowed()) {
                         return CompletableFuture.completedFuture(
-                                new SakuraAdminResult.Forbidden<>(decision));
+                                new AdminResult.Forbidden<>());
                     }
                     if (!errors.isEmpty()) {
                         return CompletableFuture.completedFuture(
-                                new SakuraAdminResult.ValidationFailed<>(errors));
+                                new AdminResult.ValidationFailed<>(errors));
                     }
                     final Map<String, String> next = new HashMap<>(this.config.overrides());
                     changes.forEach((key, value) -> {
@@ -174,22 +173,18 @@ public final class SakuraSettingsService {
                     }
                     if (!invalid.isEmpty()) {
                         return CompletableFuture.completedFuture(
-                                new SakuraAdminResult.ValidationFailed<>(invalid));
+                                new AdminResult.ValidationFailed<>(invalid));
                     }
                     return this.repository.changeSettings(changes, expectedVersion, checked,
                             this.clock.instant()).thenApply(written -> {
                                 if (written.conflict()) {
-                                    return new SakuraAdminResult.Conflict<>(written.version());
+                                    return new AdminResult.Conflict<>(written.version());
                                 }
                                 this.version.set(written.version());
                                 this.config.applyOverrides(next);
                                 this.sync.publish(new SyncPacket.EntityChangedPacket(
-                                        SubjectType.SETTINGS, ENTITY, ChangeType.UPDATED,
-                                        written.version(), checked));
-                                this.events.post(new SakuraOverridesChangedEvents.Settings(
-                                        ChangeType.UPDATED, ENTITY, written.version(), checked,
-                                        false));
-                                return new SakuraAdminResult.Ok<>(this.settings());
+                                        SubjectType.SETTINGS));
+                                return new AdminResult.Ok<>(this.settings());
                             });
                 });
     }

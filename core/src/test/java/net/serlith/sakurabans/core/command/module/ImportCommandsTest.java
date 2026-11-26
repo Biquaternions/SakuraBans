@@ -2,14 +2,16 @@ package net.serlith.sakurabans.core.command.module;
 
 import java.time.Duration;
 import java.util.List;
-import net.serlith.sakurabans.api.imports.ImportedPunishment;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
+import net.serlith.sakurabans.api.model.GlobalScope;
 import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.PunishmentType;
+import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.core.command.CommandTest;
 import net.serlith.sakurabans.core.command.FakeCommandActor;
 import net.serlith.sakurabans.core.importer.FakeSource;
 import net.serlith.sakurabans.core.importer.ImportSources;
+import net.serlith.sakurabans.core.importer.ImportedPunishment;
 import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import org.assertj.core.api.Assertions;
@@ -23,12 +25,11 @@ class ImportCommandsTest extends CommandTest {
     @Override
     protected ImportSources importSources() {
         for (final String id : List.of("1", "2")) {
-            this.source.row(reader -> reader.punishment(ImportedPunishment.builder(
-                            PunishmentType.BAN, PlayerVictim.of(STEVE), ConsoleOperator.INSTANCE,
-                            this.now.get().minus(Duration.ofDays(1)))
-                    .reason("&cbye")
-                    .externalId(FakeSource.ID + ":bans:" + id)
-                    .build()));
+            this.source.row(reader -> reader.punishment(new ImportedPunishment(
+                    PunishmentType.BAN, PlayerVictim.of(STEVE), ConsoleOperator.INSTANCE,
+                    this.now.get().minus(Duration.ofDays(1)), null, GlobalScope.INSTANCE,
+                    "&cbye", Visibility.NORMAL, false, null, null,
+                    FakeSource.ID + ":bans:" + id)));
         }
         return new ImportSources(List.of(this.source));
     }

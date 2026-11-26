@@ -7,21 +7,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
-import net.serlith.sakurabans.api.imports.ImportOptions;
-import net.serlith.sakurabans.api.imports.ImportReport;
-import net.serlith.sakurabans.api.imports.ImportedPunishment;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.EndKind;
 import net.serlith.sakurabans.api.model.ErasedAddressVictim;
+import net.serlith.sakurabans.api.model.Lengths;
 import net.serlith.sakurabans.api.model.Operator;
+import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.validation.FieldError;
-import net.serlith.sakurabans.api.validation.ValidationException;
-import net.serlith.sakurabans.core.model.ApiValues;
+import net.serlith.sakurabans.api.validation.FieldError.Code;
+import net.serlith.sakurabans.api.validation.Validator;
 import net.serlith.sakurabans.core.model.ImportedPlayer;
-import net.serlith.sakurabans.core.model.SakuraImportReport;
-import net.serlith.sakurabans.core.model.SakuraKind;
-import net.serlith.sakurabans.core.punish.BuiltInKinds;
-import net.serlith.sakurabans.core.punish.KindLookup;
 import net.serlith.sakurabans.core.storage.repository.ImportRepository;
 import net.serlith.sakurabans.core.storage.repository.ImportRow;
 import net.serlith.sakurabans.core.storage.repository.NewPunishment;
@@ -30,51 +25,53 @@ import org.jspecify.annotations.Nullable;
 public final class ImportRunner {
 
     static final int MAX_FAILURES = 50;
+    static final int BATCH_SIZE = 500;
 
     private final ImportRepository repository;
-    private final KindLookup kinds;
     private final InstantSource clock;
     private final ComponentLogger logger;
 
-    public ImportRunner(final ImportRepository repository, final KindLookup kinds,
-            final InstantSource clock, final ComponentLogger logger) {
+    public ImportRunner(final ImportRepository repository, final InstantSource clock,
+            final ComponentLogger logger) {
         this.repository = repository;
-        this.kinds = kinds;
         this.clock = clock;
         this.logger = logger;
     }
 
-    public SakuraImportReport run(final ImportSource source, final SourceContext context,
-            final ImportOptions options, final Runnable afterBatch) throws Exception {
-        final Batch batch = new Batch(source.id(), options, afterBatch);
+    public ImportReport run(final ImportSource source, final SourceContext context,
+            final boolean dryRun, final Runnable afterBatch) throws Exception {
+        final Batch batch = new Batch(source.id(), dryRun, afterBatch);
         source.read(context, batch);
         return batch.finish();
     }
 
-    public SakuraImportReport run(final Iterable<ImportedPunishment> punishments,
-            final ImportOptions options, final Runnable afterBatch) {
-        final Batch batch = new Batch(options.source(), options, afterBatch);
-        for (final ImportedPunishment punishment : punishments) {
-            batch.punishment(punishment);
-        }
-        return batch.finish();
-    }
-
-    private SakuraKind kind(final ImportedPunishment punishment) {
-        final String fallback = BuiltInKinds.defaultFor(punishment.type());
-        return punishment.kind()
-                .flatMap(this.kinds::find)
-                .filter(kind -> kind.baseType() == punishment.type())
-                // An unknown kind (or one of another type) becomes the type's own kind.
-                .or(() -> this.kinds.find(fallback))
-                .or(() -> BuiltInKinds.kind(fallback))
-                .orElseThrow();
+    static List<FieldError> problems(final ImportedPunishment punishment) {
+        final ImportedPunishment.End end = punishment.end();
+        return Validator.create()
+                .check(!(punishment.victim() instanceof ErasedAddressVictim), "victim",
+                        Code.NOT_ALLOWED, "an erased address can't be imported")
+                .check(!punishment.shadow() || punishment.type() == PunishmentType.MUTE,
+                        "shadow", Code.NOT_ALLOWED, "only mutes can be shadow mutes")
+                .maxLength("reason", punishment.reason(), Lengths.MAX_REASON)
+                .maxLength("endReason", end == null ? null : end.reason(), Lengths.MAX_REASON)
+                .maxLength("originServer", punishment.originServer(), Lengths.MAX_IDENTIFIER)
+                .name("externalId", punishment.externalId(), ImportedPunishment.MAX_EXTERNAL_ID)
+                .check(punishment.expiresAt() == null
+                                || punishment.expiresAt().isAfter(punishment.createdAt()),
+                        "expiresAt", Code.WRONG_ORDER, "must be after createdAt")
+                .check(end == null || !end.at().isBefore(punishment.createdAt()), "endedAt",
+                        Code.WRONG_ORDER, "must not be before createdAt")
+                .check(!punishment.type().instant()
+                                || punishment.expiresAt() == null && end == null, "type",
+                        Code.NOT_ALLOWED, "a kick can't expire or end")
+                .errors();
     }
 
     private final class Batch implements SourceReader {
 
         private final String label;
-        private final ImportOptions options;
+        private final String source;
+        private final boolean dryRun;
         private final Runnable afterBatch;
         private final List<ImportedPlayer> players = new ArrayList<>();
         private final List<ImportRow> rows = new ArrayList<>();
@@ -88,9 +85,10 @@ public final class ImportRunner {
         private long truncated;
         private int batches;
 
-        Batch(final String label, final ImportOptions options, final Runnable afterBatch) {
+        Batch(final String label, final boolean dryRun, final Runnable afterBatch) {
             this.label = label;
-            this.options = options;
+            this.source = ImportJobs.SOURCE_PREFIX + label;
+            this.dryRun = dryRun;
             this.afterBatch = afterBatch;
         }
 
@@ -108,35 +106,23 @@ public final class ImportRunner {
         }
 
         @Override
-        public void punishment(final ImportedPunishment given) {
+        public void punishment(final ImportedPunishment punishment) {
             final long position = this.index++;
-            final ImportedPunishment punishment;
-            try {
-                punishment = ApiValues.imported(given);
-            } catch (final ValidationException e) {
-                this.fail(position, given.externalId().orElse(null), e.errors());
-                return;
-            } catch (final RuntimeException e) {
-                this.fail(position, given.externalId().orElse(null), "punishment",
-                        FieldError.Code.INVALID, String.valueOf(e.getMessage()));
+            final List<FieldError> problems = problems(punishment);
+            if (!problems.isEmpty()) {
+                this.fail(position, punishment.externalId(), problems);
                 return;
             }
-            if (punishment.victim() instanceof ErasedAddressVictim) {
-                this.fail(position, punishment.externalId().orElse(null), "victim",
-                        FieldError.Code.NOT_ALLOWED, "an erased address can't be imported");
-                return;
-            }
-            final SakuraKind kind = ImportRunner.this.kind(punishment);
-            final ImportedPunishment.End end = punishment.end().orElse(null);
-            final String endReason = end == null ? null
-                    : end.reason().map(ImportValues::plain).orElse(null);
-            this.rows.add(new ImportRow(new NewPunishment(punishment.type(), kind.id(),
-                    kind.shadow(), kind.strictnessOrNull(), punishment.victim(),
+            final ImportedPunishment.End end = punishment.end();
+            final String endReason = end == null || end.reason() == null ? null
+                    : ImportValues.plain(end.reason());
+            this.rows.add(new ImportRow(new NewPunishment(punishment.type(),
+                    punishment.shadow(), punishment.victim(),
                     punishment.scope(), ImportValues.plain(punishment.reason()),
-                    Actor.of(punishment.operator(), this.options.source()),
-                    punishment.createdAt(), punishment.expiresAt().orElse(null),
-                    punishment.originServer().orElse(null), punishment.visibility(), null, null,
-                    punishment.evidence(), punishment.externalId().orElse(null)),
+                    Actor.of(punishment.operator(), this.source),
+                    punishment.createdAt(), punishment.expiresAt(),
+                    punishment.originServer(), punishment.visibility(), null, null,
+                    List.of(), punishment.externalId()),
                     end == null ? null : end.kind(), end == null ? null : end.at(),
                     end == null ? null : endedBy(end), endReason));
             this.flushIfFull();
@@ -166,12 +152,12 @@ public final class ImportRunner {
                 final List<FieldError> errors) {
             this.failed++;
             if (this.failures.size() < MAX_FAILURES) {
-                this.failures.add(new SakuraImportReport.Failure(position, externalId, errors));
+                this.failures.add(new ImportReport.Failure(position, externalId, errors));
             }
         }
 
         private void flushIfFull() {
-            if (this.players.size() + this.rows.size() >= this.options.batchSize()) {
+            if (this.players.size() + this.rows.size() >= BATCH_SIZE) {
                 this.flush();
             }
         }
@@ -180,7 +166,7 @@ public final class ImportRunner {
             if (this.players.isEmpty() && this.rows.isEmpty()) {
                 return;
             }
-            if (this.options.dryRun()) {
+            if (this.dryRun) {
                 final List<String> ids = this.rows.stream()
                         .map(row -> row.punishment().externalId())
                         .filter(id -> id != null)
@@ -215,13 +201,13 @@ public final class ImportRunner {
             ImportRunner.this.logger.info("Import from {}: batch {} done; {} imported, {}"
                             + " already there, {} failed, {} players so far{}", this.label,
                     this.batches, this.imported, this.skipped, this.failed, this.playerCount,
-                    this.options.dryRun() ? " (dry run)" : "");
+                    this.dryRun ? " (dry run)" : "");
             this.afterBatch.run();
         }
 
-        SakuraImportReport finish() {
+        ImportReport finish() {
             this.flush();
-            return new SakuraImportReport(this.options.dryRun(), this.imported, this.skipped,
+            return new ImportReport(this.dryRun, this.imported, this.skipped,
                     this.failures, this.failed, this.playerCount, this.superseded,
                     this.truncated, Map.of());
         }
@@ -229,7 +215,8 @@ public final class ImportRunner {
 
     private static @Nullable Operator endedBy(final ImportedPunishment.End end) {
         final boolean needsActor = end.kind() == EndKind.REVOKED || end.kind() == EndKind.VOIDED;
-        return end.operator().orElse(needsActor ? ImportValues.UNKNOWN_REVOKER : null);
+        return end.operator() != null ? end.operator()
+                : needsActor ? ImportValues.UNKNOWN_REVOKER : null;
     }
 
 }

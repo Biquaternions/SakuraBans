@@ -114,7 +114,7 @@ public final class LoginGate {
 
     private CompletableFuture<Optional<LoginDecision>> locked(final LoginAttempt attempt,
             final Set<? extends Scope> scopes, final Denial denial) {
-        return this.lockdowns.blocking(attempt.uuid(), attempt.name(), scopes)
+        return this.lockdowns.blocking(attempt.uuid(), scopes)
                 .thenApply(lockdown -> lockdown.map(found -> this.denied(attempt, denial,
                         this.messages.lockdownScreen(found, this.messages.defaultLocale()))));
     }

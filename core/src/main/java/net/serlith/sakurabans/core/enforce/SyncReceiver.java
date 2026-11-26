@@ -21,7 +21,6 @@ import net.serlith.sakurabans.core.event.SakuraPunishmentChangeEvents;
 import net.serlith.sakurabans.core.event.SakuraPunishmentCreatedEvent;
 import net.serlith.sakurabans.core.event.SakuraPunishmentRevokedEvent;
 import net.serlith.sakurabans.core.event.SakuraPunishmentsRolledBackEvent;
-import net.serlith.sakurabans.core.kind.SakuraKindService;
 import net.serlith.sakurabans.core.model.SakuraPunishment;
 import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import net.serlith.sakurabans.core.platform.Platform;
@@ -51,7 +50,6 @@ public final class SyncReceiver implements SyncPacketHandler {
     private final InstantSource clock;
     private final SakuraAllowListService allowList;
     private final SakuraTemplateService templates;
-    private final SakuraKindService kinds;
     private final LockdownService lockdowns;
     private final SakuraSettingsService settings;
     private final SakuraMessageTemplateService messageTemplates;
@@ -64,8 +62,7 @@ public final class SyncReceiver implements SyncPacketHandler {
             final MuteCache mutes, final SakuraScopeService scopes, final Platform platform,
             final SakuraEventBus events, final ConfigService config, final InstantSource clock,
             final SakuraAllowListService allowList, final SakuraTemplateService templates,
-            final SakuraKindService kinds, final LockdownService lockdowns,
-            final SakuraSettingsService settings,
+            final LockdownService lockdowns, final SakuraSettingsService settings,
             final SakuraMessageTemplateService messageTemplates,
             final SakuraPlayerDataService playerData, final ActiveRangeCache ranges,
             final DisplayIdCodec displayIds, final ComponentLogger logger) {
@@ -79,7 +76,6 @@ public final class SyncReceiver implements SyncPacketHandler {
         this.clock = clock;
         this.allowList = allowList;
         this.templates = templates;
-        this.kinds = kinds;
         this.lockdowns = lockdowns;
         this.settings = settings;
         this.messageTemplates = messageTemplates;
@@ -102,12 +98,11 @@ public final class SyncReceiver implements SyncPacketHandler {
             case SyncPacket.LockdownChangedPacket _ -> this.lockdowns.reload();
             case SyncPacket.PunishmentsRolledBackPacket rolledBack -> this.rolledBack(rolledBack);
             case SyncPacket.PlayerDataErasedPacket erased -> this.playerData.erased(erased);
-            case SyncPacket.ImportedPacket imported -> this.imported(imported.enforce());
+            case SyncPacket.ImportedPacket imported -> this.imported();
             case SyncPacket.EntityChangedPacket changed -> switch (changed.entity()) {
-                case TEMPLATE -> this.templates.changed(changed);
-                case KIND -> this.kinds.changed(changed);
-                case SETTINGS -> this.settings.changed(changed);
-                case MESSAGE -> this.messageTemplates.changed(changed);
+                case TEMPLATE -> this.templates.reload();
+                case SETTINGS -> this.settings.reload();
+                case MESSAGE -> this.messageTemplates.reload();
                 default -> CompletableFuture.completedFuture(null);
             };
         };
@@ -211,31 +206,26 @@ public final class SyncReceiver implements SyncPacketHandler {
 
     @Override
     public CompletableFuture<Void> missed() {
-        return Futures.logged(this.reload(new ArrayList<>(), true), this.logger,
+        return Futures.logged(this.reload(new ArrayList<>()), this.logger,
                 "catch up after missed sync messages");
     }
 
-    public CompletableFuture<Void> imported(final boolean enforce) {
+    public CompletableFuture<Void> imported() {
         final List<CompletableFuture<Void>> work = new ArrayList<>();
         work.add(this.displayIds.load());
         work.add(this.allowList.reload().thenCompose(ignored -> this.ranges.reload()));
-        return Futures.logged(this.reload(work, enforce), this.logger,
+        return Futures.logged(this.reload(work), this.logger,
                 "reload the caches after an import");
     }
 
-    private CompletableFuture<Void> reload(final List<CompletableFuture<Void>> work,
-            final boolean enforce) {
+    private CompletableFuture<Void> reload(final List<CompletableFuture<Void>> work) {
         final Instant now = this.clock.instant();
-        work.add(this.kinds.reload());
         work.add(this.templates.reload());
         work.add(this.lockdowns.reload());
         work.add(this.settings.reload());
         work.add(this.messageTemplates.reload());
         for (final OnlinePlayer player : this.platform.onlinePlayers()) {
             work.add(this.mutes.load(player.uuid(), player.address()));
-            if (!enforce) {
-                continue;
-            }
             work.add(this.punishments.activeApplicable(PunishmentType.BAN,
                             Applicabilities.of(player.uuid(), player.address(),
                                     this.config.settings().enforcement().addressStrictness()),

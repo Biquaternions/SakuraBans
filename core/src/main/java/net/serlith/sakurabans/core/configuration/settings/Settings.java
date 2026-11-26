@@ -93,18 +93,10 @@ public record Settings(
     public record Players(boolean remoteLookup) {
     }
 
-    public record KindCommand(PunishmentType type, List<String> labels) {
-
-        public KindCommand {
-            labels = List.copyOf(labels);
-        }
-    }
-
-    public record Commands(Map<String, List<String>> labels, Map<String, KindCommand> kinds) {
+    public record Commands(Map<String, List<String>> labels) {
 
         public Commands {
             labels = Map.copyOf(labels);
-            kinds = Map.copyOf(kinds);
         }
 
         public List<String> labels(final String command) {

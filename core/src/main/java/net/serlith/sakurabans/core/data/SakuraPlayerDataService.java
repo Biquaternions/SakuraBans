@@ -6,24 +6,23 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
-import net.serlith.sakurabans.api.admin.AdminResult;
 import net.serlith.sakurabans.api.allow.AllowEntry;
 import net.serlith.sakurabans.api.allow.AllowedPlayer;
-import net.serlith.sakurabans.api.audit.AuditAction;
-import net.serlith.sakurabans.api.audit.SubjectType;
-import net.serlith.sakurabans.api.auth.Action;
 import net.serlith.sakurabans.api.data.EraseResult;
 import net.serlith.sakurabans.api.data.PlayerDataExport;
+import net.serlith.sakurabans.api.data.PlayerDataResult;
 import net.serlith.sakurabans.api.data.PlayerDataService;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.core.alts.SakuraAllowListService;
 import net.serlith.sakurabans.core.event.SakuraEventBus;
 import net.serlith.sakurabans.core.event.SakuraPlayerDataErasedEvent;
 import net.serlith.sakurabans.core.model.ApiValues;
-import net.serlith.sakurabans.core.model.SakuraAdminResult;
+import net.serlith.sakurabans.core.model.AuditAction;
 import net.serlith.sakurabans.core.model.SakuraPlayerData;
+import net.serlith.sakurabans.core.model.SubjectType;
+import net.serlith.sakurabans.core.permission.Action;
+import net.serlith.sakurabans.core.permission.AuthorizationService;
 import net.serlith.sakurabans.core.player.NameCache;
-import net.serlith.sakurabans.core.punish.ActionCheck;
 import net.serlith.sakurabans.core.punish.MuteCache;
 import net.serlith.sakurabans.core.storage.repository.AuditRepository;
 import net.serlith.sakurabans.core.storage.repository.PlayerDataRepository;
@@ -39,7 +38,7 @@ public final class SakuraPlayerDataService implements PlayerDataService {
     private final SakuraAllowListService allowList;
     private final MuteCache mutes;
     private final NameCache names;
-    private final ActionCheck actions;
+    private final AuthorizationService authorization;
     private final SyncService sync;
     private final SakuraEventBus events;
     private final InstantSource clock;
@@ -47,24 +46,24 @@ public final class SakuraPlayerDataService implements PlayerDataService {
     public SakuraPlayerDataService(final PlayerDataRepository repository,
             final PlayerRepository players, final AuditRepository audit,
             final SakuraAllowListService allowList, final MuteCache mutes, final NameCache names,
-            final ActionCheck actions, final SyncService sync, final SakuraEventBus events,
-            final InstantSource clock) {
+            final AuthorizationService authorization, final SyncService sync,
+            final SakuraEventBus events, final InstantSource clock) {
         this.repository = repository;
         this.players = players;
         this.audit = audit;
         this.allowList = allowList;
         this.mutes = mutes;
         this.names = names;
-        this.actions = actions;
+        this.authorization = authorization;
         this.sync = sync;
         this.events = events;
         this.clock = clock;
     }
 
     @Override
-    public CompletableFuture<AdminResult<PlayerDataExport>> export(final UUID uuid,
+    public CompletableFuture<PlayerDataResult<PlayerDataExport>> export(final UUID uuid,
             final Actor actor) {
-        return this.allowed(actor, Action.PlayerData.Operation.EXPORT, uuid, checked -> {
+        return this.allowed(actor, checked -> {
             final Instant now = this.clock.instant();
             final List<AllowEntry> allowed = this.allowList.entries().stream()
                     .filter(entry -> entry instanceof AllowedPlayer player
@@ -76,26 +75,26 @@ public final class SakuraPlayerDataService implements PlayerDataService {
                                     .thenCompose(data -> this.audit.append(now, checked,
                                                     AuditAction.EXPORT, SubjectType.PLAYER,
                                                     uuid.toString(), null, null)
-                                            .thenApply(ignored ->
-                                                    new SakuraAdminResult.Ok<>(
-                                                            new SakuraPlayerData.Export(uuid,
-                                                                    now, profile.orElse(null),
-                                                                    names, addresses,
-                                                                    data.received(),
-                                                                    data.issued(), allowed,
-                                                                    data.audit())))))));
+                                            .thenApply(ignored -> new SakuraPlayerData.Success<>(
+                                                    new SakuraPlayerData.Export(uuid, now,
+                                                            profile.orElse(null), names,
+                                                            addresses, data.received(),
+                                                            data.issued(), allowed,
+                                                            SakuraPlayerData.Audit.all(
+                                                                    data.audit()))))))));
         });
     }
 
     @Override
-    public CompletableFuture<AdminResult<EraseResult>> erase(final UUID uuid, final Actor actor) {
-        return this.allowed(actor, Action.PlayerData.Operation.ERASE, uuid, checked ->
+    public CompletableFuture<PlayerDataResult<EraseResult>> erase(final UUID uuid,
+            final Actor actor) {
+        return this.allowed(actor, checked ->
                 this.repository.erase(uuid, checked, this.clock.instant()).thenCompose(erased -> {
                     this.sync.publish(new SyncPacket.PlayerDataErasedPacket(erased, checked));
                     return this.forget(uuid).thenApply(ignored -> {
                         this.events.post(new SakuraPlayerDataErasedEvent(erased, checked,
                                 false));
-                        return new SakuraAdminResult.Ok<>((EraseResult) erased);
+                        return new SakuraPlayerData.Success<>((EraseResult) erased);
                     });
                 }));
     }
@@ -111,20 +110,19 @@ public final class SakuraPlayerDataService implements PlayerDataService {
                 new SakuraPlayerDataErasedEvent(packet.result(), packet.actor(), true)));
     }
 
-    private <T> CompletableFuture<AdminResult<T>> allowed(final Actor actor,
-            final Action.PlayerData.Operation operation, final UUID uuid,
-            final Function<Actor, CompletableFuture<AdminResult<T>>> work) {
+    private <T> CompletableFuture<PlayerDataResult<T>> allowed(final Actor actor,
+            final Function<Actor, CompletableFuture<PlayerDataResult<T>>> work) {
         final Actor checked;
         try {
             checked = ApiValues.actor(actor);
         } catch (final RuntimeException e) {
             return CompletableFuture.failedFuture(e);
         }
-        return this.actions.check(checked, Action.PlayerData.of(operation, uuid))
+        return this.authorization.check(checked,
+                        new Action.Manage(Action.Manage.Area.PLAYER_DATA))
                 .thenCompose(decision -> decision.allowed()
                         ? work.apply(checked)
-                        : CompletableFuture.completedFuture(
-                                new SakuraAdminResult.Forbidden<>(decision)));
+                        : CompletableFuture.completedFuture(new SakuraPlayerData.Forbidden<>()));
     }
 
 }

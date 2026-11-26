@@ -19,9 +19,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
-import net.serlith.sakurabans.api.admin.AdminResult;
 import net.serlith.sakurabans.api.data.EraseResult;
 import net.serlith.sakurabans.api.data.PlayerDataExport;
+import net.serlith.sakurabans.api.data.PlayerDataResult;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.core.command.CommandActor;
 import net.serlith.sakurabans.core.command.CommandModule;
@@ -37,6 +37,7 @@ import net.serlith.sakurabans.core.model.TargetInput;
 import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.player.TargetResolver;
 import net.serlith.sakurabans.core.storage.repository.AuditValues;
+import net.serlith.sakurabans.core.util.Scopes;
 import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.parser.flag.CommandFlag;
@@ -109,7 +110,7 @@ public final class GdprCommands implements CommandModule {
         return this.player(context).thenCompose(player -> player == null
                 ? CompletableFuture.completedFuture(null)
                 : this.data.export(player.uuid(), actor.asActor()).thenComposeAsync(result -> {
-                    if (!(result instanceof AdminResult.Ok<PlayerDataExport> ok)) {
+                    if (!(result instanceof PlayerDataResult.Success<PlayerDataExport> ok)) {
                         this.runner.send(actor, MessageKey.GDPR_FAILURE_FORBIDDEN);
                         return CompletableFuture.completedFuture(null);
                     }
@@ -141,7 +142,7 @@ public final class GdprCommands implements CommandModule {
                 return CompletableFuture.completedFuture(null);
             }
             return this.data.erase(player.uuid(), actor.asActor()).thenAccept(result -> {
-                if (!(result instanceof AdminResult.Ok<EraseResult> ok)) {
+                if (!(result instanceof PlayerDataResult.Success<EraseResult> ok)) {
                     this.runner.send(actor, MessageKey.GDPR_FAILURE_FORBIDDEN);
                     return;
                 }
@@ -203,8 +204,8 @@ public final class GdprCommands implements CommandModule {
         json.add("audit", array(export.auditEntries(), entry -> {
             final JsonObject object = new JsonObject();
             object.addProperty("at", entry.at().toString());
-            object.addProperty("action", entry.action().name());
-            object.addProperty("subject", entry.subjectType() + " " + entry.subjectId());
+            object.addProperty("action", entry.action());
+            object.addProperty("subject", entry.subject());
             object.addProperty("old", entry.oldValue().orElse(null));
             object.addProperty("new", entry.newValue().orElse(null));
             return object;
@@ -231,9 +232,9 @@ public final class GdprCommands implements CommandModule {
         final JsonObject object = new JsonObject();
         object.addProperty("id", punishment.id());
         object.addProperty("type", punishment.type().name());
-        object.addProperty("kind", punishment.kind());
+        object.addProperty("shadow", punishment.shadow());
         object.addProperty("victim", AuditValues.victim(punishment.victim()));
-        object.addProperty("scope", AuditValues.scope(punishment.scope()));
+        object.addProperty("scope", Scopes.format(punishment.scope()));
         object.addProperty("reason", punishment.reason());
         object.addProperty("createdAt", punishment.createdAt().toString());
         object.addProperty("expiresAt", punishment.expiresAt().map(Instant::toString).orElse(null));

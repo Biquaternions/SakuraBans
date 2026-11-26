@@ -4,15 +4,14 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
-import net.serlith.sakurabans.api.admin.Versioned;
 import net.serlith.sakurabans.api.model.PunishmentType;
+import net.serlith.sakurabans.api.model.Scope;
 
 /**
  * A template, as currently stored. Templates live in the database and are shared by every
  * instance; {@code templates.yml} seeds them. Implemented by SakuraBans; don't implement it.
  */
-public interface TemplateInfo extends Versioned {
+public interface TemplateInfo {
 
     /**
      * The template's name.
@@ -22,18 +21,34 @@ public interface TemplateInfo extends Versioned {
     String name();
 
     /**
-     * The punishment kind it creates.
-     *
-     * @return the kind id
-     */
-    String kind();
-
-    /**
-     * The base type of its kind.
+     * The type of the punishments it creates.
      *
      * @return the type
      */
     PunishmentType type();
+
+    /**
+     * Whether its punishments target the player's current address instead of the player, as an
+     * IP ban or IP mute does.
+     *
+     * @return {@code true} if they target the address
+     */
+    boolean ip();
+
+    /**
+     * Whether its mutes are shadow mutes: the muted player's messages are shown to themselves
+     * only.
+     *
+     * @return {@code true} for shadow mutes; always {@code false} unless the type is a mute
+     */
+    boolean shadow();
+
+    /**
+     * The scope its punishments get when the punishment names none.
+     *
+     * @return the scope, or empty for the configured default scope
+     */
+    Optional<Scope> scope();
 
     /**
      * The reason punishments from this template get when none is given.
@@ -49,13 +64,6 @@ public interface TemplateInfo extends Versioned {
      * @return the steps, never empty
      */
     List<TemplateStep> ladder();
-
-    /**
-     * Evidence types punishments from this template must have.
-     *
-     * @return the types, possibly empty
-     */
-    Set<String> requiredEvidence();
 
     /**
      * How long a punishment counts towards the ladder (LiteBans' {@code expire_ladder}): older

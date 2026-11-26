@@ -12,7 +12,6 @@ import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.api.punish.DraftPunishment;
 import net.serlith.sakurabans.api.punish.EditRequest;
-import net.serlith.sakurabans.api.punish.Enforcement;
 import net.serlith.sakurabans.api.punish.PunishOptions;
 import net.serlith.sakurabans.api.punish.PunishResult;
 import net.serlith.sakurabans.api.punish.PunishmentEdit;
@@ -45,7 +44,7 @@ class SyncReceiverTest extends ServiceTest {
     private Punishment elsewhere(final PunishmentType type) {
         return ((PunishResult.Success) this.service.punish(DraftPunishment.builder(type,
                 PlayerVictim.of(STEVE), MODERATOR).build(), PunishOptions.builder()
-                .enforcement(Enforcement.NONE).build()).join()).punishment();
+                .enforce(false).build()).join()).punishment();
     }
 
     @Test

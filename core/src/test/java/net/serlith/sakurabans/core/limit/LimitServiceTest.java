@@ -29,7 +29,7 @@ class LimitServiceTest extends ServiceTest {
     @BeforeEach
     void limits() throws Exception {
         this.writeLimits(true);
-        this.mod = this.platform.join(MOD, "Mod", this.home);
+        this.mod = this.platform.join(MOD, "Mod", this.home).grant(staffPermissions());
     }
 
     private void writeLimits(final boolean reduce) throws Exception {
@@ -118,7 +118,8 @@ class LimitServiceTest extends ServiceTest {
     @Test
     void theFirstMatchingGroupApplies() {
         this.mod.grant("sakurabans.group.trainee");
-        this.templates.create(TemplateDefinition.builder("hacking", "ban").reason("Hacking")
+        this.templates.create(TemplateDefinition.builder("hacking", PunishmentType.BAN)
+                .reason("Hacking")
                 .ladder(List.of(TemplateStep.of(Duration.ofDays(30)))).build(), CONSOLE).join();
 
         Assertions.assertThat(reason(this.ban(Duration.ofHours(1))))

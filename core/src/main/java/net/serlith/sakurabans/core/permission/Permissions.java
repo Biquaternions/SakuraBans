@@ -35,7 +35,6 @@ public final class Permissions {
     public static final String ALTS_IPREPORT = ROOT + "alts.ipreport";
     public static final String ADMIN_ALLOW = ROOT + "admin.allow";
     public static final String ADMIN_TEMPLATES = ROOT + "admin.templates";
-    public static final String ADMIN_KINDS = ROOT + "admin.kinds";
     public static final String LIMITS_UNLIMITED = ROOT + "limits.unlimited";
     public static final String ADMIN_STAFFROLLBACK = ROOT + "admin.staffrollback";
     public static final String ADMIN_GDPR = ROOT + "admin.gdpr";
@@ -43,8 +42,6 @@ public final class Permissions {
     public static final String ADMIN_MESSAGES = ROOT + "admin.messages";
     public static final String ADMIN_IMPORT = ROOT + "admin.import";
     public static final String ADMIN_AUDIT = ROOT + "admin.audit";
-    public static final String ADMIN_STATS = ROOT + "admin.stats";
-    public static final String VIEW_HIDDEN = ROOT + "view.hidden";
     public static final String COOLDOWN_BYPASS = ROOT + "cooldown.bypass";
 
     private Permissions() {
@@ -112,10 +109,6 @@ public final class Permissions {
 
     public static String check(final PunishmentType type) {
         return node(type, "check");
-    }
-
-    public static String kind(final String id) {
-        return ROOT + "kind." + id;
     }
 
     public static String template(final String name) {

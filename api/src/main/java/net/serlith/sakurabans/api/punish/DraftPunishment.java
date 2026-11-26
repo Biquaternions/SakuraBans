@@ -24,8 +24,9 @@ import org.jspecify.annotations.Nullable;
  * A punishment to be created. Build one with {@link #builder(PunishmentType, Victim, Actor)}
  * and pass it to {@link PunishmentService#punish(DraftPunishment, PunishOptions)}.
  *
- * <p>Values left empty are filled in by SakuraBans from its configuration: the kind named after
- * the type, the default scope, the template's or the default reason, and the template's duration.
+ * <p>Values left empty are filled in by SakuraBans from its configuration or the template: the
+ * template's or the default scope, the template's or the default reason, the template's duration
+ * and shadow flag.
  */
 public interface DraftPunishment {
 
@@ -51,17 +52,17 @@ public interface DraftPunishment {
     Actor actor();
 
     /**
-     * The punishment kind ({@code shadow-mute}, {@code blacklist}, ...). Its base type must be
-     * {@link #type()}; it decides the modifiers (shadow, strictness) and may set a default scope.
+     * Whether it is a shadow mute: the muted player's messages are shown to themselves only.
+     * A template that sets {@code shadow} makes it a shadow mute as well.
      *
-     * @return the kind id, lower case, or empty for the kind named after the type
+     * @return {@code true} for a shadow mute; only a mute can be one
      */
-    Optional<String> kind();
+    boolean shadow();
 
     /**
      * Where it applies.
      *
-     * @return the scope, or empty for the kind's or the configured default scope
+     * @return the scope, or empty for the template's or the configured default scope
      */
     Optional<Scope> scope();
 
@@ -101,7 +102,7 @@ public interface DraftPunishment {
      */
     default Builder toBuilder() {
         final Builder builder = builder(this.type(), this.victim(), this.actor());
-        this.kind().ifPresent(builder::kind);
+        builder.shadow(this.shadow());
         this.scope().ifPresent(builder::scope);
         this.reason().ifPresent(builder::reason);
         this.duration().ifPresent(builder::duration);
@@ -129,7 +130,7 @@ public interface DraftPunishment {
         private PunishmentType type;
         private Victim victim;
         private Actor actor;
-        private @Nullable String kind;
+        private boolean shadow;
         private @Nullable Scope scope;
         private @Nullable String reason;
         private @Nullable Duration duration;
@@ -176,13 +177,13 @@ public interface DraftPunishment {
         }
 
         /**
-         * Sets the punishment kind.
+         * Sets whether it is a shadow mute.
          *
-         * @param kind the kind id, or {@code null} for the kind named after the type
+         * @param shadow {@code true} for a shadow mute (mutes only)
          * @return this builder
          */
-        public Builder kind(final @Nullable String kind) {
-            this.kind = kind;
+        public Builder shadow(final boolean shadow) {
+            this.shadow = shadow;
             return this;
         }
 
@@ -254,8 +255,9 @@ public interface DraftPunishment {
          * Checks the values without building.
          *
          * @return every problem: {@code victim} an {@link ErasedAddressVictim}, {@code reason}
-         *         too long, {@code kind} or {@code template} not an identifier, {@code duration}
-         *         not positive, not allowed on a kick, or exclusive with a template
+         *         too long, {@code shadow} on a type other than a mute, {@code template} not an
+         *         identifier, {@code duration} not positive, not allowed on a kick, or exclusive
+         *         with a template
          */
         public List<FieldError> validate() {
             final Validator errors = Validator.create();
@@ -263,7 +265,8 @@ public interface DraftPunishment {
                     Code.NOT_ALLOWED,
                     "an erased victim has no address; name the address or player instead");
             errors.maxLength("reason", this.reason, Lengths.MAX_REASON);
-            errors.identifier("kind", this.kind);
+            errors.check(!this.shadow || this.type == PunishmentType.MUTE, "shadow",
+                    Code.NOT_ALLOWED, "only mutes can be shadow mutes");
             errors.identifier("template", this.template);
             if (this.duration != null) {
                 errors.check(this.duration.isPositive(), "duration", Code.NOT_POSITIVE,
@@ -284,8 +287,9 @@ public interface DraftPunishment {
          *         {@link #validate()} reports
          */
         public DraftPunishment build() {
-            record Impl(PunishmentType type, Victim victim, Actor actor, Optional<String> kind,
-                    Optional<Scope> scope, Optional<String> reason, Optional<Duration> duration,
+            record Impl(PunishmentType type, Victim victim, Actor actor, boolean shadow,
+                    Optional<Scope> scope,
+                    Optional<String> reason, Optional<Duration> duration,
                     Optional<String> template, List<EvidenceRef> evidence)
                     implements DraftPunishment {
             }
@@ -294,7 +298,7 @@ public interface DraftPunishment {
             final Map<String, EvidenceRef> unique = new LinkedHashMap<>();
             this.evidence.forEach(ref -> unique.putIfAbsent(ref.uri(), ref));
             return new Impl(this.type, this.victim, this.actor,
-                    Optional.ofNullable(this.kind).flatMap(Validator::normalizeIdentifier),
+                    this.shadow,
                     Optional.ofNullable(this.scope), Optional.ofNullable(this.reason),
                     Optional.ofNullable(this.duration),
                     Optional.ofNullable(this.template).flatMap(Validator::normalizeIdentifier),

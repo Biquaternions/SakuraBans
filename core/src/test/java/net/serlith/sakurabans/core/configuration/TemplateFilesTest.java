@@ -6,6 +6,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import net.serlith.sakurabans.api.model.CategoryScope;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.template.TemplateStep;
 import net.serlith.sakurabans.core.model.SakuraTemplateInfo;
@@ -41,13 +42,13 @@ class TemplateFilesTest {
                 """
                 templates:
                   good:
-                    kind: mute
+                    type: mute
                     reason: Reason
                     ladder: [1h, permanent]
                     step-actions:
                       2: ["say {victim}"]
                   bad:
-                    kind: ban
+                    type: ban
                     reason: Reason
                     ladder: [1h, soon]
                     ladder-expiry: later
@@ -57,7 +58,7 @@ class TemplateFilesTest {
                       9: [say hi]
                     colour: red
                   "Not A Name!":
-                    kind: ban
+                    type: ban
                     reason: Reason
                     ladder: [1d]
                 """);
@@ -74,8 +75,61 @@ class TemplateFilesTest {
     }
 
     @Test
+    void theTypeAndItsModifiersAreChecked() throws Exception {
+        final TemplateFiles.Read read = this.read(
+                """
+                templates:
+                  elimination:
+                    type: ban
+                    reason: Out of hearts
+                    ladder: [3d]
+                    scope: category:lifesteal
+                    ip: true
+                  quiet:
+                    type: mute
+                    reason: Spam
+                    ladder: [1h]
+                    shadow: true
+                  untyped:
+                    reason: Reason
+                    ladder: [1d]
+                  wrong:
+                    type: jail
+                    reason: Reason
+                    ladder: [1d]
+                  loud:
+                    type: ban
+                    reason: Reason
+                    ladder: [1d]
+                    shadow: true
+                  here:
+                    type: ban
+                    reason: Reason
+                    ladder: [1d]
+                    scope: local
+                    strictness: very
+                """);
+
+        Assertions.assertThat(read.templates()).extracting(TemplateDefinition::name)
+                .containsExactly("elimination", "quiet");
+        final TemplateDefinition elimination = read.templates().getFirst();
+        Assertions.assertThat(elimination.type()).isEqualTo(PunishmentType.BAN);
+        Assertions.assertThat(elimination.scope()).isEqualTo(CategoryScope.of("lifesteal"));
+        Assertions.assertThat(elimination.ip()).isTrue();
+        Assertions.assertThat(read.templates().get(1).shadow()).isTrue();
+        Assertions.assertThat(read.errors()).extracting(ConfigIssue::path)
+                .containsExactlyInAnyOrder("templates.untyped.type", "templates.wrong.type",
+                        "templates.loud.shadow", "templates.here.scope",
+                        "templates.here.strictness");
+    }
+
+    @Test
     void exportsReadBackTheSame() throws Exception {
-        final TemplateDefinition definition = TemplateDefinition.builder("hacking", "ban")
+        final TemplateDefinition definition = TemplateDefinition.builder("hacking",
+                        PunishmentType.MUTE)
+                .ip(true)
+                .shadow(true)
+                .scope(CategoryScope.of("survival"))
                 .reason("Hacking")
                 .ladder(List.of(
                         TemplateStep.of(Duration.ofDays(1),
@@ -87,7 +141,7 @@ class TemplateFilesTest {
                 .actions(List.of("say once"))
                 .groups(Map.of("cheating", 2))
                 .build();
-        final SakuraTemplateInfo info = SakuraTemplateInfo.of(definition, PunishmentType.BAN, 4);
+        final SakuraTemplateInfo info = SakuraTemplateInfo.of(definition, 4);
 
         final Path file = new TemplateFiles(this.dir).export(List.of(info),
                 Instant.parse("2026-11-24T10:00:00Z"));
@@ -97,7 +151,8 @@ class TemplateFilesTest {
         Files.copy(file, this.dir.resolve(TemplateFiles.FILE));
         final TemplateFiles.Read read = new TemplateFiles(this.dir).read();
         Assertions.assertThat(read.errors()).isEmpty();
-        Assertions.assertThat(SakuraTemplateInfo.of(read.templates().getFirst(),
-                PunishmentType.BAN, 4).summary()).isEqualTo(info.summary());
+        Assertions.assertThat(read.templates()).containsExactly(definition);
+        Assertions.assertThat(SakuraTemplateInfo.of(read.templates().getFirst(), 4).summary())
+                .isEqualTo(info.summary());
     }
 }

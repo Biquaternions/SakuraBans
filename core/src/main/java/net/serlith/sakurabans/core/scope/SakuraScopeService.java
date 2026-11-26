@@ -3,7 +3,6 @@ package net.serlith.sakurabans.core.scope;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
@@ -20,6 +19,7 @@ import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.configuration.settings.Settings;
 import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import net.serlith.sakurabans.core.platform.Platform;
+import net.serlith.sakurabans.core.util.Scopes;
 import org.jspecify.annotations.Nullable;
 
 public final class SakuraScopeService implements ScopeService {
@@ -41,33 +41,15 @@ public final class SakuraScopeService implements ScopeService {
 
     @Override
     public Optional<Scope> parse(final String text) {
-        final String value = text.strip().toLowerCase(Locale.ROOT);
-        if (value.equals("global") || value.equals("*")) {
-            return Optional.of(GlobalScope.INSTANCE);
-        }
-        if (value.equals("local")) {
+        if (text.strip().equalsIgnoreCase("local")) {
             return this.thisServer().map(Scope.class::cast);
         }
-        final int colon = value.indexOf(':');
-        if (colon < 0) {
-            return Optional.empty();
-        }
-        final String kind = value.substring(0, colon);
-        final Optional<String> name = Validator.normalizeIdentifier(value.substring(colon + 1));
-        return switch (kind) {
-            case "server" -> name.map(ServerScope::of);
-            case "category" -> name.map(CategoryScope::of);
-            default -> Optional.empty();
-        };
+        return Scopes.parse(text);
     }
 
     @Override
     public String format(final Scope scope) {
-        return switch (scope) {
-            case GlobalScope global -> "global";
-            case ServerScope server -> "server:" + server.server();
-            case CategoryScope category -> "category:" + category.category();
-        };
+        return Scopes.format(scope);
     }
 
     @Override

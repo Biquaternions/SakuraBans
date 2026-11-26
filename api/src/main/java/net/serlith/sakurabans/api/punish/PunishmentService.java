@@ -22,7 +22,7 @@ import org.jspecify.annotations.Nullable;
 public interface PunishmentService {
 
     /**
-     * Creates a punishment: applies the kind, defaults, templates and limits, checks exemption,
+     * Creates a punishment: applies defaults, templates and limits, checks exemption,
      * fires {@code PunishmentCreateEvent}, stores it, enforces it and notifies staff.
      *
      * @param draft the punishment to create
@@ -155,7 +155,7 @@ public interface PunishmentService {
 
     /**
      * The ban that would deny this connection in this scope, the way the login check decides it
-     * (with the configured address strictness, or the punishment's own).
+     * (with the configured address strictness).
      *
      * @param uuid the account
      * @param address the connection's address, or {@code null} to check the account only

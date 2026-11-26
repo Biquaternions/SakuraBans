@@ -14,13 +14,13 @@ public final class Lengths {
     /** Operator names, which may be any {@code --sender} text. */
     public static final int MAX_OPERATOR_NAME = 64;
 
-    /** Server names, category names, template names and kind ids. */
+    /** Server names, category names, and template names. */
     public static final int MAX_IDENTIFIER = 64;
 
-    /** Source tags of actions ({@code in-game}, {@code hydra-panel}, {@code api:<plugin>}). */
+    /** Source tags of actions ({@code in-game}, {@code web}, {@code api:<plugin>}). */
     public static final int MAX_SOURCE = 64;
 
-    /** Evidence references (URLs or {@code <namespace>:<type>:<id>}). */
+    /** Evidence links. */
     public static final int MAX_EVIDENCE = 512;
 
     private Lengths() {

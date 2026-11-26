@@ -156,7 +156,6 @@ class SchemaManagerTest extends DatabaseTest {
             final long victim, final int scope) {
         return dsl.insertInto(SakuraTables.PUNISHMENTS)
                 .set(SakuraTables.PUNISHMENTS.TYPE, type)
-                .set(SakuraTables.PUNISHMENTS.KIND, type.name().toLowerCase(Locale.ROOT))
                 .set(SakuraTables.PUNISHMENTS.SHADOW, false)
                 .set(SakuraTables.PUNISHMENTS.VICTIM_ID, victim)
                 .set(SakuraTables.PUNISHMENTS.SCOPE_ID, scope)

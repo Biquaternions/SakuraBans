@@ -16,7 +16,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 import net.serlith.sakurabans.core.ServiceTest;
-import net.serlith.sakurabans.core.model.SakuraImportReport;
 import org.jooq.DSLContext;
 import org.jooq.SQLDialect;
 import org.jooq.impl.DSL;
@@ -36,7 +35,7 @@ import org.junit.jupiter.api.AfterEach;
  *     @Test
  *     void importsEverythingOnce() {
  *         this.fixture(Engine.H2, "litebans", "litebans_").script("litebans/fixture.sql");
- *         final SakuraImportReport first = this.importFrom("litebans");
+ *         final ImportReport first = this.importFrom("litebans");
  *         Assertions.assertThat(first.imported()).isEqualTo(4);
  *         Assertions.assertThat(this.importFrom("litebans").imported()).isZero();
  *     }
@@ -115,12 +114,12 @@ public abstract class ImportTest extends ServiceTest {
     }
 
     /** Imports from a source like {@code /sb import <id> --confirm}; returns the report. */
-    protected final SakuraImportReport importFrom(final String id) {
+    protected final ImportReport importFrom(final String id) {
         return this.importFrom(id, false);
     }
 
     /** {@link #importFrom(String)}, or a dry run. Fails the test unless the import finished. */
-    protected final SakuraImportReport importFrom(final String id, final boolean dryRun) {
+    protected final ImportReport importFrom(final String id, final boolean dryRun) {
         final ImportOutcome outcome = this.outcome(id, dryRun);
         if (outcome instanceof ImportOutcome.Done done) {
             return done.report();

@@ -120,19 +120,4 @@ class SakuraEventBusTest {
         Assertions.assertThat(subscription.active()).isFalse();
         Assertions.assertThat(calls).isEmpty();
     }
-
-    @Test
-    void theDraftsTypeAndVictimAreFixed() {
-        final SakuraPunishmentCreateEvent event = createEvent();
-        final DraftPunishment draft = event.draft();
-
-        event.draft(draft.toBuilder().reason("changed").build());
-        Assertions.assertThat(event.draft().reason()).contains("changed");
-        Assertions.assertThatThrownBy(() -> event.draft(draft.toBuilder()
-                        .type(PunishmentType.MUTE).build()))
-                .isInstanceOf(IllegalArgumentException.class);
-        Assertions.assertThatThrownBy(() -> event.draft(draft.toBuilder()
-                        .victim(PlayerVictim.of(UUID.randomUUID())).build()))
-                .isInstanceOf(IllegalArgumentException.class);
-    }
 }

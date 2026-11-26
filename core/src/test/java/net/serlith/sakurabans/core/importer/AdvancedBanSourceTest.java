@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.UUID;
 import net.serlith.sakurabans.api.model.EndKind;
 import net.serlith.sakurabans.api.model.PunishmentType;
-import net.serlith.sakurabans.core.model.SakuraImportReport;
 import net.serlith.sakurabans.core.storage.dbo.OperatorKind;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import net.serlith.sakurabans.core.storage.dbo.VictimKind;
@@ -62,13 +61,13 @@ class AdvancedBanSourceTest extends ImportTest {
         Assertions.assertThat(this.jobs().survey("advancedban").join())
                 .isEqualTo(new ImportOutcome.Surveyed(Map.of("Punishments", 10L,
                         "PunishmentHistory", 18L)));
-        final SakuraImportReport report = this.importFrom("advancedban");
+        final ImportReport report = this.importFrom("advancedban");
 
         // 8 active + 5 only in the history; the 8 copies are the same punishments.
         Assertions.assertThat(report.imported()).isEqualTo(13);
         Assertions.assertThat(this.count(SakuraTables.PUNISHMENTS)).isEqualTo(13);
         Assertions.assertThat(report.failed()).isEqualTo(4);
-        Assertions.assertThat(report.failures()).extracting(failure -> failure.externalId().get())
+        Assertions.assertThat(report.failures()).extracting(ImportReport.Failure::externalId)
                 .containsExactlyInAnyOrder("advancedban:Punishments:9",
                         "advancedban:PunishmentHistory:29",
                         "advancedban:PunishmentHistory:36",
@@ -134,7 +133,7 @@ class AdvancedBanSourceTest extends ImportTest {
         Assertions.assertThat(removedIp.endKind()).isEqualTo(EndKind.REVOKED);
         Assertions.assertThat(this.victim(removedIp).value3()).isEqualTo(address("198.51.100.9"));
 
-        final SakuraImportReport second = this.importFrom("advancedban");
+        final ImportReport second = this.importFrom("advancedban");
         Assertions.assertThat(second.imported()).isZero();
         Assertions.assertThat(second.skipped()).isEqualTo(13);
         Assertions.assertThat(this.count(SakuraTables.PUNISHMENTS)).isEqualTo(13);
@@ -144,7 +143,7 @@ class AdvancedBanSourceTest extends ImportTest {
     void dryRunsWriteNothing() {
         this.fixture();
 
-        final SakuraImportReport report = this.importFrom("advancedban", true);
+        final ImportReport report = this.importFrom("advancedban", true);
 
         Assertions.assertThat(report.dryRun()).isTrue();
         Assertions.assertThat(report.imported()).isEqualTo(13);

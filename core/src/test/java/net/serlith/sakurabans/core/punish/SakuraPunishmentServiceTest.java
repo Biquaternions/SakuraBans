@@ -2,16 +2,12 @@ package net.serlith.sakurabans.core.punish;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.CopyOnWriteArrayList;
-import net.serlith.sakurabans.api.auth.Decision;
 import net.serlith.sakurabans.api.event.PunishmentCreateEvent;
 import net.serlith.sakurabans.api.event.PunishmentCreatedEvent;
 import net.serlith.sakurabans.api.event.PunishmentRevokeEvent;
 import net.serlith.sakurabans.api.event.PunishmentRevokedEvent;
 import net.serlith.sakurabans.api.model.Actor;
-import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.AddressVictim;
 import net.serlith.sakurabans.api.model.CategoryScope;
 import net.serlith.sakurabans.api.model.EndKind;
@@ -23,7 +19,6 @@ import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.api.punish.DraftPunishment;
-import net.serlith.sakurabans.api.punish.Enforcement;
 import net.serlith.sakurabans.api.punish.OverridePolicy;
 import net.serlith.sakurabans.api.punish.PunishOptions;
 import net.serlith.sakurabans.api.punish.PunishResult;
@@ -36,6 +31,7 @@ import net.serlith.sakurabans.core.concurrent.LifecycleState;
 import net.serlith.sakurabans.core.event.SakuraPunishmentRevokedEvent;
 import net.serlith.sakurabans.core.fake.FakeOnlinePlayer;
 import net.serlith.sakurabans.core.model.SakuraRevokeResult;
+import net.serlith.sakurabans.core.model.TemplateDefinition;
 import net.serlith.sakurabans.core.sync.SyncPacket;
 import net.serlith.sakurabans.core.util.InetAddresses;
 import org.assertj.core.api.Assertions;
@@ -77,7 +73,7 @@ class SakuraPunishmentServiceTest extends ServiceTest {
 
         final Punishment ban = this.punished(this.draft(PunishmentType.BAN));
 
-        Assertions.assertThat(ban.kind()).isEqualTo("ban");
+        Assertions.assertThat(ban.shadow()).isFalse();
         Assertions.assertThat(ban.scope()).isEqualTo(GlobalScope.INSTANCE);
         Assertions.assertThat(ban.reason()).isEqualTo("No reason specified");
         Assertions.assertThat(ban.permanent()).isTrue();
@@ -120,47 +116,54 @@ class SakuraPunishmentServiceTest extends ServiceTest {
                         ((PunishResult.Success) replaced).punishment().id(), first.id()));
     }
 
+    private void template(final TemplateDefinition.Builder template) {
+        this.templates.create(template.reason("Reason").build(), CONSOLE).join();
+    }
+
     @Test
-    void kindsDecideTheModifiers() {
-        final Punishment shadow =
-                this.punished(this.draft(PunishmentType.MUTE).kind("Shadow-Mute"));
+    void draftsAndTemplatesDecideTheModifiers() {
+        final Punishment shadow = this.punished(this.draft(PunishmentType.MUTE).shadow(true));
         Assertions.assertThat(shadow.shadow()).isTrue();
-        Assertions.assertThat(shadow.kind()).isEqualTo("shadow-mute");
 
-        final Punishment blacklist = this.punished(DraftPunishment.builder(PunishmentType.BAN,
-                PlayerVictim.of(ALEX), MODERATOR).kind("blacklist").scope(ServerScope.of("x")));
-        Assertions.assertThat(blacklist.strictness()).contains(AddressStrictness.STRICT);
-        Assertions.assertThat(blacklist.scope()).isEqualTo(ServerScope.of("x"));
+        this.template(TemplateDefinition.builder("quiet", PunishmentType.MUTE).shadow(true));
+        final Punishment quiet = this.punished(DraftPunishment.builder(PunishmentType.MUTE,
+                PlayerVictim.of(ALEX), MODERATOR).template("quiet"));
+        Assertions.assertThat(quiet.shadow()).isTrue();
 
         Assertions.assertThat(failure(this.punish(this.draft(PunishmentType.BAN)
-                .kind("shadow-mute")))).isEqualTo(PunishResult.Failure.Reason.UNKNOWN_KIND);
-        Assertions.assertThat(failure(this.punish(this.draft(PunishmentType.BAN)
-                .kind("nope")))).isEqualTo(PunishResult.Failure.Reason.UNKNOWN_KIND);
-        Assertions.assertThat(failure(this.punish(this.draft(PunishmentType.BAN)
-                .template("spam")))).isEqualTo(PunishResult.Failure.Reason.UNKNOWN_TEMPLATE);
+                .template("quiet")))).isEqualTo(PunishResult.Failure.Reason.UNKNOWN_TEMPLATE);
         Assertions.assertThatThrownBy(() -> this.punish(this.draft(PunishmentType.BAN)
-                        .kind("blacklist").duration(Duration.ofDays(1))))
-                .isInstanceOf(CompletionException.class)
-                .hasCauseInstanceOf(ValidationException.class);
+                        .shadow(true)))
+                .isInstanceOf(ValidationException.class);
     }
 
     @Test
-    void kindsCanHaveTheirOwnDefaultScope() {
-        final Punishment competitive =
-                this.punished(this.draft(PunishmentType.BAN).kind("competitive-ban"));
+    void templatesCanHaveTheirOwnScope() {
+        this.template(TemplateDefinition.builder("elimination", PunishmentType.BAN)
+                .scope(CategoryScope.of("lifesteal")));
 
-        Assertions.assertThat(competitive.scope()).isEqualTo(CategoryScope.of("competitive"));
+        final Punishment eliminated =
+                this.punished(this.draft(PunishmentType.BAN).template("elimination"));
+        final Punishment everywhere = this.punished(DraftPunishment.builder(PunishmentType.BAN,
+                PlayerVictim.of(ALEX), MODERATOR).template("elimination")
+                .scope(GlobalScope.INSTANCE));
+
+        Assertions.assertThat(eliminated.scope()).isEqualTo(CategoryScope.of("lifesteal"));
+        Assertions.assertThat(everywhere.scope()).isEqualTo(GlobalScope.INSTANCE);
     }
 
     @Test
-    void anIpBanBansTheLastKnownAddress() {
+    void anIpTemplateBansTheLastKnownAddress() {
         this.players.recordConnection(STEVE, "Steve", this.now.get(), this.home, null).join();
+        this.template(TemplateDefinition.builder("ip-hacking", PunishmentType.BAN).ip(true));
 
-        final Punishment ipBan = this.punished(this.draft(PunishmentType.BAN).kind("ip-ban"));
+        final Punishment ipBan =
+                this.punished(this.draft(PunishmentType.BAN).template("ip-hacking"));
 
         Assertions.assertThat(ipBan.victim()).isEqualTo(AddressVictim.of(this.home));
         Assertions.assertThatThrownBy(() -> this.punish(DraftPunishment.builder(
-                        PunishmentType.BAN, PlayerVictim.of(ALEX), MODERATOR).kind("ip-ban")))
+                        PunishmentType.BAN, PlayerVictim.of(ALEX), MODERATOR)
+                        .template("ip-hacking")))
                 .hasCauseInstanceOf(ValidationException.class);
     }
 
@@ -186,7 +189,7 @@ class SakuraPunishmentServiceTest extends ServiceTest {
 
         final FakeOnlinePlayer alex = this.platform.join(ALEX, "Alex", this.home);
         final Punishment shadow = this.punished(DraftPunishment.builder(PunishmentType.MUTE,
-                PlayerVictim.of(ALEX), MODERATOR).kind("shadow-mute"));
+                PlayerVictim.of(ALEX), MODERATOR).shadow(true));
         Assertions.assertThat(this.service.cachedMute(ALEX)).contains(shadow);
         Assertions.assertThat(alex.messages()).isEmpty();
     }
@@ -225,28 +228,35 @@ class SakuraPunishmentServiceTest extends ServiceTest {
         this.published.clear();
         Assertions.assertThat(this.punish(DraftPunishment.builder(PunishmentType.BAN,
                         PlayerVictim.of(ALEX), MODERATOR),
-                PunishOptions.builder().enforcement(Enforcement.NONE).build()))
+                PunishOptions.builder().enforce(false).build()))
                 .isInstanceOf(PunishResult.Success.class);
         Assertions.assertThat(alex.disconnectReason()).isEmpty();
         Assertions.assertThat(this.published).isEmpty();
     }
 
     @Test
-    void createHandlersCanCancelOrChangeThePunishment() {
+    void createHandlersCanCancelButNotChangeThePunishment() {
+        final List<DraftPunishment> seen = new CopyOnWriteArrayList<>();
         this.bus.subscribe(PunishmentCreateEvent.class, event -> {
-            if (event.draft().type() == PunishmentType.KICK) {
-                event.cancelled(true);
-            } else {
-                event.draft(event.draft().toBuilder().reason("changed").build());
-                event.options(event.options().toBuilder().visibility(Visibility.SILENT).build());
-            }
+            seen.add(event.draft());
+            event.cancelled(event.draft().type() == PunishmentType.KICK);
         });
 
         Assertions.assertThat(failure(this.punish(this.draft(PunishmentType.KICK))))
                 .isEqualTo(PunishResult.Failure.Reason.CANCELLED);
-        final Punishment ban = this.punished(this.draft(PunishmentType.BAN).reason("original"));
-        Assertions.assertThat(ban.reason()).isEqualTo("changed");
-        Assertions.assertThat(ban.visibility()).isEqualTo(Visibility.SILENT);
+        final Punishment ban = this.punished(this.draft(PunishmentType.BAN).reason("original")
+                .duration(Duration.ofDays(2)));
+
+        // What is stored is exactly the draft the handlers saw.
+        final DraftPunishment stored = seen.getLast();
+        Assertions.assertThat(ban.reason()).isEqualTo(stored.reason().orElseThrow());
+        Assertions.assertThat(ban.scope()).isEqualTo(stored.scope().orElseThrow());
+        Assertions.assertThat(ban.victim()).isEqualTo(stored.victim());
+        Assertions.assertThat(ban.operator()).isEqualTo(stored.actor().operator());
+        Assertions.assertThat(ban.shadow()).isEqualTo(stored.shadow());
+        Assertions.assertThat(ban.expiresAt()).contains(ban.createdAt()
+                .plus(stored.duration().orElseThrow()));
+        Assertions.assertThat(ban.visibility()).isEqualTo(Visibility.NORMAL);
     }
 
     @Test
@@ -257,7 +267,7 @@ class SakuraPunishmentServiceTest extends ServiceTest {
         this.punished(this.draft(PunishmentType.WARN));
 
         Assertions.assertThat(seen).singleElement().satisfies(draft -> {
-            Assertions.assertThat(draft.kind()).contains("warn");
+            Assertions.assertThat(draft.shadow()).isFalse();
             Assertions.assertThat(draft.scope()).contains(GlobalScope.INSTANCE);
             Assertions.assertThat(draft.reason()).contains("No reason specified");
             Assertions.assertThat(draft.duration()).contains(Duration.ofDays(30));
@@ -266,8 +276,8 @@ class SakuraPunishmentServiceTest extends ServiceTest {
 
     @Test
     void deniedActionsAreForbidden() {
-        this.actionCheck = (actor, action) -> CompletableFuture.completedFuture(
-                Decision.deny(Decision.Denial.GUARD, "2fa"));
+        // The moderator without permissions.
+        this.platform.join(MOD, "Mod", this.home);
 
         Assertions.assertThat(failure(this.punish(this.draft(PunishmentType.BAN))))
                 .isEqualTo(PunishResult.Failure.Reason.FORBIDDEN);

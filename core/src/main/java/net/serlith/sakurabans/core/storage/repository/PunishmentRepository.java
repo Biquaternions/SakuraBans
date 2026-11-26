@@ -14,10 +14,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import net.serlith.sakurabans.api.audit.AuditAction;
-import net.serlith.sakurabans.api.audit.SubjectType;
 import net.serlith.sakurabans.api.model.Actor;
-import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.EndKind;
 import net.serlith.sakurabans.api.model.ErasedAddressVictim;
 import net.serlith.sakurabans.api.model.EvidenceRef;
@@ -33,8 +30,10 @@ import net.serlith.sakurabans.api.punish.OverridePolicy;
 import net.serlith.sakurabans.api.punish.PunishmentEdit;
 import net.serlith.sakurabans.api.punish.PunishmentQuery;
 import net.serlith.sakurabans.api.punish.PunishmentQuery.Applicability;
+import net.serlith.sakurabans.core.model.AuditAction;
 import net.serlith.sakurabans.core.model.EndKinds;
 import net.serlith.sakurabans.core.model.SakuraPage;
+import net.serlith.sakurabans.core.model.SubjectType;
 import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import net.serlith.sakurabans.core.storage.dbo.VictimKind;
@@ -44,10 +43,10 @@ import net.serlith.sakurabans.core.storage.dbo.tables.SbActivePunishments;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbPunishments;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbVictims;
 import net.serlith.sakurabans.core.util.AddressHashes;
+import net.serlith.sakurabans.core.util.Scopes;
 import net.serlith.sakurabans.core.util.Uuids;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
-import org.jooq.Field;
 import org.jooq.Record;
 import org.jooq.ResultQuery;
 import org.jooq.SortField;
@@ -59,7 +58,6 @@ public final class PunishmentRepository {
     private final StorageService storage;
     private final PunishmentMapper mapper;
     private final AltPolicy policy;
-    private final StrictnessLevels levels;
 
     public PunishmentRepository(final StorageService storage, final PunishmentMapper mapper) {
         this(storage, mapper, AltPolicy.NONE);
@@ -67,15 +65,9 @@ public final class PunishmentRepository {
 
     public PunishmentRepository(final StorageService storage, final PunishmentMapper mapper,
             final AltPolicy policy) {
-        this(storage, mapper, policy, StrictnessLevels.NONE);
-    }
-
-    public PunishmentRepository(final StorageService storage, final PunishmentMapper mapper,
-            final AltPolicy policy, final StrictnessLevels levels) {
         this.storage = storage;
         this.mapper = mapper;
         this.policy = policy;
-        this.levels = levels;
     }
 
     public CompletableFuture<InsertOutcome> insert(final NewPunishment punishment,
@@ -151,9 +143,7 @@ public final class PunishmentRepository {
         final StoredOperator operator = StoredOperator.of(punishment.actor().operator());
         return dsl.insertInto(p)
                 .set(p.TYPE, punishment.type())
-                .set(p.KIND, punishment.kind())
                 .set(p.SHADOW, punishment.shadow())
-                .set(p.STRICTNESS, punishment.strictness())
                 .set(p.VICTIM_ID, victimId)
                 .set(p.SCOPE_ID, scopeId)
                 .set(p.REASON, punishment.reason())
@@ -295,8 +285,8 @@ public final class PunishmentRepository {
                     dsl.update(active).set(active.SCOPE_ID, scopeId)
                             .where(active.PUNISHMENT_ID.eq(id)).execute();
                     AuditRepository.append(dsl, now, actor, AuditAction.EDIT_SCOPE,
-                            SubjectType.PUNISHMENT, subject, AuditValues.scope(previous.scope()),
-                            AuditValues.scope(scope.scope()));
+                            SubjectType.PUNISHMENT, subject, Scopes.format(previous.scope()),
+                            Scopes.format(scope.scope()));
                 }
             }
             bumpVersion(dsl, id);
@@ -429,21 +419,6 @@ public final class PunishmentRepository {
                 .fetch()));
     }
 
-    public CompletableFuture<List<Punishment>> namingAccount(final UUID uuid,
-            final boolean activeOnly, final int limit, final Instant now) {
-        final SbPunishments p = SakuraTables.PUNISHMENTS;
-        final SbActivePunishments active = SakuraTables.ACTIVE_PUNISHMENTS;
-        return this.storage.read(dsl -> this.mapper.map(dsl, PunishmentMapper.select(dsl)
-                .where(StatsRepository.naming(uuid))
-                .and(activeOnly
-                        ? p.ID.in(DSL.select(active.PUNISHMENT_ID).from(active)
-                                .where(unexpired(now)))
-                        : p.VOIDED_AT.isNull())
-                .orderBy(p.CREATED_AT.desc(), p.ID.desc())
-                .limit(limit)
-                .fetch()));
-    }
-
     public CompletableFuture<List<Punishment>> activeIssuedBy(final Operator operator,
             final Instant since, final Instant now) {
         final SbPunishments p = SakuraTables.PUNISHMENTS;
@@ -533,14 +508,13 @@ public final class PunishmentRepository {
             final Applicability applicability, final Collection<? extends Scope> scopes,
             final Instant now) {
         return this.storage.read(dsl -> this.mapper.map(dsl, activeApplicableQuery(dsl, type,
-                applicability, scopes, now, this.policy, this.levels.levels()).fetch()));
+                applicability, scopes, now, this.policy).fetch()));
     }
 
     public CompletableFuture<List<Punishment>> activeApplicableInEveryScope(
             final PunishmentType type, final Applicability applicability, final Instant now) {
         return this.storage.read(dsl -> this.mapper.map(dsl, activeApplicableQuery(dsl, type,
-                applicability, DSL.noCondition(), now, this.policy, this.levels.levels())
-                .fetch()));
+                applicability, DSL.noCondition(), now, this.policy).fetch()));
     }
 
     public CompletableFuture<Optional<List<Punishment>>> restoreErased(
@@ -600,54 +574,32 @@ public final class PunishmentRepository {
         final SbPunishments p = SakuraTables.PUNISHMENTS;
         return this.storage.read(dsl -> dsl.fetchExists(DSL.selectOne().from(p)
                 .where(p.ID.eq(punishmentId))
-                .and(reached(p.VICTIM_ID, applicability, this.policy, this.levels.levels(),
-                        now))));
-    }
-
-    static Condition reached(final Field<Long> victimId, final Applicability applicability,
-            final AltPolicy policy, final Set<AddressStrictness> levels, final Instant now) {
-        final SbPunishments p = SakuraTables.PUNISHMENTS;
-        final AddressStrictness configured = applicability.strictness();
-        final Set<AddressStrictness> others = EnumSet.noneOf(AddressStrictness.class);
-        others.addAll(levels);
-        others.remove(configured);
-        final Condition usual = victimId.in(ApplicabilityConditions.victimIds(applicability,
-                policy, now));
-        if (others.isEmpty()) {
-            return usual;
-        }
-        Condition reached = p.STRICTNESS.isNull().or(p.STRICTNESS.notIn(others)).and(usual);
-        for (final AddressStrictness level : others) {
-            reached = reached.or(p.STRICTNESS.eq(level).and(victimId.in(
-                    ApplicabilityConditions.victimIds(Applicability.of(
-                            applicability.uuid().orElse(null),
-                            applicability.address().orElse(null), level), policy, now))));
-        }
-        return reached;
+                .and(p.VICTIM_ID.in(ApplicabilityConditions.victimIds(applicability,
+                        this.policy, now)))));
     }
 
     static ResultQuery<Record> activeApplicableQuery(final DSLContext dsl,
             final PunishmentType type, final Applicability applicability,
             final Collection<? extends Scope> scopes, final Instant now,
-            final AltPolicy policy, final Set<AddressStrictness> levels) {
+            final AltPolicy policy) {
         final Condition inScopes = DSL.or(scopes.stream().map(ScopeRepository::matches).toList());
         return activeApplicableQuery(dsl, type, applicability,
                 SakuraTables.ACTIVE_PUNISHMENTS.SCOPE_ID.in(DSL.select(SakuraTables.SCOPES.ID)
                         .from(SakuraTables.SCOPES).where(inScopes)),
-                now, policy, levels);
+                now, policy);
     }
 
     private static ResultQuery<Record> activeApplicableQuery(final DSLContext dsl,
             final PunishmentType type, final Applicability applicability,
-            final Condition scoped, final Instant now, final AltPolicy policy,
-            final Set<AddressStrictness> levels) {
+            final Condition scoped, final Instant now, final AltPolicy policy) {
         final SbPunishments p = SakuraTables.PUNISHMENTS;
         final SbActivePunishments active = SakuraTables.ACTIVE_PUNISHMENTS;
         return PunishmentMapper.select(dsl)
                 .join(active).on(active.PUNISHMENT_ID.eq(p.ID))
                 .where(active.TYPE.eq(type))
                 .and(scoped)
-                .and(reached(active.VICTIM_ID, applicability, policy, levels, now))
+                .and(active.VICTIM_ID.in(
+                        ApplicabilityConditions.victimIds(applicability, policy, now)))
                 .and(unexpired(now))
                 .orderBy(active.EXPIRES_AT.desc().nullsFirst(), p.ID.desc());
     }
@@ -708,9 +660,6 @@ public final class PunishmentRepository {
         final List<Condition> conditions = new ArrayList<>();
         if (!query.types().isEmpty()) {
             conditions.add(p.TYPE.in(query.types()));
-        }
-        if (!query.kinds().isEmpty()) {
-            conditions.add(p.KIND.in(query.kinds()));
         }
         query.victim().ifPresent(victim ->
                 conditions.add(StoredVictim.of(victim).matches(SakuraTables.VICTIMS)));

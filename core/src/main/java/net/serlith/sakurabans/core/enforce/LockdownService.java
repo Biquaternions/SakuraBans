@@ -14,7 +14,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.serlith.sakurabans.api.model.Actor;
-import net.serlith.sakurabans.api.model.PlayerOperator;
 import net.serlith.sakurabans.api.model.Scope;
 import net.serlith.sakurabans.core.alts.SakuraAllowListService;
 import net.serlith.sakurabans.core.configuration.ConfigService;
@@ -84,7 +83,7 @@ public final class LockdownService {
         });
     }
 
-    public CompletableFuture<Optional<Lockdown>> blocking(final UUID uuid, final String name,
+    public CompletableFuture<Optional<Lockdown>> blocking(final UUID uuid,
             final Collection<? extends Scope> scopes) {
         final Optional<Lockdown> lockdown = this.lockdowns().stream()
                 .filter(candidate -> scopes.contains(candidate.scope()))
@@ -92,8 +91,8 @@ public final class LockdownService {
         if (lockdown.isEmpty() || this.allowList.isAllowed(uuid)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        return this.permissions.has(Actor.of(PlayerOperator.of(uuid, name), "login"),
-                        Permissions.LOCKDOWN_BYPASS)
+        // Not online yet: the permission comes from LuckPerms.
+        return this.permissions.has(uuid, Permissions.LOCKDOWN_BYPASS)
                 .thenApply(bypass -> bypass.orElse(false) ? Optional.empty() : lockdown);
     }
 

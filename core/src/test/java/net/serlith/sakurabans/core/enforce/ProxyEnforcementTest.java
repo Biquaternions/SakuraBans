@@ -71,13 +71,11 @@ class ProxyEnforcementTest extends ServiceTest {
         return steve;
     }
 
-    private void mute(final Scope scope, final @Nullable String kind) {
-        final DraftPunishment.Builder draft = DraftPunishment.builder(PunishmentType.MUTE,
-                PlayerVictim.of(STEVE), MODERATOR).scope(scope).reason("spam");
-        if (kind != null) {
-            draft.kind(kind);
-        }
-        this.service.punish(draft.build(), PunishOptions.defaults()).join();
+    private void mute(final Scope scope, final boolean shadow) {
+        final DraftPunishment draft = DraftPunishment.builder(PunishmentType.MUTE,
+                PlayerVictim.of(STEVE), MODERATOR).scope(scope).reason("spam").shadow(shadow)
+                .build();
+        this.service.punish(draft, PunishOptions.defaults()).join();
     }
 
     private ChatDecision chat(final FakeOnlinePlayer player) {
@@ -88,7 +86,7 @@ class ProxyEnforcementTest extends ServiceTest {
     void serverMutesFollowThePlayerAcrossServers() {
         final FakeOnlinePlayer steve = this.online("survival");
 
-        this.mute(ServerScope.of("survival"), null);
+        this.mute(ServerScope.of("survival"), false);
 
         Assertions.assertThat(steve.messages()).hasSize(1);
         Assertions.assertThat(plain(steve.messages().getFirst())).contains("spam");
@@ -105,7 +103,7 @@ class ProxyEnforcementTest extends ServiceTest {
     void mutesForAnotherServerAreCachedButNotAnnounced() {
         final FakeOnlinePlayer steve = this.online("lobby");
 
-        this.mute(ServerScope.of("survival"), null);
+        this.mute(ServerScope.of("survival"), false);
 
         Assertions.assertThat(steve.messages()).isEmpty();
         Assertions.assertThat(this.chat(steve)).isInstanceOf(ChatDecision.Allowed.class);
@@ -118,7 +116,7 @@ class ProxyEnforcementTest extends ServiceTest {
     void categoryMutesApplyOnTheCategorysServers() {
         final FakeOnlinePlayer steve = this.online("survival");
 
-        this.mute(CategoryScope.of("hubs"), null);
+        this.mute(CategoryScope.of("hubs"), false);
 
         Assertions.assertThat(this.chat(steve)).isInstanceOf(ChatDecision.Allowed.class);
         steve.connect("hub").join();
@@ -132,7 +130,7 @@ class ProxyEnforcementTest extends ServiceTest {
     void globalMutesApplyEverywhereEvenBeforeTheFirstServer() {
         final FakeOnlinePlayer steve = this.online(null);
 
-        this.mute(GlobalScope.INSTANCE, null);
+        this.mute(GlobalScope.INSTANCE, false);
 
         Assertions.assertThat(this.chat(steve)).isInstanceOf(ChatDecision.Denied.class);
         steve.connect("creative").join();
@@ -143,7 +141,7 @@ class ProxyEnforcementTest extends ServiceTest {
     void serverMutesDontApplyBeforeTheFirstServer() {
         final FakeOnlinePlayer steve = this.online(null);
 
-        this.mute(ServerScope.of("survival"), null);
+        this.mute(ServerScope.of("survival"), false);
 
         Assertions.assertThat(this.chat(steve)).isInstanceOf(ChatDecision.Allowed.class);
         Assertions.assertThat(this.mutes.lookup(STEVE))
@@ -157,7 +155,7 @@ class ProxyEnforcementTest extends ServiceTest {
     void shadowMutedChatIsEchoedToTheSender() {
         final FakeOnlinePlayer steve = this.online("survival");
 
-        this.mute(ServerScope.of("survival"), "shadow-mute");
+        this.mute(ServerScope.of("survival"), true);
 
         Assertions.assertThat(this.chat(steve)).isInstanceOf(ChatDecision.ShadowMuted.class);
         Assertions.assertThat(steve.messages()).isEmpty();
@@ -170,9 +168,10 @@ class ProxyEnforcementTest extends ServiceTest {
     @Test
     void withoutSignedVelocityMutedChatPassesButSafeCommandsAreBlocked() {
         final FakeOnlinePlayer staff = this.platform.join(MOD, "Mod", this.home, null, "survival")
-                .grant(Permissions.NOTIFY_ATTEMPT_CHAT);
+                .grant(Permissions.NOTIFY_ATTEMPT_CHAT)
+                .grant(staffPermissions());
         final FakeOnlinePlayer steve = this.online("survival");
-        this.mute(ServerScope.of("survival"), null);
+        this.mute(ServerScope.of("survival"), false);
         final int deniesBefore = this.events(PlayerDenyEvent.class).size();
         final int staffBefore = staff.messages().size();
         final SignedChatPolicy policy = new SignedChatPolicy(false);

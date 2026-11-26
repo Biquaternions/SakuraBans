@@ -10,16 +10,12 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
-import net.serlith.sakurabans.api.imports.ImportOptions;
-import net.serlith.sakurabans.api.imports.ImportedPunishment;
 import net.serlith.sakurabans.api.model.Actor;
-import net.serlith.sakurabans.api.punish.Enforcement;
 import net.serlith.sakurabans.core.configuration.ConfigException;
 import net.serlith.sakurabans.core.configuration.ConfigIssue;
 import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.configuration.settings.ImportSettings;
 import net.serlith.sakurabans.core.enforce.SyncReceiver;
-import net.serlith.sakurabans.core.model.SakuraImportReport;
 import net.serlith.sakurabans.core.storage.Lease;
 import net.serlith.sakurabans.core.storage.repository.ImportRepository;
 import net.serlith.sakurabans.core.sync.SyncPacket;
@@ -84,36 +80,24 @@ public final class ImportJobs {
 
     public CompletableFuture<ImportOutcome> run(final String id, final boolean dryRun,
             final Actor actor) {
-        final ImportOptions options = ImportOptions.builder()
-                .dryRun(dryRun)
-                .enforcement(Enforcement.GLOBAL)
-                .source(SOURCE_PREFIX + id)
-                .build();
         return CompletableFuture.supplyAsync(() -> this.exclusive(() -> {
             this.logger.info("Import from {} started by {}{}", id, actor.operator(),
                     dryRun ? " (dry run)" : "");
             return this.withSource(id, ImportOutcome.Problem.FAILED, (source, context) -> {
-                final SakuraImportReport report;
+                final ImportReport report;
                 if (source == null) {
                     final Optional<ImportOutcome.Refused> refused =
                             this.self.check(context.database());
                     if (refused.isPresent()) {
                         return refused.get();
                     }
-                    report = this.self.run(context.database(), dryRun, options.batchSize());
+                    report = this.self.run(context.database(), dryRun, ImportRunner.BATCH_SIZE);
                 } else {
-                    report = this.runner.run(source, context, options, this::renewLease);
+                    report = this.runner.run(source, context, dryRun, this::renewLease);
                 }
-                return this.finish(report, options, actor, id);
+                return this.finish(report, actor, SOURCE_PREFIX + id);
             });
         }), this.worker);
-    }
-
-    public CompletableFuture<ImportOutcome> run(final Iterable<ImportedPunishment> punishments,
-            final ImportOptions options, final Actor actor) {
-        return CompletableFuture.supplyAsync(() -> this.exclusive(() -> this.finish(
-                this.runner.run(punishments, options, this::renewLease), options, actor,
-                options.source())), this.worker);
     }
 
     private ImportOutcome exclusive(final Supplier<ImportOutcome> work) {
@@ -189,29 +173,28 @@ public final class ImportJobs {
         }
     }
 
-    private ImportOutcome finish(final SakuraImportReport report, final ImportOptions options,
-            final Actor actor, final String label) {
+    private ImportOutcome finish(final ImportReport report, final Actor actor,
+            final String label) {
         this.logger.info("Import from {} done{}: {} imported, {} already there, {} failed,"
                         + " {} players, {} superseded, {} texts shortened", label,
                 report.dryRun() ? " (dry run)" : "", report.imported(), report.skipped(),
                 report.failed(), report.players(), report.superseded(), report.truncated());
         report.failures().forEach(failure -> this.logger.warn("Not imported: {} {}",
-                failure.externalId().orElse("#" + failure.index()), failure.errors()));
+                failure.externalId() == null ? "#" + failure.index() : failure.externalId(),
+                failure.errors()));
         if (report.dryRun()) {
             return new ImportOutcome.Done(report);
         }
         this.repository.audit(this.clock.instant(), actor, label, summary(report)).join();
         if (report.imported() > 0 || report.players() > 0 || !report.tables().isEmpty()) {
-            this.sync.publish(new SyncPacket.ImportedPacket(
-                    options.enforcement() == Enforcement.GLOBAL));
+            this.sync.publish(new SyncPacket.ImportedPacket());
             // Logged by the receiver; the import itself is done either way.
-            this.receiver.imported(options.enforcement() != Enforcement.NONE)
-                    .handle((ignored, failure) -> null).join();
+            this.receiver.imported().handle((ignored, failure) -> null).join();
         }
         return new ImportOutcome.Done(report);
     }
 
-    static String summary(final SakuraImportReport report) {
+    static String summary(final ImportReport report) {
         return "imported=" + report.imported() + " skipped=" + report.skipped() + " failed="
                 + report.failed() + " players=" + report.players() + " superseded="
                 + report.superseded() + " truncated=" + report.truncated();

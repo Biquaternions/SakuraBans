@@ -12,7 +12,6 @@ import java.util.function.Supplier;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.serlith.sakurabans.api.integration.ProfileSource;
 import net.serlith.sakurabans.core.configuration.ConfigService;
-import net.serlith.sakurabans.core.integration.SakuraIntegrationRegistry;
 import net.serlith.sakurabans.core.platform.Platform;
 import net.serlith.sakurabans.core.util.Futures;
 import net.serlith.sakurabans.core.util.Strings;

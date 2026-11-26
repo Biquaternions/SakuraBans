@@ -53,7 +53,8 @@ class ChatGateTest extends ServiceTest {
     void mutedPlayersAreDeniedAndStaffAreToldOnce() {
         final FakeOnlinePlayer staff = this.platform.join(MOD, "Mod",
                 InetAddresses.parseLiteral("198.51.100.1").orElseThrow())
-                .grant(Permissions.NOTIFY_ATTEMPT_CHAT);
+                .grant(Permissions.NOTIFY_ATTEMPT_CHAT)
+                .grant(staffPermissions());
         this.mute(this.muteDraft());
         final int before = staff.messages().size();
 
@@ -91,7 +92,7 @@ class ChatGateTest extends ServiceTest {
 
     @Test
     void shadowMutesShowTheMessageToTheSenderOnly() {
-        this.mute(this.muteDraft().kind("shadow-mute"));
+        this.mute(this.muteDraft().shadow(true));
 
         Assertions.assertThat(this.chatGate.checkChat(this.steve, "hi"))
                 .isInstanceOf(ChatDecision.ShadowMuted.class);

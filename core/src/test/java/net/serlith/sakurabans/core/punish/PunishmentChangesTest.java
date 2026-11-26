@@ -3,18 +3,16 @@ package net.serlith.sakurabans.core.punish;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import net.serlith.sakurabans.api.audit.AuditAction;
-import net.serlith.sakurabans.api.audit.AuditEntry;
-import net.serlith.sakurabans.api.audit.AuditQuery;
-import net.serlith.sakurabans.api.audit.SubjectType;
-import net.serlith.sakurabans.api.auth.Decision;
+import java.util.UUID;
 import net.serlith.sakurabans.api.event.PunishmentEditEvent;
 import net.serlith.sakurabans.api.event.PunishmentEditedEvent;
 import net.serlith.sakurabans.api.event.PunishmentExpungedEvent;
 import net.serlith.sakurabans.api.event.PunishmentVoidedEvent;
+import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.EndKind;
 import net.serlith.sakurabans.api.model.EvidenceRef;
 import net.serlith.sakurabans.api.model.GlobalScope;
+import net.serlith.sakurabans.api.model.PlayerOperator;
 import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentType;
@@ -31,8 +29,11 @@ import net.serlith.sakurabans.api.punish.RevocationRequest;
 import net.serlith.sakurabans.api.punish.RevocationTarget;
 import net.serlith.sakurabans.api.punish.VoidResult;
 import net.serlith.sakurabans.core.ServiceTest;
-import net.serlith.sakurabans.core.audit.SakuraAuditService;
 import net.serlith.sakurabans.core.fake.FakeOnlinePlayer;
+import net.serlith.sakurabans.core.model.AuditAction;
+import net.serlith.sakurabans.core.model.AuditEntry;
+import net.serlith.sakurabans.core.model.SubjectType;
+import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.storage.repository.AuditRepository;
 import net.serlith.sakurabans.core.sync.SyncPacket;
 import org.assertj.core.api.Assertions;
@@ -64,9 +65,8 @@ class PunishmentChangesTest extends ServiceTest {
     }
 
     private List<AuditEntry> audit(final long id) {
-        return new SakuraAuditService(new AuditRepository(this.storage)).query(AuditQuery
-                .builder().subject(SubjectType.PUNISHMENT, Long.toString(id)).build())
-                .join().items().reversed();
+        return new AuditRepository(this.storage).about(SubjectType.PUNISHMENT,
+                Long.toString(id), 100).join().reversed();
     }
 
     @Test
@@ -209,8 +209,7 @@ class PunishmentChangesTest extends ServiceTest {
         Assertions.assertThat(this.events(PunishmentExpungedEvent.class)).hasSize(1);
         Assertions.assertThat(this.audit(ban.id()).getLast()).satisfies(entry -> {
             Assertions.assertThat(entry.action()).isEqualTo(AuditAction.EXPUNGE);
-            Assertions.assertThat(entry.oldValue()).hasValueSatisfying(old ->
-                    Assertions.assertThat(old).contains("BAN", "ban", STEVE.toString()));
+            Assertions.assertThat(entry.oldValue()).contains("BAN", STEVE.toString());
         });
         Assertions.assertThat(this.service.expunge(ban.id(), MODERATOR).join())
                 .isInstanceOfSatisfying(ExpungeResult.Failure.class, failure ->
@@ -221,7 +220,7 @@ class PunishmentChangesTest extends ServiceTest {
     @Test
     void evidenceIsAttachedOnceAndDetached() {
         final Punishment ban = this.punished(PunishmentType.BAN, Duration.ofDays(1));
-        final EvidenceRef ref = EvidenceRef.of("hydra:chat-snapshot:12");
+        final EvidenceRef ref = EvidenceRef.of("https://example.com/chat/12");
 
         final Punishment attached = changed(this.service.attachEvidence(ban.id(), ref,
                 MODERATOR).join());
@@ -243,19 +242,24 @@ class PunishmentChangesTest extends ServiceTest {
     void changesAreAuthorizedAndCancellable() {
         final Punishment ban = this.punished(PunishmentType.BAN, Duration.ofDays(1));
 
-        this.actionCheck = (actor, action) -> java.util.concurrent.CompletableFuture
-                .completedFuture(Decision.deny(Decision.Denial.NO_PERMISSION, null));
+        // A moderator without the edit and delete permissions.
+        final FakeOnlinePlayer moderator = this.platform.join(MOD, "Mod", this.home);
         Assertions.assertThat(failure(this.edit(ban.id(), PunishmentEdit.NewReason.of("x"))))
                 .isEqualTo(EditResult.Failure.Reason.FORBIDDEN);
         Assertions.assertThat(this.service.expunge(ban.id(), MODERATOR).join())
                 .isInstanceOfSatisfying(ExpungeResult.Failure.class, failure ->
                         Assertions.assertThat(failure.reason())
                                 .isEqualTo(ExpungeResult.Failure.Reason.FORBIDDEN));
-        this.actionCheck = (actor, action) -> java.util.concurrent.CompletableFuture
-                .completedFuture(Decision.deny(Decision.Denial.EXEMPT, null));
-        Assertions.assertThat(failure(this.edit(ban.id(), PunishmentEdit.NewReason.of("x"))))
-                .isEqualTo(EditResult.Failure.Reason.EXEMPT);
-        this.actionCheck = ActionCheck.ALLOW_ALL;
+        // An issuer the moderator is exempt from, with exemption.protects-edits.
+        moderator.grant(staffPermissions());
+        final FakeOnlinePlayer admin = this.platform.join(ALEX, "Admin", this.home);
+        admin.grant(Permissions.punish(PunishmentType.BAN), Permissions.exempt(PunishmentType.BAN));
+        final Punishment adminsBan = ((PunishResult.Success) this.service.punish(
+                DraftPunishment.builder(PunishmentType.BAN, PlayerVictim.of(UUID.randomUUID()),
+                        Actor.of(PlayerOperator.of(ALEX, "Admin"), "in-game")).build(),
+                PunishOptions.defaults()).join()).punishment();
+        Assertions.assertThat(failure(this.edit(adminsBan.id(),
+                PunishmentEdit.NewReason.of("x")))).isEqualTo(EditResult.Failure.Reason.EXEMPT);
 
         this.bus.subscribe(PunishmentEditEvent.class, event -> event.cancelled(true));
         Assertions.assertThat(failure(this.edit(ban.id(), PunishmentEdit.NewReason.of("x"))))

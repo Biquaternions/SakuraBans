@@ -5,10 +5,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import net.serlith.sakurabans.api.admin.AdminResult;
-import net.serlith.sakurabans.api.audit.SubjectType;
-import net.serlith.sakurabans.api.event.ChangeType;
-import net.serlith.sakurabans.api.event.EntityChangedEvent;
 import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.Punishment;
@@ -21,7 +17,9 @@ import net.serlith.sakurabans.core.ServiceTest;
 import net.serlith.sakurabans.core.enforce.SakuraMessageFormatter;
 import net.serlith.sakurabans.core.message.Formats;
 import net.serlith.sakurabans.core.message.MessageKey;
+import net.serlith.sakurabans.core.model.AdminResult;
 import net.serlith.sakurabans.core.model.SettingType;
+import net.serlith.sakurabans.core.model.SubjectType;
 import net.serlith.sakurabans.core.storage.repository.OverrideRepository;
 import net.serlith.sakurabans.core.sync.SyncPacket;
 import org.assertj.core.api.Assertions;
@@ -67,7 +65,7 @@ class OverridesTest extends ServiceTest {
                 });
         Assertions.assertThat(schema).filteredOn(SettingField::restartRequired)
                 .extracting(SettingField::key)
-                .containsExactly("commands.labels", "commands.kinds");
+                .containsExactly("commands.labels");
     }
 
     @Test
@@ -98,8 +96,7 @@ class OverridesTest extends ServiceTest {
         Assertions.assertThat(this.config.settings().scopes().categories())
                 .containsEntry("pvp", Set.of("arena-1", "arena-2"));
         Assertions.assertThat(this.published).contains(new SyncPacket.EntityChangedPacket(
-                SubjectType.SETTINGS, "settings", ChangeType.UPDATED, 2, MODERATOR));
-        Assertions.assertThat(this.events(EntityChangedEvent.SettingsChanged.class)).hasSize(1);
+                SubjectType.SETTINGS));
 
         // A reload of the files keeps them, and punishments use them.
         this.config.reload();
@@ -145,15 +142,12 @@ class OverridesTest extends ServiceTest {
         repository.changeSettings(Map.of("display.id-style", this.config.encode("BOTH")), 1,
                 MODERATOR, this.clock.instant()).join();
 
-        this.syncReceiver().handle(new SyncPacket.EntityChangedPacket(SubjectType.SETTINGS,
-                "settings", ChangeType.UPDATED, 2, MODERATOR)).join();
+        this.syncReceiver().handle(new SyncPacket.EntityChangedPacket(SubjectType.SETTINGS))
+                .join();
 
         Assertions.assertThat(this.settingsService.settings().version()).isEqualTo(2);
         Assertions.assertThat(this.config.settings().display().idStyle().name())
                 .isEqualTo("BOTH");
-        Assertions.assertThat(this.events(EntityChangedEvent.SettingsChanged.class))
-                .singleElement().satisfies(event -> Assertions.assertThat(event.remote())
-                        .isTrue());
     }
 
     @Test
@@ -172,9 +166,8 @@ class OverridesTest extends ServiceTest {
                 ValueOrigin.OVERRIDE).containsEntry("victim.muted", ValueOrigin.FILE);
         Assertions.assertThat(plain(this.messages.render(MessageKey.VICTIM_WARNED, Locale.US)))
                 .contains("Warned:");
-        Assertions.assertThat(this.events(EntityChangedEvent.MessagesChanged.class))
-                .singleElement().satisfies(event -> Assertions.assertThat(event.locale())
-                        .isEqualTo(Locale.US));
+        Assertions.assertThat(this.published).contains(new SyncPacket.EntityChangedPacket(
+                SubjectType.MESSAGE));
 
         // Tags are not checked: a typo is stored and renders as text.
         Assertions.assertThat(invalid(this.messageTemplates.update(Locale.US, Map.of(

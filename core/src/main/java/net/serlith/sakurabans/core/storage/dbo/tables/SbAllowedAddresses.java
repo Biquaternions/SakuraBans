@@ -3,7 +3,6 @@ package net.serlith.sakurabans.core.storage.dbo.tables;
 import java.io.Serial;
 import java.net.InetAddress;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 import net.serlith.sakurabans.core.storage.dbo.Keys;
 import net.serlith.sakurabans.core.storage.dbo.OperatorKind;

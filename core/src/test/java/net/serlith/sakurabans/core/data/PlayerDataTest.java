@@ -3,11 +3,11 @@ package net.serlith.sakurabans.core.data;
 import java.net.InetAddress;
 import java.time.Duration;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
-import net.serlith.sakurabans.api.admin.AdminResult;
-import net.serlith.sakurabans.api.audit.AuditQuery;
 import net.serlith.sakurabans.api.data.EraseResult;
 import net.serlith.sakurabans.api.data.PlayerDataExport;
+import net.serlith.sakurabans.api.data.PlayerDataResult;
 import net.serlith.sakurabans.api.event.PlayerDataErasedEvent;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.AddressStrictness;
@@ -30,13 +30,11 @@ import net.serlith.sakurabans.api.punish.RevocationTarget;
 import net.serlith.sakurabans.api.punish.RevokeResult;
 import net.serlith.sakurabans.api.validation.ValidationException;
 import net.serlith.sakurabans.core.ServiceTest;
-import net.serlith.sakurabans.core.audit.SakuraAuditService;
 import net.serlith.sakurabans.core.enforce.LoginDecision;
 import net.serlith.sakurabans.core.model.LoginAttempt;
 import net.serlith.sakurabans.core.storage.dbo.OperatorKind;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import net.serlith.sakurabans.core.storage.dbo.VictimKind;
-import net.serlith.sakurabans.core.storage.repository.AuditRepository;
 import net.serlith.sakurabans.core.sync.SyncPacket;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -82,16 +80,18 @@ class PlayerDataTest extends ServiceTest {
         this.players.recordConnection(uuid, name, this.now.get(), address, "lobby").join();
     }
 
-    private static <T> T ok(final AdminResult<T> result) {
-        Assertions.assertThat(result).isInstanceOf(AdminResult.Ok.class);
-        return ((AdminResult.Ok<T>) result).value();
+    private static <T> T ok(final PlayerDataResult<T> result) {
+        Assertions.assertThat(result).isInstanceOf(PlayerDataResult.Success.class);
+        return ((PlayerDataResult.Success<T>) result).value();
     }
 
     private String auditValues() {
-        return String.join("\n", new SakuraAuditService(new AuditRepository(this.storage))
-                .query(AuditQuery.builder().pageSize(500).build()).join().items().stream()
-                .map(entry -> entry.oldValue().orElse("") + " " + entry.newValue().orElse(""))
-                .toList());
+        final List<String> values = this.read(dsl -> dsl.select(
+                        SakuraTables.AUDIT_LOG.OLD_VALUE, SakuraTables.AUDIT_LOG.NEW_VALUE)
+                .from(SakuraTables.AUDIT_LOG)
+                .fetch(row -> Objects.toString(row.value1(), "") + " "
+                        + Objects.toString(row.value2(), "")));
+        return String.join("\n", values);
     }
 
     @Test
@@ -99,6 +99,8 @@ class PlayerDataTest extends ServiceTest {
         this.connect(STEVE, "Steve", this.home);
         final Punishment ban = this.punish(PunishmentType.BAN, PlayerVictim.of(STEVE),
                 MODERATOR);
+        // Steve acts as staff, online.
+        this.platform.join(STEVE, "Steve", this.home).grant(staffPermissions());
         final Punishment issued = this.punish(PunishmentType.WARN, PlayerVictim.of(ALEX),
                 STEVE_STAFF);
         this.allowList.allow(STEVE, MODERATOR, "streamer").join();
@@ -137,6 +139,8 @@ class PlayerDataTest extends ServiceTest {
         final Punishment stranger = this.punish(PunishmentType.BAN,
                 AddressVictim.of(this.elsewhere), MODERATOR);
         // What Steve did as staff keeps his UUID but not his name.
+        // Steve acts as staff, online.
+        this.platform.join(STEVE, "Steve", this.home).grant(staffPermissions());
         final Punishment issued = this.punish(PunishmentType.WARN, PlayerVictim.of(ALEX),
                 STEVE_STAFF);
         this.service.attachEvidence(issued.id(), EvidenceRef.of("https://example.org/w"),

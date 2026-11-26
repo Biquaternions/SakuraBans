@@ -13,8 +13,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-import net.serlith.sakurabans.api.audit.AuditAction;
-import net.serlith.sakurabans.api.audit.SubjectType;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.AddressRangeVictim;
 import net.serlith.sakurabans.api.model.AddressStrictness;
@@ -22,11 +20,13 @@ import net.serlith.sakurabans.api.model.AddressVictim;
 import net.serlith.sakurabans.api.model.CompositeVictim;
 import net.serlith.sakurabans.api.model.ErasedAddressVictim;
 import net.serlith.sakurabans.api.model.PlayerVictim;
-import net.serlith.sakurabans.api.model.PunishmentType;
+import net.serlith.sakurabans.api.model.Scope;
 import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.api.punish.PunishmentQuery.Applicability;
 import net.serlith.sakurabans.api.template.TemplateStep;
+import net.serlith.sakurabans.core.model.AuditAction;
 import net.serlith.sakurabans.core.model.SakuraTemplateInfo;
+import net.serlith.sakurabans.core.model.SubjectType;
 import net.serlith.sakurabans.core.model.TemplateDefinition;
 import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
@@ -59,83 +59,99 @@ public final class TemplateRepository {
         this.policy = policy;
     }
 
+    public sealed interface Write {
+
+        record Done(SakuraTemplateInfo value) implements Write {
+        }
+
+        record Unchanged(SakuraTemplateInfo value) implements Write {
+        }
+
+        record Taken(SakuraTemplateInfo existing) implements Write {
+        }
+
+        record NotFound() implements Write {
+        }
+
+        record Conflict(long currentVersion) implements Write {
+        }
+    }
+
     public CompletableFuture<List<SakuraTemplateInfo>> all() {
         return this.storage.read(TemplateRepository::load);
     }
 
-    public CompletableFuture<EntityWrite<SakuraTemplateInfo>> create(
-            final TemplateDefinition definition, final PunishmentType type, final Actor actor,
-            final Instant at) {
+    public CompletableFuture<Write> create(
+            final TemplateDefinition definition, final Actor actor, final Instant at) {
         return this.storage.writeRetryingConflicts(configuration -> {
             final DSLContext dsl = configuration.dsl();
             final Optional<SakuraTemplateInfo> existing = find(dsl, definition.name());
             if (existing.isPresent()) {
-                return new EntityWrite.Taken<>(existing.get());
+                return new Write.Taken(existing.get());
             }
-            final SakuraTemplateInfo created = SakuraTemplateInfo.of(definition, type, 1);
+            final SakuraTemplateInfo created = SakuraTemplateInfo.of(definition, 1);
             final SbTemplates t = SakuraTables.TEMPLATES;
             final int id = dsl.insertInto(t)
                     .set(t.NAME, created.name())
                     .set(t.CREATED_AT, at)
                     .set(t.VERSION, 1L)
-                    .set(values(created, at))
+                    .set(values(dsl, created, at))
                     .returningResult(t.ID)
                     .fetchSingle()
                     .value1();
             writeChildren(dsl, id, created);
             AuditRepository.append(dsl, at, actor, AuditAction.CREATE, SubjectType.TEMPLATE,
                     created.name(), null, created.summary());
-            return new EntityWrite.Done<>(created, null);
+            return new Write.Done(created);
         });
     }
 
-    public CompletableFuture<EntityWrite<SakuraTemplateInfo>> update(
-            final TemplateDefinition definition, final PunishmentType type,
-            final @Nullable Long expectedVersion, final Actor actor, final Instant at) {
+    public CompletableFuture<Write> update(
+            final TemplateDefinition definition, final @Nullable Long expectedVersion,
+            final Actor actor, final Instant at) {
         return this.storage.writeRetryingConflicts(configuration -> {
             final DSLContext dsl = configuration.dsl();
             final SbTemplatesRecord row = row(dsl, definition.name()).orElse(null);
             if (row == null) {
-                return new EntityWrite.NotFound<>();
+                return new Write.NotFound();
             }
             if (expectedVersion != null && row.version() != expectedVersion.longValue()) {
-                return new EntityWrite.Conflict<>(row.version());
+                return new Write.Conflict(row.version());
             }
             final SakuraTemplateInfo previous = assemble(dsl, row);
-            final SakuraTemplateInfo next =
-                    SakuraTemplateInfo.of(definition, type, row.version() + 1);
-            if (sameValues(previous, next)) {
-                return new EntityWrite.Unchanged<>(previous);
+            final SakuraTemplateInfo next = SakuraTemplateInfo.of(definition, row.version() + 1);
+            if (previous.summary().equals(next.summary())) {
+                return new Write.Unchanged(previous);
             }
             final SbTemplates t = SakuraTables.TEMPLATES;
             final int updated = dsl.update(t)
-                    .set(values(next, at))
+                    .set(values(dsl, next, at))
                     .set(t.VERSION, next.version())
                     .where(t.ID.eq(row.id()))
                     .and(t.VERSION.eq(row.version()))
                     .execute();
             if (updated == 0) {
-                return new EntityWrite.Conflict<>(row(dsl, definition.name())
+                return new Write.Conflict(row(dsl, definition.name())
                         .map(SbTemplatesRecord::version).orElse(row.version()));
             }
             deleteChildren(dsl, row.id());
             writeChildren(dsl, row.id(), next);
             AuditRepository.append(dsl, at, actor, AuditAction.UPDATE, SubjectType.TEMPLATE,
                     next.name(), previous.summary(), next.summary());
-            return new EntityWrite.Done<>(next, previous);
+            return new Write.Done(next);
         });
     }
 
-    public CompletableFuture<EntityWrite<SakuraTemplateInfo>> delete(final String name,
+    public CompletableFuture<Write> delete(final String name,
             final long expectedVersion, final Actor actor, final Instant at) {
         return this.storage.write(configuration -> {
             final DSLContext dsl = configuration.dsl();
             final SbTemplatesRecord row = row(dsl, name).orElse(null);
             if (row == null) {
-                return new EntityWrite.NotFound<>();
+                return new Write.NotFound();
             }
             if (row.version() != expectedVersion) {
-                return new EntityWrite.Conflict<>(row.version());
+                return new Write.Conflict(row.version());
             }
             final SakuraTemplateInfo previous = assemble(dsl, row);
             deleteChildren(dsl, row.id());
@@ -144,7 +160,7 @@ public final class TemplateRepository {
                     .execute();
             AuditRepository.append(dsl, at, actor, AuditAction.DELETE, SubjectType.TEMPLATE,
                     name, previous.summary(), null);
-            return new EntityWrite.Done<>(previous, previous);
+            return new Write.Done(previous);
         });
     }
 
@@ -240,21 +256,27 @@ public final class TemplateRepository {
                 .orderBy(g.NAME)
                 .fetch()
                 .forEach(member -> groups.put(member.value1(), member.value2().intValue()));
-        return new SakuraTemplateInfo(row.name(), row.kind(), row.type(), row.reason(), ladder,
-                Set.copyOf(split(row.requiredEvidence())), row.ladderExpiryMs(),
+        final Scope scope = row.scopeId() == null ? null
+                : ScopeRepository.scope(dsl.selectFrom(SakuraTables.SCOPES)
+                        .where(SakuraTables.SCOPES.ID.eq(row.scopeId()))
+                        .fetchSingle());
+        return new SakuraTemplateInfo(row.name(), row.type(), row.ip(), row.shadow(),
+                scope, row.reason(), ladder,
+                row.ladderExpiryMs(),
                 row.addressShared(), row.permissionRequired(), split(row.actions()), groups,
                 row.version());
     }
 
-    private static Map<Field<?>, @Nullable Object> values(final SakuraTemplateInfo template,
-            final Instant at) {
+    private static Map<Field<?>, @Nullable Object> values(final DSLContext dsl,
+            final SakuraTemplateInfo template, final Instant at) {
         final SbTemplates t = SakuraTables.TEMPLATES;
         final Map<Field<?>, @Nullable Object> values = new HashMap<>();
-        values.put(t.KIND, template.kind());
         values.put(t.TYPE, template.type());
+        values.put(t.IP, template.ip());
+        values.put(t.SHADOW, template.shadow());
+        values.put(t.SCOPE_ID, template.scope()
+                .map(scope -> ScopeRepository.resolve(dsl, scope)).orElse(null));
         values.put(t.REASON, template.reason());
-        values.put(t.REQUIRED_EVIDENCE, join(template.requiredEvidence().stream().sorted()
-                .toList()));
         values.put(t.ADDRESS_SHARED, template.addressShared());
         values.put(t.PERMISSION_REQUIRED, template.permissionRequired());
         values.put(t.ACTIONS, join(template.actions()));
@@ -305,10 +327,6 @@ public final class TemplateRepository {
         dsl.deleteFrom(g)
                 .where(g.ID.notIn(DSL.select(m.GROUP_ID).from(m)))
                 .execute();
-    }
-
-    private static boolean sameValues(final SakuraTemplateInfo a, final SakuraTemplateInfo b) {
-        return a.summary().equals(b.summary()) && a.type() == b.type();
     }
 
     private static String join(final List<String> values) {

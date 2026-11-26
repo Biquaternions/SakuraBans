@@ -17,7 +17,7 @@ public interface Actor {
 
     /**
      * Through which surface, as a short tag: {@code in-game}, {@code console}, {@code web},
-     * {@code hydra-panel}, {@code api:<plugin>}, ...
+     * {@code api:<plugin>}, ...
      *
      * @return the source, lower case
      */

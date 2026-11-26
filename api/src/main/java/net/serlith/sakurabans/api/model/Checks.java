@@ -14,8 +14,6 @@ final class Checks {
     private static final Pattern SOURCE = Pattern.compile("[a-z0-9_.:-]+");
     private static final Pattern HASH = Pattern.compile("[0-9a-f]+");
     static final Pattern EVIDENCE_URL = Pattern.compile("https?://\\S+");
-    static final Pattern EVIDENCE_REFERENCE =
-            Pattern.compile("([a-z0-9_-]+):([a-z0-9_-]+):([A-Za-z0-9_.-]+)");
 
     private Checks() {
     }

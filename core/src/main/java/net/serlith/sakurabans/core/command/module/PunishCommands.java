@@ -25,7 +25,6 @@ import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.api.punish.DraftPunishment;
-import net.serlith.sakurabans.api.punish.Enforcement;
 import net.serlith.sakurabans.api.punish.OverridePolicy;
 import net.serlith.sakurabans.api.punish.PunishOptions;
 import net.serlith.sakurabans.api.punish.PunishResult;
@@ -49,7 +48,6 @@ import net.serlith.sakurabans.core.model.TargetInput;
 import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.player.NameCache;
 import net.serlith.sakurabans.core.player.TargetResolver;
-import net.serlith.sakurabans.core.punish.KindLookup;
 import net.serlith.sakurabans.core.punish.SakuraPunishmentService;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
 import net.serlith.sakurabans.core.template.SakuraTemplateService;
@@ -67,13 +65,7 @@ public final class PunishCommands implements CommandModule {
 
     private enum Mode { PLAIN, TEMPORARY, ADDRESS }
 
-    private record Spec(String name, PunishmentType type, Mode mode, MessageKey description,
-            @Nullable String kind) {
-
-        Spec(final String name, final PunishmentType type, final Mode mode,
-                final MessageKey description) {
-            this(name, type, mode, description, null);
-        }
+    private record Spec(String name, PunishmentType type, Mode mode, MessageKey description) {
     }
 
     private static final List<Spec> SPECS = List.of(
@@ -103,14 +95,13 @@ public final class PunishCommands implements CommandModule {
     private final SakuraScopeService scopes;
     private final ScopeAccess scopeAccess;
     private final SakuraTemplateService templates;
-    private final KindLookup kinds;
 
     public PunishCommands(final CommandRegistrar registrar, final CommandRunner runner,
             final Replies replies, final PunishFlags flags, final TargetParser targetParser,
             final TargetResolver targets, final SakuraPunishmentService punishments,
             final NameCache names, final ConfigService config,
             final SakuraScopeService scopes, final ScopeAccess scopeAccess,
-            final SakuraTemplateService templates, final KindLookup kinds) {
+            final SakuraTemplateService templates) {
         this.registrar = registrar;
         this.runner = runner;
         this.replies = replies;
@@ -123,7 +114,6 @@ public final class PunishCommands implements CommandModule {
         this.scopes = scopes;
         this.scopeAccess = scopeAccess;
         this.templates = templates;
-        this.kinds = kinds;
     }
 
     @Override
@@ -133,14 +123,6 @@ public final class PunishCommands implements CommandModule {
                     .map(builder -> this.build(builder, spec))
                     .ifPresent(manager::command);
         }
-        this.config.settings().commands().kinds().forEach((kind, command) -> {
-            final Spec spec = new Spec(kind, command.type(), Mode.PLAIN,
-                    MessageKey.COMMAND_DESCRIPTION_KIND, kind);
-            this.registrar.builder(manager, command.labels(), spec.description(),
-                            Placeholder.unparsed("kind", kind))
-                    .map(builder -> this.build(builder, spec))
-                    .ifPresent(manager::command);
-        });
     }
 
     private Command.Builder<CommandActor> build(final Command.Builder<CommandActor> start,
@@ -151,9 +133,7 @@ public final class PunishCommands implements CommandModule {
                         Permission.of(Permissions.temporary(type)))
                 : Permission.of(Permissions.punish(type));
         Command.Builder<CommandActor> builder = start
-                .permission(spec.kind() == null ? permission
-                        : Permission.allOf(permission, Permission.of(Permissions.kind(
-                                spec.kind()))))
+                .permission(permission)
                 .required("target", this.targetParser.descriptor());
         final List<CommandFlag<?>> flagList = this.flagsFor(spec);
         if (spec.mode() == Mode.TEMPORARY) {
@@ -183,6 +163,9 @@ public final class PunishCommands implements CommandModule {
         if (spec.mode() != Mode.ADDRESS) {
             flagList.add(this.flags.ip(type));
         }
+        if (type == PunishmentType.MUTE) {
+            flagList.add(this.flags.shadow(type));
+        }
         if (!type.instant()) {
             flagList.add(this.flags.override(type));
             flagList.add(this.flags.ifLonger(type));
@@ -204,13 +187,21 @@ public final class PunishCommands implements CommandModule {
                 : flags.<Duration>getValue(PunishFlags.DURATION).orElse(null);
         final String reason = flags.<String>getValue(PunishFlags.REASON).map(String::strip)
                 .filter(text -> !text.isEmpty()).orElse(null);
-        final Optional<Scope> scope = this.scope(flags);
-        if (scope.isPresent() && !this.scopeAccess.mayUse(actor, scope.get())) {
-            this.runner.send(actor, MessageKey.COMMAND_SCOPE_NO_PERMISSION,
-                    Placeholder.unparsed("scope", this.scopes.format(scope.get())));
+        final Shortcut shortcut = this.shortcut(actor, type, reason,
+                flags.<String>getValue(PunishFlags.TEMPLATE).orElse(null));
+        if (shortcut == null) {
             return CompletableFuture.completedFuture(null);
         }
-        if (scope.isEmpty() && !this.scopeAccess.mayUseDefault(actor)) {
+        // The scope that results: the command's, else the template's, else the default.
+        final Optional<Scope> scope = this.scope(flags);
+        final Optional<Scope> checked = scope.or(() -> Optional.ofNullable(shortcut.template())
+                .flatMap(TemplateInfo::scope));
+        if (checked.isPresent() && !this.scopeAccess.mayUse(actor, checked.get())) {
+            this.runner.send(actor, MessageKey.COMMAND_SCOPE_NO_PERMISSION,
+                    Placeholder.unparsed("scope", this.scopes.format(checked.get())));
+            return CompletableFuture.completedFuture(null);
+        }
+        if (checked.isEmpty() && !this.scopeAccess.mayUseDefault(actor)) {
             this.runner.send(actor, MessageKey.COMMAND_SCOPE_DEFAULT_NO_PERMISSION);
             return CompletableFuture.completedFuture(null);
         }
@@ -229,16 +220,6 @@ public final class PunishCommands implements CommandModule {
                 return CompletableFuture.completedFuture(null);
             }
         }
-        final Shortcut shortcut = this.shortcut(actor, type, reason,
-                flags.<String>getValue(PunishFlags.TEMPLATE).orElse(null));
-        if (shortcut == null) {
-            return CompletableFuture.completedFuture(null);
-        }
-        if (spec.kind() != null && this.kinds.find(spec.kind())
-                .filter(kind -> kind.baseType() == type).isEmpty()) {
-            this.runner.send(actor, MessageKey.PUNISH_FAILURE_UNKNOWN_KIND);
-            return CompletableFuture.completedFuture(null);
-        }
         final boolean address = spec.mode() == Mode.ADDRESS || flags.isPresent(PunishFlags.IP)
                 || this.config.settings().enforcement().compositeByDefault()
                         && type != PunishmentType.KICK;
@@ -254,8 +235,9 @@ public final class PunishCommands implements CommandModule {
                         .scope(scope.orElse(null))
                         .reason(shortcut.reason())
                         .duration(duration)
-                        .template(shortcut.template())
-                        .kind(spec.kind())
+                        .template(shortcut.template() == null ? null
+                                : shortcut.template().name())
+                        .shadow(flags.isPresent(PunishFlags.SHADOW))
                         .evidence(evidence)
                         .build();
             } catch (final ValidationException e) {
@@ -274,7 +256,7 @@ public final class PunishCommands implements CommandModule {
         });
     }
 
-    private record Shortcut(@Nullable String template, @Nullable String reason) {
+    private record Shortcut(@Nullable TemplateInfo template, @Nullable String reason) {
     }
 
     private @Nullable Shortcut shortcut(final CommandActor actor, final PunishmentType type,
@@ -298,7 +280,7 @@ public final class PunishCommands implements CommandModule {
                         Placeholder.unparsed("name", template.name()));
                 return null;
             }
-            return new Shortcut(template.name(), reason);
+            return new Shortcut(template, reason);
         }
         final String text = this.config.settings().reasons().shortcuts().get(name);
         if (text == null) {
@@ -413,8 +395,7 @@ public final class PunishCommands implements CommandModule {
                         : flags.isPresent(PunishFlags.IF_LONGER)
                                 ? OverridePolicy.REPLACE_IF_LONGER
                                 : OverridePolicy.REJECT)
-                .enforcement(flags.isPresent(PunishFlags.SKIP) ? Enforcement.NONE
-                        : Enforcement.GLOBAL)
+                .enforce(!flags.isPresent(PunishFlags.SKIP))
                 .build();
     }
 
@@ -455,8 +436,6 @@ public final class PunishCommands implements CommandModule {
             case REASON_REQUIRED -> MessageKey.PUNISH_FAILURE_REASON_REQUIRED;
             case TEMPLATE_REQUIRED -> MessageKey.PUNISH_FAILURE_TEMPLATE_REQUIRED;
             case UNKNOWN_TEMPLATE -> MessageKey.PUNISH_FAILURE_UNKNOWN_TEMPLATE;
-            case UNKNOWN_KIND -> MessageKey.PUNISH_FAILURE_UNKNOWN_KIND;
-            case EVIDENCE_REQUIRED -> MessageKey.PUNISH_FAILURE_EVIDENCE_REQUIRED;
             case FORBIDDEN -> MessageKey.PUNISH_FAILURE_FORBIDDEN;
         };
     }

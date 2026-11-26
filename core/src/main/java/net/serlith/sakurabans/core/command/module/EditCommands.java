@@ -10,10 +10,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
-import net.serlith.sakurabans.api.audit.AuditEntry;
-import net.serlith.sakurabans.api.audit.AuditQuery;
-import net.serlith.sakurabans.api.audit.AuditService;
-import net.serlith.sakurabans.api.audit.SubjectType;
 import net.serlith.sakurabans.api.model.Evidence;
 import net.serlith.sakurabans.api.model.EvidenceRef;
 import net.serlith.sakurabans.api.model.Punishment;
@@ -36,9 +32,12 @@ import net.serlith.sakurabans.core.command.parser.ScopeParser;
 import net.serlith.sakurabans.core.message.Formats;
 import net.serlith.sakurabans.core.message.MessageKey;
 import net.serlith.sakurabans.core.message.Placeholders;
+import net.serlith.sakurabans.core.model.AuditEntry;
+import net.serlith.sakurabans.core.model.SubjectType;
 import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.punish.SakuraPunishmentService;
 import net.serlith.sakurabans.core.storage.DisplayIdCodec;
+import net.serlith.sakurabans.core.storage.repository.AuditRepository;
 import net.serlith.sakurabans.core.util.Durations;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
@@ -58,7 +57,7 @@ public final class EditCommands implements CommandModule {
     private final Placeholders placeholders;
     private final Formats formats;
     private final SakuraPunishmentService punishments;
-    private final AuditService audit;
+    private final AuditRepository audit;
     private final DisplayIdCodec displayIds;
     private final ScopeParser scopeParser;
     private final ConfirmationTracker confirmations;
@@ -66,7 +65,7 @@ public final class EditCommands implements CommandModule {
 
     public EditCommands(final CommandRegistrar registrar, final CommandRunner runner,
             final Replies replies, final Placeholders placeholders, final Formats formats,
-            final SakuraPunishmentService punishments, final AuditService audit,
+            final SakuraPunishmentService punishments, final AuditRepository audit,
             final DisplayIdCodec displayIds, final ScopeParser scopeParser,
             final ConfirmationTracker confirmations, final InstantSource clock) {
         this.registrar = registrar;
@@ -195,15 +194,13 @@ public final class EditCommands implements CommandModule {
         if (!actor.hasPermission(Permissions.ADMIN_AUDIT)) {
             return CompletableFuture.completedFuture(null);
         }
-        return this.audit.query(AuditQuery.builder()
-                .subject(SubjectType.PUNISHMENT, Long.toString(punishment.id()))
-                .pageSize(AUDIT_LINES)
-                .build()).thenAccept(page -> {
-                    if (page.items().isEmpty()) {
+        return this.audit.about(SubjectType.PUNISHMENT, Long.toString(punishment.id()),
+                AUDIT_LINES).thenAccept(entries -> {
+                    if (entries.isEmpty()) {
                         return;
                     }
                     this.runner.send(actor, MessageKey.INFO_AUDIT_HEADER);
-                    for (final AuditEntry entry : page.items().reversed()) {
+                    for (final AuditEntry entry : entries.reversed()) {
                         this.runner.send(actor, MessageKey.INFO_AUDIT_ENTRY,
                                 Placeholder.unparsed("at", this.formats.instant(entry.at(),
                                         locale)),
@@ -212,9 +209,10 @@ public final class EditCommands implements CommandModule {
                                         this.placeholders.operator(entry.actor().operator(),
                                                 locale)),
                                 Placeholder.unparsed("source", entry.actor().source()),
-                                Placeholder.unparsed("old", entry.oldValue()
-                                        .map(old -> old + " → ").orElse("")),
-                                Placeholder.unparsed("new", entry.newValue().orElse("")));
+                                Placeholder.unparsed("old", entry.oldValue() == null ? ""
+                                        : entry.oldValue() + " → "),
+                                Placeholder.unparsed("new", entry.newValue() == null ? ""
+                                        : entry.newValue()));
                     }
                 });
     }

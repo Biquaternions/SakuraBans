@@ -7,7 +7,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
-import net.serlith.sakurabans.api.imports.ImportReport;
 import net.serlith.sakurabans.core.command.CommandActor;
 import net.serlith.sakurabans.core.command.CommandModule;
 import net.serlith.sakurabans.core.command.CommandRegistrar;
@@ -16,8 +15,8 @@ import net.serlith.sakurabans.core.command.ConfirmationTracker;
 import net.serlith.sakurabans.core.command.SakuraCommands;
 import net.serlith.sakurabans.core.importer.ImportJobs;
 import net.serlith.sakurabans.core.importer.ImportOutcome;
+import net.serlith.sakurabans.core.importer.ImportReport;
 import net.serlith.sakurabans.core.message.MessageKey;
-import net.serlith.sakurabans.core.model.SakuraImportReport;
 import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.platform.Platform;
 import net.serlith.sakurabans.core.util.Futures;
@@ -116,7 +115,7 @@ public final class ImportCommands implements CommandModule {
     }
 
     private void report(final CommandActor actor, final TagResolver name,
-            final SakuraImportReport report) {
+            final ImportReport report) {
         final TagResolver[] all = List.of(name,
                 Placeholder.unparsed("imported", Long.toString(report.imported())),
                 Placeholder.unparsed("skipped", Long.toString(report.skipped())),
@@ -134,8 +133,8 @@ public final class ImportCommands implements CommandModule {
         }
         report.failures().stream().limit(FAILURES_SHOWN).forEach(failure ->
                 this.runner.send(actor, MessageKey.IMPORT_REPORT_FAILURE,
-                        Placeholder.unparsed("id", failure.externalId()
-                                .orElse("#" + failure.index())),
+                        Placeholder.unparsed("id", failure.externalId() == null
+                                ? "#" + failure.index() : failure.externalId()),
                         Placeholder.unparsed("errors", errors(failure))));
         if (!actor.console()) {
             // The console keeps a record of who imported what.

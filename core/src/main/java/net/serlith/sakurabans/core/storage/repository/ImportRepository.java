@@ -14,14 +14,13 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import net.serlith.sakurabans.api.audit.AuditAction;
-import net.serlith.sakurabans.api.audit.SubjectType;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.EndKind;
-import net.serlith.sakurabans.api.model.EvidenceRef;
 import net.serlith.sakurabans.api.model.Operator;
 import net.serlith.sakurabans.api.model.PunishmentType;
+import net.serlith.sakurabans.core.model.AuditAction;
 import net.serlith.sakurabans.core.model.ImportedPlayer;
+import net.serlith.sakurabans.core.model.SubjectType;
 import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.storage.dbo.OperatorKind;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
@@ -176,20 +175,6 @@ public final class ImportRepository {
                     .set(slots.EXCLUSIVITY_SLOT, type.stacks() ? id : 0L)
                     .execute();
         }
-        final StoredOperator by = StoredOperator.of(punishment.actor().operator());
-        for (final EvidenceRef ref : punishment.evidence()) {
-            final var evidence = SakuraTables.PUNISHMENT_EVIDENCE;
-            dsl.insertInto(evidence)
-                    .set(evidence.PUNISHMENT_ID, id)
-                    .set(evidence.URI, ref.uri())
-                    .set(evidence.ADDED_BY_KIND, by.kind())
-                    .set(evidence.ADDED_BY_UUID, by.uuid())
-                    .set(evidence.ADDED_BY_NAME, by.name())
-                    .set(evidence.ADDED_BY_SOURCE, punishment.actor().source())
-                    .set(evidence.ADDED_AT, punishment.createdAt())
-                    .onConflictDoNothing()
-                    .execute();
-        }
         return superseded;
     }
 
@@ -208,9 +193,7 @@ public final class ImportRepository {
                 : new StoredOperator(OperatorKind.CONSOLE, null, StoredOperator.CONSOLE_NAME);
         return dsl.insertInto(p)
                 .set(p.TYPE, punishment.type())
-                .set(p.KIND, punishment.kind())
                 .set(p.SHADOW, punishment.shadow())
-                .set(p.STRICTNESS, punishment.strictness())
                 .set(p.VICTIM_ID, victimId)
                 .set(p.SCOPE_ID, scopeId)
                 .set(p.REASON, punishment.reason())
@@ -359,9 +342,7 @@ public final class ImportRepository {
             final List<String> occupied = new ArrayList<>();
             for (final SbTable<?> table : copiedTables()) {
                 final int rows;
-                if (table == SakuraTables.KINDS) {
-                    rows = dsl.fetchCount(table, SakuraTables.KINDS.BUILT_IN.eq(false));
-                } else if (table == SakuraTables.AUDIT_LOG) {
+                if (table == SakuraTables.AUDIT_LOG) {
                     rows = dsl.fetchCount(table, SakuraTables.AUDIT_LOG.SOURCE.ne(SEED_SOURCE));
                 } else if (table == SakuraTables.SCOPES
                         // Only names; what uses them is checked by its own table.

@@ -1,7 +1,6 @@
 package net.serlith.sakurabans.core.importer;
 
 import com.google.common.base.Preconditions;
-import net.serlith.sakurabans.api.imports.ImportedPunishment;
 import net.serlith.sakurabans.core.configuration.settings.ImportSettings;
 import org.jspecify.annotations.Nullable;
 

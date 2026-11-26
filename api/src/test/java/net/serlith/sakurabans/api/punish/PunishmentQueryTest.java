@@ -68,19 +68,15 @@ class PunishmentQueryTest {
     void newFiltersHaveSafeDefaults() {
         final PunishmentQuery query = PunishmentQuery.builder().build();
 
-        assertThat(query.kinds()).isEmpty();
         assertThat(query.includeVoided()).isFalse();
         assertThat(query.order()).isEqualTo(PunishmentQuery.Order.NEWEST_FIRST);
         assertThat(query.after()).isEmpty();
-        assertThat(PunishmentQuery.builder().kinds(Set.of("Shadow-Mute")).build().kinds())
-                .containsExactly("shadow-mute");
     }
 
     @Test
     void validateReportsEveryProblemWithPath() {
         final List<FieldError> errors = PunishmentQuery.builder()
                 .types(Set.of())
-                .kinds(Set.of("not a kind"))
                 .createdAfter(T2).createdBefore(T1)
                 .page(2).after("cursor")
                 .pageSize(0)
@@ -88,7 +84,6 @@ class PunishmentQueryTest {
 
         assertThat(errors).extracting(FieldError::path, FieldError::code).containsExactlyInAnyOrder(
                 tuple("types", Code.OUT_OF_RANGE),
-                tuple("kinds", Code.INVALID_IDENTIFIER),
                 tuple("createdAfter", Code.WRONG_ORDER),
                 tuple("pageSize", Code.OUT_OF_RANGE),
                 tuple("after", Code.EXCLUSIVE));

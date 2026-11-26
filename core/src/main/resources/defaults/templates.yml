@@ -12,8 +12,15 @@
 # A reason given with -r (always last) replaces the template's reason. The template decides
 # the duration, so don't give one. Tab completion lists the templates.
 #
-# Keys of a template (all but kind, reason and ladder are optional):
-#   kind                 the punishment kind: ban, ip-ban, mute, shadow-mute, warn, kick, ...
+# Keys of a template (all but type, reason and ladder are optional):
+#   type                 ban, mute, warn or kick
+#   ip                   true: punish the player's current address instead of the player, like
+#                        /ipban and /ipmute
+#   shadow               true: a shadow mute; the muted player's messages are shown to them
+#                        only (mutes only)
+#   scope                where it applies when the command names no scope: global,
+#                        server:<name> or category:<name>. Left out: scopes.default in
+#                        config.yml. A scope given with the command (-g, --server, ...) wins
 #   reason               the reason when the command gives none
 #   ladder               one duration per step (30m, 7d, 1mo, ...) or permanent. The first
 #                        punishment from the template uses the first step, the next one the
@@ -25,9 +32,6 @@
 #   step-actions         console commands for one step only, by step number (from 1)
 #   groups               group: weight. Templates in a group share progress: a punishment from
 #                        a group mate counts as its weight in that group (voided ones never count)
-#   required-evidence    evidence types (<namespace>:<type>) a punishment must have. Staff give
-#                        evidence when punishing with --evidence <reference> (repeatable); the
-#                        API takes it in the draft
 #
 # Actions may use {victim}, {uuid}, {address}, {id}, {operator}, {reason}, {template},
 # {step} and {duration}. Quote them, because YAML reads {...} as a section:
@@ -35,7 +39,7 @@
 
 templates:
   hacking:
-    kind: ban
+    type: ban
     reason: Unfair advantage (hacked client)
     ladder: [7d, 30d, permanent]
     ladder-expiry: 1y
@@ -44,7 +48,7 @@ templates:
       cheating: 2
 
   xray:
-    kind: ban
+    type: ban
     reason: X-ray
     ladder: [3d, 14d, permanent]
     ladder-expiry: 1y
@@ -52,17 +56,25 @@ templates:
       cheating: 1
 
   spam:
-    kind: mute
+    type: mute
     reason: Spamming
     ladder: [15m, 1h, 1d, 7d]
     ladder-expiry: 30d
 
   advertising:
-    kind: mute
+    type: mute
     reason: Advertising
     ladder: [1d, 7d, permanent]
 
   inappropriate-name:
-    kind: kick
+    type: kick
     reason: Please change your name
     ladder: [permanent]
+
+  # A ban for one game mode only. It is in no group, so it never counts towards another
+  # template's ladder (and theirs don't count towards it).
+  # lifesteal-elimination:
+  #   type: ban
+  #   reason: Out of hearts
+  #   ladder: [3d]
+  #   scope: category:lifesteal

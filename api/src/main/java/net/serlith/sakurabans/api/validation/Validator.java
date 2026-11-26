@@ -14,7 +14,7 @@ import org.jspecify.annotations.Nullable;
  */
 public interface Validator {
 
-    /** The longest identifier (template, kind, server and category names). */
+    /** The longest identifier (template, server and category names). */
     int MAX_IDENTIFIER = 64;
 
     /**
@@ -87,20 +87,6 @@ public interface Validator {
         return this.check(value == null || normalizeIdentifier(value).isPresent(), path,
                 Code.INVALID_IDENTIFIER, "must be 1-" + MAX_IDENTIFIER
                         + " characters of a-z, 0-9, '_' or '-': '" + value + "'");
-    }
-
-    /**
-     * Checks that a text, if present, is an evidence type: {@code <namespace>:<type>}, both
-     * parts of {@code a-z}, {@code 0-9}, {@code _} or {@code -} (for example
-     * {@code hydra:chat-snapshot}).
-     *
-     * @param path the path of the value
-     * @param value the text, or {@code null}
-     * @return this validator
-     */
-    default Validator evidenceType(final String path, final @Nullable String value) {
-        return this.check(value == null || Patterns.EVIDENCE_TYPE.matcher(value).matches(), path,
-                Code.INVALID_FORMAT, "must be <namespace>:<type>: '" + value + "'");
     }
 
     /**

@@ -1,7 +1,6 @@
 package net.serlith.sakurabans.core.storage.dbo.tables;
 
 import java.io.Serial;
-import java.util.List;
 import net.serlith.sakurabans.core.storage.dbo.Keys;
 import net.serlith.sakurabans.core.storage.dbo.SbTable;
 import net.serlith.sakurabans.core.storage.dbo.records.SbMetaRecord;
@@ -13,7 +12,6 @@ import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 import org.jspecify.annotations.Nullable;
 
-/** Key/value metadata: schema version, leases (DESIGN 7.3). */
 public final class SbMeta extends SbTable<SbMetaRecord> {
 
     @Serial

@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.UUID;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.AddressRangeVictim;
-import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.AddressVictim;
 import net.serlith.sakurabans.api.model.CategoryScope;
 import net.serlith.sakurabans.api.model.CompositeVictim;
@@ -202,9 +201,7 @@ public final class ValueCodec {
         out.writeLong(punishment.id());
         out.writeUTF(punishment.displayId());
         out.writeUTF(punishment.type().name());
-        out.writeUTF(punishment.kind());
         out.writeBoolean(punishment.shadow());
-        writeText(out, punishment.strictness().map(Enum::name).orElse(null));
         writeVictim(out, punishment.victim());
         writeOperator(out, punishment.operator());
         out.writeUTF(punishment.source());
@@ -242,9 +239,7 @@ public final class ValueCodec {
         final long id = in.readLong();
         final String displayId = in.readUTF();
         final PunishmentType type = PunishmentType.valueOf(in.readUTF());
-        final String kind = in.readUTF();
         final boolean shadow = in.readBoolean();
-        final String strictness = readText(in);
         final Victim victim = readVictim(in);
         final Operator operator = readOperator(in);
         final String source = in.readUTF();
@@ -268,8 +263,8 @@ public final class ValueCodec {
             final Instant at = readInstant(in);
             voiding = new SakuraPunishmentVoid(nonNull(at), readActor(in), readText(in));
         }
-        return new SakuraPunishment(id, displayId, type, kind, shadow,
-                strictness == null ? null : AddressStrictness.valueOf(strictness), victim,
+        return new SakuraPunishment(id, displayId, type, shadow,
+                victim,
                 operator, source, scope, reason, nonNull(createdAt), expiresAt, origin,
                 visibility, template == null ? null : new SakuraTemplateRef(template, step), end,
                 voiding, List.of(), in.readLong());

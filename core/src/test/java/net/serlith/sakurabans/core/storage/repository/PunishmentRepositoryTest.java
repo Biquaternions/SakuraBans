@@ -6,7 +6,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -64,8 +63,8 @@ class PunishmentRepositoryTest extends DatabaseTest {
     private NewPunishment punishment(final PunishmentType type, final Victim victim,
             final Scope scope, final @Nullable Duration duration, final Actor actor) {
         final Instant at = this.now.get();
-        return new NewPunishment(type, type.name().toLowerCase(Locale.ROOT), false,
-                null, victim, scope, "reason", actor, at,
+        return new NewPunishment(type, false,
+                victim, scope, "reason", actor, at,
                 duration == null ? null : at.plus(duration), "lobby", Visibility.NORMAL,
                 null, null, List.of(), null);
     }
@@ -88,19 +87,17 @@ class PunishmentRepositoryTest extends DatabaseTest {
 
     @Test
     void everyFieldRoundTrips() {
-        final NewPunishment shadowMute = new NewPunishment(PunishmentType.MUTE, "shadow-mute",
-                true, AddressStrictness.LENIENT, PlayerVictim.of(STEVE), ServerScope.of("lobby"),
+        final NewPunishment shadowMute = new NewPunishment(PunishmentType.MUTE,
+                true, PlayerVictim.of(STEVE), ServerScope.of("lobby"),
                 "spam", MODERATOR, this.now.get(), this.now.get().plus(Duration.ofDays(1)),
                 "lobby", Visibility.SILENT, null, null,
-                List.of(EvidenceRef.of("hydra:chat-snapshot:42")), "import-1");
+                List.of(EvidenceRef.of("https://example.org/chat/42")), "import-1");
 
         final Punishment stored = this.inserted(shadowMute);
 
         Assertions.assertThat(this.punishments.byId(stored.id()).join()).contains(stored);
         Assertions.assertThat(stored.displayId()).isEqualTo("D" + stored.id());
-        Assertions.assertThat(stored.kind()).isEqualTo("shadow-mute");
         Assertions.assertThat(stored.shadow()).isTrue();
-        Assertions.assertThat(stored.strictness()).contains(AddressStrictness.LENIENT);
         Assertions.assertThat(stored.victim()).isEqualTo(PlayerVictim.of(STEVE));
         Assertions.assertThat(stored.operator()).isEqualTo(MODERATOR.operator());
         Assertions.assertThat(stored.source()).isEqualTo("in-game");
@@ -109,7 +106,7 @@ class PunishmentRepositoryTest extends DatabaseTest {
         Assertions.assertThat(stored.originServer()).contains("lobby");
         Assertions.assertThat(stored.visibility()).isEqualTo(Visibility.SILENT);
         Assertions.assertThat(stored.evidence()).singleElement().satisfies(evidence -> {
-            Assertions.assertThat(evidence.ref().uri()).isEqualTo("hydra:chat-snapshot:42");
+            Assertions.assertThat(evidence.ref().uri()).isEqualTo("https://example.org/chat/42");
             Assertions.assertThat(evidence.addedBy()).isEqualTo(MODERATOR);
         });
         Assertions.assertThat(stored.end()).isEmpty();
@@ -274,8 +271,8 @@ class PunishmentRepositoryTest extends DatabaseTest {
         final Punishment alexMute = this.inserted(this.punishment(PunishmentType.MUTE,
                 PlayerVictim.of(ALEX), ServerScope.of("lobby"), null, CONSOLE));
         this.advance(Duration.ofMinutes(1));
-        final Punishment hidden = this.inserted(new NewPunishment(PunishmentType.WARN, "warn",
-                false, null, PlayerVictim.of(ALEX), GlobalScope.INSTANCE, "", MODERATOR,
+        final Punishment hidden = this.inserted(new NewPunishment(PunishmentType.WARN,
+                false, PlayerVictim.of(ALEX), GlobalScope.INSTANCE, "", MODERATOR,
                 this.now.get(), null, null, Visibility.HIDDEN, null, null, List.of(), null));
         this.punishments.end(steveBan.id(), EndKind.REVOKED, this.now.get(),
                 Actor.of(PlayerOperator.of(MOD, "RenamedMod"), "web"), null).join();
@@ -296,8 +293,6 @@ class PunishmentRepositoryTest extends DatabaseTest {
                 .doesNotContain(hidden.id());
         Assertions.assertThat(this.ids(PunishmentQuery.builder().types(PunishmentType.MUTE)))
                 .containsExactly(alexMute.id());
-        Assertions.assertThat(this.ids(PunishmentQuery.builder().kinds(Set.of("ban"))))
-                .containsExactly(steveBan.id());
         Assertions.assertThat(this.ids(PunishmentQuery.builder().victim(PlayerVictim.of(ALEX))))
                 .containsExactly(hidden.id(), alexMute.id());
         Assertions.assertThat(this.ids(PunishmentQuery.builder()

@@ -9,7 +9,6 @@ import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
 import net.serlith.sakurabans.api.model.CustomOperator;
-import net.serlith.sakurabans.api.model.Operator;
 import net.serlith.sakurabans.api.model.PlayerOperator;
 import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import net.serlith.sakurabans.core.platform.Platform;
@@ -35,23 +34,6 @@ public final class PermissionService {
                 || CONSOLE_SOURCE.equals(actor.source());
     }
 
-    public CompletableFuture<Optional<Boolean>> has(final Actor actor, final String node) {
-        return console(actor)
-                ? CompletableFuture.completedFuture(Optional.of(true))
-                : this.has(actor.operator(), node);
-    }
-
-    public CompletableFuture<Optional<Boolean>> has(final Operator operator, final String node) {
-        return switch (operator) {
-            case ConsoleOperator console -> CompletableFuture.completedFuture(Optional.of(true));
-            case PlayerOperator player -> this.has(player.uuid(), node);
-            // A plugin acting under its own name is trusted code.
-            case CustomOperator custom -> custom.uuid()
-                    .map(uuid -> this.has(uuid, node))
-                    .orElseGet(() -> CompletableFuture.completedFuture(Optional.of(true)));
-        };
-    }
-
     public CompletableFuture<Optional<Boolean>> has(final UUID uuid, final String node) {
         final Optional<OnlinePlayer> online = this.platform.player(uuid);
         if (online.isPresent()) {
@@ -60,6 +42,24 @@ public final class PermissionService {
         }
         this.warnIfMissing();
         return this.offline.has(uuid, node);
+    }
+
+    public boolean hasOnline(final Actor actor, final String node) {
+        if (console(actor)) {
+            return true;
+        }
+        return switch (actor.operator()) {
+            case ConsoleOperator console -> true;
+            case PlayerOperator player -> this.hasOnline(player.uuid(), node);
+            case CustomOperator custom -> custom.uuid()
+                    .map(uuid -> this.hasOnline(uuid, node))
+                    .orElse(true);
+        };
+    }
+
+    private boolean hasOnline(final UUID uuid, final String node) {
+        return this.platform.player(uuid).map(player -> player.hasPermission(node))
+                .orElse(false);
     }
 
     public CompletableFuture<OptionalInt> weight(final UUID uuid) {
@@ -74,7 +74,8 @@ public final class PermissionService {
     private void warnIfMissing() {
         if (!this.offline.available() && this.warned.compareAndSet(false, true)) {
             this.logger.warn("Permissions of offline players are unknown without LuckPerms:"
-                    + " exemption, limits and API authorization only see online players");
+                    + " the exemption of offline targets and the lockdown bypass only see online"
+                    + " players");
         }
     }
 

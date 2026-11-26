@@ -77,12 +77,6 @@ public sealed interface PunishResult permits PunishResult.Success, PunishResult.
             /** The template doesn't exist or doesn't match the type. */
             UNKNOWN_TEMPLATE,
 
-            /** The kind doesn't exist or its base type differs from the draft's type. */
-            UNKNOWN_KIND,
-
-            /** The template or kind requires evidence of a type the draft doesn't have. */
-            EVIDENCE_REQUIRED,
-
             /** The actor isn't allowed to do this (permissions or an integration's guard). */
             FORBIDDEN
         }

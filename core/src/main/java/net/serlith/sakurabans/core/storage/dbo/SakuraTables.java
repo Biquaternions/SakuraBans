@@ -6,7 +6,6 @@ import net.serlith.sakurabans.core.storage.dbo.tables.SbActivePunishments;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbAllowedAddresses;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbAllowedPlayers;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbAuditLog;
-import net.serlith.sakurabans.core.storage.dbo.tables.SbKinds;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbLockdowns;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbMessageOverrides;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbMeta;
@@ -36,7 +35,6 @@ public final class SakuraTables {
     public static SbPlayerAddresses PLAYER_ADDRESSES;
     public static SbScopes SCOPES;
     public static SbVictims VICTIMS;
-    public static SbKinds KINDS;
     public static SbTemplates TEMPLATES;
     public static SbTemplateSteps TEMPLATE_STEPS;
     public static SbTemplateGroups TEMPLATE_GROUPS;
@@ -80,7 +78,6 @@ public final class SakuraTables {
         PLAYER_ADDRESSES = new SbPlayerAddresses(tablePrefix);
         SCOPES = new SbScopes(tablePrefix);
         VICTIMS = new SbVictims(tablePrefix);
-        KINDS = new SbKinds(tablePrefix);
         TEMPLATES = new SbTemplates(tablePrefix);
         TEMPLATE_STEPS = new SbTemplateSteps(tablePrefix);
         TEMPLATE_GROUPS = new SbTemplateGroups(tablePrefix);
@@ -123,7 +120,6 @@ public final class SakuraTables {
                 PLAYER_ADDRESSES,
                 SCOPES,
                 VICTIMS,
-                KINDS,
                 TEMPLATES,
                 TEMPLATE_STEPS,
                 TEMPLATE_GROUPS,

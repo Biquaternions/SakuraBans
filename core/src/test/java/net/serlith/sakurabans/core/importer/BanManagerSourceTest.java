@@ -8,7 +8,6 @@ import java.util.UUID;
 import net.serlith.sakurabans.api.model.EndKind;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Visibility;
-import net.serlith.sakurabans.core.model.SakuraImportReport;
 import net.serlith.sakurabans.core.storage.dbo.OperatorKind;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import net.serlith.sakurabans.core.storage.dbo.VictimKind;
@@ -65,12 +64,12 @@ class BanManagerSourceTest extends ImportTest {
                                 .containsEntry("player_kicks", 1L)
                                 .doesNotContainKey("name_bans")
                                 .doesNotContainKey("ip_range_bans"));
-        final SakuraImportReport report = this.importFrom("banmanager");
+        final ImportReport report = this.importFrom("banmanager");
 
         Assertions.assertThat(report.imported()).isEqualTo(19);
         Assertions.assertThat(report.failed()).isEqualTo(2);
         Assertions.assertThat(report.players()).isEqualTo(4);
-        Assertions.assertThat(report.failures()).extracting(failure -> failure.externalId().get())
+        Assertions.assertThat(report.failures()).extracting(ImportReport.Failure::externalId)
                 .containsExactlyInAnyOrder("banmanager:player_bans:4", "banmanager:ip_bans:3");
         Assertions.assertThat(this.count(SakuraTables.PUNISHMENTS)).isEqualTo(19);
 
@@ -151,8 +150,8 @@ class BanManagerSourceTest extends ImportTest {
 
         final SbPunishmentsRecord soft = this.stored("player_mutes:1");
         Assertions.assertThat(soft.type()).isEqualTo(PunishmentType.MUTE);
-        Assertions.assertThat(soft.kind()).isEqualTo("shadow-mute");
-        Assertions.assertThat(this.stored("player_mutes:2").kind()).isEqualTo("mute");
+        Assertions.assertThat(soft.shadow()).isTrue();
+        Assertions.assertThat(this.stored("player_mutes:2").shadow()).isFalse();
         Assertions.assertThat(this.stored("player_mute_records:1").endKind())
                 .isEqualTo(EndKind.REVOKED);
         Assertions.assertThat(this.stored("ip_mutes:1").endKind()).isNull();
@@ -173,7 +172,7 @@ class BanManagerSourceTest extends ImportTest {
         Assertions.assertThat(kick.endKind()).isNull();
         Assertions.assertThat(this.victim(kick).value2()).isEqualTo(CARA);
 
-        final SakuraImportReport second = this.importFrom("banmanager");
+        final ImportReport second = this.importFrom("banmanager");
         Assertions.assertThat(second.imported()).isZero();
         Assertions.assertThat(second.skipped()).isEqualTo(19);
         Assertions.assertThat(this.count(SakuraTables.PUNISHMENTS)).isEqualTo(19);
@@ -183,7 +182,7 @@ class BanManagerSourceTest extends ImportTest {
     void dryRunsWriteNothing() {
         this.fixture();
 
-        final SakuraImportReport report = this.importFrom("banmanager", true);
+        final ImportReport report = this.importFrom("banmanager", true);
 
         Assertions.assertThat(report.dryRun()).isTrue();
         Assertions.assertThat(report.imported()).isEqualTo(19);
@@ -208,7 +207,7 @@ class BanManagerSourceTest extends ImportTest {
                 .execute("INSERT INTO \"bm_ip_bans\" VALUES (1, 3405803783, 'Integer address', "
                         + "X'09130bc4b0cd4e268e13a1c1d682a2b0', 1790856000, 1790856000, 0)");
 
-        final SakuraImportReport report = this.importFrom("banmanager");
+        final ImportReport report = this.importFrom("banmanager");
 
         Assertions.assertThat(report.imported()).isEqualTo(1);
         Assertions.assertThat(report.failed()).isZero();

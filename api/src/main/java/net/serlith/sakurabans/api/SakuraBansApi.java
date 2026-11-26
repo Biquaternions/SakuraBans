@@ -1,27 +1,18 @@
 package net.serlith.sakurabans.api;
 
-import java.util.Set;
 import net.serlith.sakurabans.api.allow.AllowListService;
-import net.serlith.sakurabans.api.audit.AuditService;
-import net.serlith.sakurabans.api.auth.AuthorizationService;
 import net.serlith.sakurabans.api.data.PlayerDataService;
 import net.serlith.sakurabans.api.event.EventBus;
 import net.serlith.sakurabans.api.format.MessageFormatter;
-import net.serlith.sakurabans.api.imports.ImportService;
 import net.serlith.sakurabans.api.integration.IntegrationRegistry;
-import net.serlith.sakurabans.api.kind.KindService;
 import net.serlith.sakurabans.api.player.PlayerService;
 import net.serlith.sakurabans.api.punish.PunishmentService;
 import net.serlith.sakurabans.api.scope.ScopeService;
-import net.serlith.sakurabans.api.stats.StatsService;
 import net.serlith.sakurabans.api.template.TemplateService;
 
 /**
  * Entry point of the SakuraBans API. Get it with {@link SakuraBans#api()}, or on Paper from the
  * {@code ServicesManager}. Implemented by SakuraBans; don't implement it.
- *
- * <p>Every service is always present. A service whose {@link Capability} isn't listed answers
- * with futures that complete exceptionally with {@link UnsupportedOperationException}.
  */
 public interface SakuraBansApi {
 
@@ -32,24 +23,6 @@ public interface SakuraBansApi {
      * @return the version, for example {@code 1.0.0}
      */
     String apiVersion();
-
-    /**
-     * The optional features this SakuraBans instance supports. Check them instead of the version
-     * to hide features that an older SakuraBans, or the current configuration, doesn't offer.
-     *
-     * @return the supported capabilities
-     */
-    Set<Capability> capabilities();
-
-    /**
-     * Whether a capability is supported.
-     *
-     * @param capability the capability
-     * @return {@code true} if {@link #capabilities()} contains it
-     */
-    default boolean supports(final Capability capability) {
-        return this.capabilities().contains(capability);
-    }
 
     /**
      * Punishments: create, revoke, edit, find.
@@ -101,51 +74,16 @@ public interface SakuraBansApi {
     MessageFormatter formatter();
 
     /**
-     * Whether actors may perform actions, as SakuraBans decides it.
-     *
-     * @return the service
-     */
-    AuthorizationService authorization();
-
-    /**
-     * Where other plugins register guards and profile sources.
+     * Where other plugins register profile sources.
      *
      * @return the registry
      */
     IntegrationRegistry integrations();
 
     /**
-     * Punishment kinds ({@link Capability#KINDS}).
-     *
-     * @return the service
-     */
-    KindService kinds();
-
-    /**
-     * Summaries and statistics ({@link Capability#STATS}).
-     *
-     * @return the service
-     */
-    StatsService stats();
-
-    /**
-     * The audit log ({@link Capability#AUDIT}).
-     *
-     * @return the service
-     */
-    AuditService audit();
-
-    /**
-     * Exporting and erasing player data ({@link Capability#PLAYER_DATA}).
+     * Exporting and erasing player data.
      *
      * @return the service
      */
     PlayerDataService playerData();
-
-    /**
-     * Bulk imports ({@link Capability#IMPORT}).
-     *
-     * @return the service
-     */
-    ImportService imports();
 }

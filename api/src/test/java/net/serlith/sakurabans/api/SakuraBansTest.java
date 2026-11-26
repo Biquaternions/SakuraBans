@@ -4,20 +4,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.lang.reflect.Proxy;
-import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 class SakuraBansTest {
 
-    private static final SakuraBansApi API = api(Set.of(Capability.VOID));
-    private static final SakuraBansApi OTHER = api(Set.of());
+    private static final SakuraBansApi API = api();
+    private static final SakuraBansApi OTHER = api();
 
-    private static SakuraBansApi api(final Set<Capability> capabilities) {
+    private static SakuraBansApi api() {
         return (SakuraBansApi) Proxy.newProxyInstance(SakuraBansApi.class.getClassLoader(),
                 new Class<?>[] {SakuraBansApi.class},
                 (proxy, method, args) -> switch (method.getName()) {
-                    case "capabilities" -> capabilities;
                     case "hashCode" -> System.identityHashCode(proxy);
                     case "equals" -> proxy == args[0];
                     default -> throw new UnsupportedOperationException(method.getName());

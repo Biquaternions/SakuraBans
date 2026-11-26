@@ -1,8 +1,6 @@
 package net.serlith.sakurabans.core.model;
 
 import java.util.UUID;
-import net.serlith.sakurabans.api.imports.ImportOptions;
-import net.serlith.sakurabans.api.imports.ImportedPunishment;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.AddressRangeVictim;
 import net.serlith.sakurabans.api.model.AddressVictim;
@@ -11,7 +9,6 @@ import net.serlith.sakurabans.api.model.CompositeVictim;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
 import net.serlith.sakurabans.api.model.CustomOperator;
 import net.serlith.sakurabans.api.model.ErasedAddressVictim;
-import net.serlith.sakurabans.api.model.EvidenceRef;
 import net.serlith.sakurabans.api.model.GlobalScope;
 import net.serlith.sakurabans.api.model.Operator;
 import net.serlith.sakurabans.api.model.PlayerOperator;
@@ -68,7 +65,7 @@ public final class ApiValues {
 
     public static DraftPunishment draft(final DraftPunishment draft) {
         return DraftPunishment.builder(draft.type(), victim(draft.victim()), actor(draft.actor()))
-                .kind(draft.kind().orElse(null))
+                .shadow(draft.shadow())
                 .scope(draft.scope().map(ApiValues::scope).orElse(null))
                 .reason(draft.reason().orElse(null))
                 .duration(draft.duration().orElse(null))
@@ -77,39 +74,11 @@ public final class ApiValues {
                 .build();
     }
 
-    public static ImportedPunishment imported(final ImportedPunishment punishment) {
-        final ImportedPunishment.Builder builder = ImportedPunishment.builder(punishment.type(),
-                        victim(punishment.victim()), operator(punishment.operator()),
-                        punishment.createdAt())
-                .kind(punishment.kind().orElse(null))
-                .expiresAt(punishment.expiresAt().orElse(null))
-                .scope(scope(punishment.scope()))
-                .reason(punishment.reason())
-                .visibility(punishment.visibility())
-                .originServer(punishment.originServer().orElse(null))
-                .evidence(punishment.evidence().stream()
-                        .map(ref -> EvidenceRef.of(ref.uri())).toList())
-                .externalId(punishment.externalId().orElse(null));
-        punishment.end().ifPresent(end -> builder.ended(end.kind(), end.at(),
-                end.operator().map(ApiValues::operator).orElse(null),
-                end.reason().orElse(null)));
-        return builder.build();
-    }
-
-    public static ImportOptions importOptions(final ImportOptions options) {
-        return ImportOptions.builder()
-                .dryRun(options.dryRun())
-                .enforcement(options.enforcement())
-                .batchSize(options.batchSize())
-                .source(options.source())
-                .build();
-    }
-
     public static PunishOptions options(final PunishOptions options) {
         return PunishOptions.builder()
                 .visibility(options.visibility())
                 .override(options.override())
-                .enforcement(options.enforcement())
+                .enforce(options.enforce())
                 .bypassLimits(options.bypassLimits())
                 .build();
     }

@@ -12,7 +12,7 @@ import net.serlith.sakurabans.api.integration.ProfileSource;
 import net.serlith.sakurabans.core.RecordingLogger;
 import net.serlith.sakurabans.core.TestConfig;
 import net.serlith.sakurabans.core.fake.FakePlatform;
-import net.serlith.sakurabans.core.integration.SakuraIntegrationRegistry;
+import net.serlith.sakurabans.core.player.SakuraIntegrationRegistry;
 import net.serlith.sakurabans.core.util.Uuids;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -75,11 +75,11 @@ class UuidResolverTest {
         final UUID fromSource = UUID.randomUUID();
         this.integrations.register(source("empty",
                 CompletableFuture.completedFuture(Optional.empty()), asked));
-        this.integrations.register(source("hydra",
+        this.integrations.register(source("reports",
                 CompletableFuture.completedFuture(Optional.of(fromSource)), asked));
 
         Assertions.assertThat(this.resolver().resolve("Known").join()).contains(fromSource);
-        Assertions.assertThat(asked).containsExactly("empty", "hydra");
+        Assertions.assertThat(asked).containsExactly("empty", "reports");
         Assertions.assertThat(this.platformCalls).hasValue(0);
     }
 
@@ -123,12 +123,12 @@ class UuidResolverTest {
     @Test
     void theRemoteLookupCanBeTurnedOff() {
         final List<String> asked = new CopyOnWriteArrayList<>();
-        this.integrations.register(source("hydra",
+        this.integrations.register(source("reports",
                 CompletableFuture.completedFuture(Optional.empty()), asked));
         final UuidResolver resolver = this.resolver("players:\n  remote-lookup: false\n");
 
         Assertions.assertThat(resolver.resolve("Known").join()).isEmpty();
-        Assertions.assertThat(asked).containsExactly("hydra");
+        Assertions.assertThat(asked).containsExactly("reports");
         Assertions.assertThat(this.platformCalls).hasValue(0);
     }
 

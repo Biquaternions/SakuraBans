@@ -5,11 +5,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import net.serlith.sakurabans.api.imports.ImportedPunishment;
+import net.serlith.sakurabans.api.model.GlobalScope;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Victim;
+import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.core.configuration.settings.ImportSettings;
-import net.serlith.sakurabans.core.model.SakuraImportReport;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import org.assertj.core.api.Assertions;
 import org.jooq.Cursor;
@@ -64,13 +64,13 @@ class SourceDatabaseTest extends ImportTest {
                         reader.failure("bans", id, "neither a UUID nor an address");
                         continue;
                     }
-                    reader.punishment(ImportedPunishment.builder(PunishmentType.BAN,
-                                    victim.get(), ImportValues.operator(null, row.get(BANNED_BY)),
-                                    ImportValues.seconds(row.get(CREATED)).orElseThrow())
-                            .expiresAt(ImportValues.seconds(row.get(UNTIL)).orElse(null))
-                            .reason(reader.reason(row.get(REASON)))
-                            .externalId(context.externalId("bans", id))
-                            .build());
+                    reader.punishment(new ImportedPunishment(PunishmentType.BAN,
+                            victim.get(), ImportValues.operator(null, row.get(BANNED_BY)),
+                            ImportValues.seconds(row.get(CREATED)).orElseThrow(),
+                            ImportValues.seconds(row.get(UNTIL)).orElse(null),
+                            GlobalScope.INSTANCE, reader.reason(row.get(REASON)),
+                            Visibility.NORMAL, false, null, null,
+                            context.externalId("bans", id)));
                 }
             }
         }
@@ -87,7 +87,7 @@ class SourceDatabaseTest extends ImportTest {
 
         Assertions.assertThat(this.jobs().survey("example").join())
                 .isEqualTo(new ImportOutcome.Surveyed(Map.of("bans", 3L)));
-        final SakuraImportReport first = this.importFrom("example");
+        final ImportReport first = this.importFrom("example");
 
         Assertions.assertThat(first.imported()).isEqualTo(2);
         Assertions.assertThat(first.failed()).isEqualTo(1);
@@ -101,7 +101,7 @@ class SourceDatabaseTest extends ImportTest {
                 .fetchSingle().value1());
         Assertions.assertThat(reason).isEqualTo("Cheating");
 
-        final SakuraImportReport second = this.importFrom("example");
+        final ImportReport second = this.importFrom("example");
         Assertions.assertThat(second.imported()).isZero();
         Assertions.assertThat(second.skipped()).isEqualTo(2);
     }

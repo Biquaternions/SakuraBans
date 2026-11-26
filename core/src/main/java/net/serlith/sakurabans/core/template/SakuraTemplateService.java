@@ -15,16 +15,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
-import net.serlith.sakurabans.api.admin.AdminResult;
-import net.serlith.sakurabans.api.audit.SubjectType;
-import net.serlith.sakurabans.api.auth.Action;
-import net.serlith.sakurabans.api.event.ChangeType;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
-import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.api.template.TemplateInfo;
-import net.serlith.sakurabans.api.template.TemplatePreview;
 import net.serlith.sakurabans.api.template.TemplateService;
 import net.serlith.sakurabans.api.template.TemplateStep;
 import net.serlith.sakurabans.api.validation.FieldError.Code;
@@ -32,18 +26,14 @@ import net.serlith.sakurabans.api.validation.ValidationException;
 import net.serlith.sakurabans.api.validation.Validator;
 import net.serlith.sakurabans.core.configuration.ConfigIssue;
 import net.serlith.sakurabans.core.configuration.TemplateFiles;
-import net.serlith.sakurabans.core.event.SakuraEventBus;
-import net.serlith.sakurabans.core.event.SakuraTemplateChangedEvent;
+import net.serlith.sakurabans.core.model.AdminResult;
 import net.serlith.sakurabans.core.model.ApiValues;
-import net.serlith.sakurabans.core.model.SakuraAdminResult;
-import net.serlith.sakurabans.core.model.SakuraKind;
 import net.serlith.sakurabans.core.model.SakuraTemplateInfo;
-import net.serlith.sakurabans.core.model.SakuraTemplatePreview;
+import net.serlith.sakurabans.core.model.SubjectType;
 import net.serlith.sakurabans.core.model.TemplateDefinition;
-import net.serlith.sakurabans.core.punish.ActionCheck;
-import net.serlith.sakurabans.core.punish.KindLookup;
+import net.serlith.sakurabans.core.permission.Action;
+import net.serlith.sakurabans.core.permission.AuthorizationService;
 import net.serlith.sakurabans.core.punish.TemplateResolver;
-import net.serlith.sakurabans.core.storage.repository.EntityWrite;
 import net.serlith.sakurabans.core.storage.repository.MetaRepository;
 import net.serlith.sakurabans.core.storage.repository.TemplateRepository;
 import net.serlith.sakurabans.core.sync.SyncPacket;
@@ -58,26 +48,22 @@ public final class SakuraTemplateService implements TemplateService, TemplateRes
     private final TemplateRepository repository;
     private final MetaRepository meta;
     private final TemplateFiles files;
-    private final KindLookup kinds;
-    private final ActionCheck actions;
+    private final AuthorizationService authorization;
     private final SyncService sync;
-    private final SakuraEventBus events;
     private final InstantSource clock;
     private final ComponentLogger logger;
     private final AtomicReference<Map<String, SakuraTemplateInfo>> templates =
             new AtomicReference<>(Map.of());
 
     public SakuraTemplateService(final TemplateRepository repository, final MetaRepository meta,
-            final TemplateFiles files, final KindLookup kinds, final ActionCheck actions,
-            final SyncService sync, final SakuraEventBus events, final InstantSource clock,
+            final TemplateFiles files, final AuthorizationService authorization,
+            final SyncService sync, final InstantSource clock,
             final ComponentLogger logger) {
         this.repository = repository;
         this.meta = meta;
         this.files = files;
-        this.kinds = kinds;
-        this.actions = actions;
+        this.authorization = authorization;
         this.sync = sync;
-        this.events = events;
         this.clock = clock;
         this.logger = logger;
     }
@@ -117,7 +103,7 @@ public final class SakuraTemplateService implements TemplateService, TemplateRes
                 final SakuraTemplateInfo before = this.templates.get().get(definition.name());
                 return this.write(definition, null, actor, before == null).thenApply(outcome -> {
                     switch (outcome) {
-                        case AdminResult.Ok<TemplateInfo> ok -> {
+                        case AdminResult.Ok<SakuraTemplateInfo> ok -> {
                             if (before == null) {
                                 counts[0]++;
                             } else if (ok.value().version() != before.version()) {
@@ -126,7 +112,7 @@ public final class SakuraTemplateService implements TemplateService, TemplateRes
                                 counts[2]++;
                             }
                         }
-                        case AdminResult.ValidationFailed<TemplateInfo> failed ->
+                        case AdminResult.ValidationFailed<SakuraTemplateInfo> failed ->
                                 failed.errors().forEach(error -> errors.add(ConfigIssue.error(
                                         TemplateFiles.FILE, "templates." + definition.name()
                                                 + "." + error.path(), error.message())));
@@ -151,26 +137,9 @@ public final class SakuraTemplateService implements TemplateService, TemplateRes
         return this.find(name).map(TemplateInfo.class::cast);
     }
 
-    private Optional<SakuraTemplateInfo> find(final String name) {
+    public Optional<SakuraTemplateInfo> find(final String name) {
         Preconditions.checkNotNull(name, "name");
         return Validator.normalizeIdentifier(name).map(this.templates.get()::get);
-    }
-
-    @Override
-    public CompletableFuture<Optional<TemplatePreview>> preview(final String name,
-            final Victim victim) {
-        final Victim checked;
-        try {
-            checked = ApiValues.victim(victim);
-        } catch (final RuntimeException e) {
-            return CompletableFuture.failedFuture(e);
-        }
-        final SakuraTemplateInfo template = this.find(name).orElse(null);
-        if (template == null) {
-            return CompletableFuture.completedFuture(Optional.empty());
-        }
-        return this.step(template, checked).thenApply(step ->
-                Optional.of(new SakuraTemplatePreview(template, step)));
     }
 
     @Override
@@ -181,9 +150,8 @@ public final class SakuraTemplateService implements TemplateService, TemplateRes
             return CompletableFuture.completedFuture(Optional.empty());
         }
         return this.step(template, victim).thenApply(step -> Optional.of(
-                new Resolution(template.name(), template.kind(), template.type(),
-                        template.reason(), template.ladder().get(step).duration().orElse(null),
-                        step, template.requiredEvidence())));
+                new Resolution(template, template.ladder().get(step).duration().orElse(null),
+                        step)));
     }
 
     CompletableFuture<Integer> step(final SakuraTemplateInfo template, final Victim victim) {
@@ -218,27 +186,27 @@ public final class SakuraTemplateService implements TemplateService, TemplateRes
         return weights;
     }
 
-    public CompletableFuture<AdminResult<TemplateInfo>> create(
+    public CompletableFuture<AdminResult<SakuraTemplateInfo>> create(
             final TemplateDefinition definition, final Actor actor) {
         return this.authorized(actor, () -> this.write(definition, null, actor, true));
     }
 
-    public CompletableFuture<AdminResult<TemplateInfo>> update(
+    public CompletableFuture<AdminResult<SakuraTemplateInfo>> update(
             final TemplateDefinition definition, final long expectedVersion, final Actor actor) {
         return this.authorized(actor, () -> this.write(definition, expectedVersion, actor,
                 false));
     }
 
-    public CompletableFuture<AdminResult<TemplateInfo>> reorderSteps(final String name,
+    public CompletableFuture<AdminResult<SakuraTemplateInfo>> reorderSteps(final String name,
             final List<Integer> order, final long expectedVersion, final Actor actor) {
         return this.authorized(actor, () -> {
             final SakuraTemplateInfo template = this.find(name).orElse(null);
             if (template == null) {
-                return CompletableFuture.completedFuture(new SakuraAdminResult.NotFound<>());
+                return CompletableFuture.completedFuture(new AdminResult.NotFound<>());
             }
             final int size = template.ladder().size();
             if (order.size() != size || !new HashSet<>(order).equals(range(size))) {
-                return CompletableFuture.completedFuture(SakuraAdminResult.invalid("order",
+                return CompletableFuture.completedFuture(AdminResult.invalid("order",
                         Code.INVALID, "must list each step index 0-" + (size - 1) + " once"));
             }
             final List<TemplateStep> ladder = order.stream()
@@ -249,113 +217,77 @@ public final class SakuraTemplateService implements TemplateService, TemplateRes
         });
     }
 
-    public CompletableFuture<AdminResult<TemplateInfo>> delete(final String name,
+    public CompletableFuture<AdminResult<SakuraTemplateInfo>> delete(final String name,
             final long expectedVersion, final Actor actor) {
         return this.authorized(actor, () -> {
             final String normalized = Validator.normalizeIdentifier(name).orElse(null);
             if (normalized == null) {
-                return CompletableFuture.completedFuture(new SakuraAdminResult.NotFound<>());
+                return CompletableFuture.completedFuture(new AdminResult.NotFound<>());
             }
             return this.repository.delete(normalized, expectedVersion, ApiValues.actor(actor),
-                    this.clock.instant()).thenCompose(write -> this.written(write,
-                    ChangeType.DELETED, actor));
+                    this.clock.instant()).thenCompose(this::written);
         });
     }
 
-    private CompletableFuture<AdminResult<TemplateInfo>> write(
+    private CompletableFuture<AdminResult<SakuraTemplateInfo>> write(
             final TemplateDefinition given, final @Nullable Long expectedVersion,
             final Actor actor, final boolean create) {
         final TemplateDefinition definition;
         try {
-            definition = TemplateDefinition.builder(given.name(), given.kind())
-                    .reason(given.reason())
+            definition = given.toBuilder()
                     .ladder(given.ladder().stream()
                             .map(step -> TemplateStep.of(step.duration().orElse(null),
                                     step.actions()))
                             .toList())
-                    .requiredEvidence(given.requiredEvidence())
-                    .ladderExpiry(given.ladderExpiry())
-                    .addressShared(given.addressShared())
-                    .permissionRequired(given.permissionRequired())
-                    .actions(given.actions())
-                    .groups(given.groups())
                     .build();
         } catch (final ValidationException e) {
             return CompletableFuture.completedFuture(
-                    new SakuraAdminResult.ValidationFailed<>(e.errors()));
-        }
-        final PunishmentType type = this.kinds.find(definition.kind())
-                .map(SakuraKind::baseType)
-                .orElse(null);
-        if (type == null) {
-            return CompletableFuture.completedFuture(SakuraAdminResult.invalid("kind",
-                    Code.NOT_ALLOWED, "no kind is called '" + definition.kind() + "'"));
-        }
-        if (type.instant() && definition.ladder().stream()
-                .anyMatch(step -> step.duration().isPresent())) {
-            return CompletableFuture.completedFuture(SakuraAdminResult.invalid("ladder",
-                    Code.NOT_ALLOWED, "a kick template has only permanent steps"));
+                    new AdminResult.ValidationFailed<>(e.errors()));
         }
         final Instant now = this.clock.instant();
         final Actor checked = ApiValues.actor(actor);
         return (create
-                ? this.repository.create(definition, type, checked, now)
-                : this.repository.update(definition, type, expectedVersion, checked, now))
-                .thenCompose(write -> this.written(write,
-                        create ? ChangeType.CREATED : ChangeType.UPDATED, checked));
+                ? this.repository.create(definition, checked, now)
+                : this.repository.update(definition, expectedVersion, checked, now))
+                .thenCompose(this::written);
     }
 
-    private CompletableFuture<AdminResult<TemplateInfo>> written(
-            final EntityWrite<SakuraTemplateInfo> write, final ChangeType change,
-            final Actor actor) {
+    private CompletableFuture<AdminResult<SakuraTemplateInfo>> written(
+            final TemplateRepository.Write write) {
         return switch (write) {
-            case EntityWrite.Done<SakuraTemplateInfo> done -> this.reload().thenApply(ignored -> {
+            case TemplateRepository.Write.Done done -> this.reload().thenApply(ignored -> {
                 final SakuraTemplateInfo template = done.value();
-                this.sync.publish(new SyncPacket.EntityChangedPacket(SubjectType.TEMPLATE,
-                        template.name(), change, template.version(), actor));
-                this.events.post(new SakuraTemplateChangedEvent(change, template.name(),
-                        template.version(), actor,
-                        change == ChangeType.DELETED ? null : template, false));
-                return new SakuraAdminResult.Ok<>(template);
+                this.sync.publish(new SyncPacket.EntityChangedPacket(SubjectType.TEMPLATE));
+                return new AdminResult.Ok<>(template);
             });
-            case EntityWrite.Unchanged<SakuraTemplateInfo> unchanged ->
-                    CompletableFuture.completedFuture(new SakuraAdminResult.Ok<>(
+            case TemplateRepository.Write.Unchanged unchanged ->
+                    CompletableFuture.completedFuture(new AdminResult.Ok<>(
                             unchanged.value()));
-            case EntityWrite.Taken<SakuraTemplateInfo> taken ->
-                    CompletableFuture.completedFuture(SakuraAdminResult.invalid("name",
+            case TemplateRepository.Write.Taken taken ->
+                    CompletableFuture.completedFuture(AdminResult.invalid("name",
                             Code.NOT_ALLOWED, "a template is called '" + taken.existing().name()
                                     + "' already"));
-            case EntityWrite.NotFound<SakuraTemplateInfo> notFound ->
-                    CompletableFuture.completedFuture(new SakuraAdminResult.NotFound<>());
-            case EntityWrite.Conflict<SakuraTemplateInfo> conflict ->
-                    CompletableFuture.completedFuture(new SakuraAdminResult.Conflict<>(
+            case TemplateRepository.Write.NotFound notFound ->
+                    CompletableFuture.completedFuture(new AdminResult.NotFound<>());
+            case TemplateRepository.Write.Conflict conflict ->
+                    CompletableFuture.completedFuture(new AdminResult.Conflict<>(
                             conflict.currentVersion()));
-            case EntityWrite.Refused<SakuraTemplateInfo> refused ->
-                    CompletableFuture.completedFuture(SakuraAdminResult.invalid(refused.path(),
-                            Code.NOT_ALLOWED, refused.message()));
         };
     }
 
-    public CompletableFuture<Void> changed(final SyncPacket.EntityChangedPacket packet) {
-        return this.reload().thenRun(() -> this.events.post(new SakuraTemplateChangedEvent(
-                packet.change(), packet.id(), packet.version(), packet.actor(),
-                packet.change() == ChangeType.DELETED ? null
-                        : this.templates.get().get(packet.id()), true)));
-    }
-
-    private CompletableFuture<AdminResult<TemplateInfo>> authorized(final Actor actor,
-            final Supplier<CompletableFuture<AdminResult<TemplateInfo>>> work) {
+    private CompletableFuture<AdminResult<SakuraTemplateInfo>> authorized(final Actor actor,
+            final Supplier<CompletableFuture<AdminResult<SakuraTemplateInfo>>> work) {
         final Actor checked;
         try {
             checked = ApiValues.actor(actor);
         } catch (final RuntimeException e) {
             return CompletableFuture.failedFuture(e);
         }
-        return this.actions.check(checked, Action.Manage.of(Action.Manage.Area.TEMPLATES))
+        return this.authorization.check(checked, new Action.Manage(Action.Manage.Area.TEMPLATES))
                 .thenCompose(decision -> decision.allowed()
                         ? work.get()
                         : CompletableFuture.completedFuture(
-                                new SakuraAdminResult.Forbidden<>(decision)));
+                                new AdminResult.Forbidden<>()));
     }
 
     private static Set<Integer> range(final int size) {

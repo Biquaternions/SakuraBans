@@ -5,7 +5,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import net.serlith.sakurabans.api.model.Actor;
-import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.CategoryScope;
 import net.serlith.sakurabans.api.model.CompositeVictim;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
@@ -55,8 +54,7 @@ class PacketCodecTest {
                         PunishmentEdit.NewScope.of(CategoryScope.of("pvp"))),
                 new SyncPacket.PunishmentVoidedPacket(5),
                 new SyncPacket.LockdownChangedPacket(),
-                new SyncPacket.ImportedPacket(true),
-                new SyncPacket.ImportedPacket(false),
+                new SyncPacket.ImportedPacket(),
                 new SyncPacket.PunishmentsRolledBackPacket(List.of(1L, 2L),
                         PlayerOperator.of(UUID.randomUUID(), "Mod"), Instant.ofEpochMilli(7),
                         Actor.of(ConsoleOperator.INSTANCE, "console"), null, Visibility.SILENT),
@@ -64,8 +62,8 @@ class PacketCodecTest {
                         UUID.randomUUID(), 1, 2, 3, 4, 5, 6, 7),
                         Actor.of(ConsoleOperator.INSTANCE, "console")),
                 new SyncPacket.EvidenceChangedPacket(6, true, new SakuraEvidence(
-                        EvidenceRef.of("hydra:chat:1"), Actor.of(CustomOperator.of("Hydra",
-                                null), "api:hydra"), Instant.ofEpochMilli(9_000)))}) {
+                        EvidenceRef.of("https://example.com/chat/1"), Actor.of(CustomOperator.of("Reports",
+                                null), "api:reports"), Instant.ofEpochMilli(9_000)))}) {
             Assertions.assertThat(this.receiver.decode(this.sender.encode(packet)))
                     .contains(packet);
         }
@@ -74,7 +72,7 @@ class PacketCodecTest {
     @Test
     void expungedPunishmentsTravelWhole() throws Exception {
         final Punishment punishment = new SakuraPunishment(12, "K7Q2M9XA", PunishmentType.BAN,
-                "competitive-ban", false, AddressStrictness.STRICT,
+                false,
                 CompositeVictim.of(UUID.randomUUID(), InetAddress.getByName("2001:db8::1")),
                 PlayerOperator.of(UUID.randomUUID(), "Mod"), "in-game",
                 ServerScope.of("survival"), "x".repeat(Lengths.MAX_REASON),
@@ -96,7 +94,7 @@ class PacketCodecTest {
     @ValueSource(booleans = {true, false})
     void erasedVictimsTravel(final boolean composite) {
         final Punishment punishment = new SakuraPunishment(13, "K7Q2M9XB", PunishmentType.BAN,
-                "ban", false, null,
+                false,
                 ErasedAddressVictim.of("0123456789abcdef".repeat(4),
                         composite ? UUID.randomUUID() : null),
                 PlayerOperator.of(UUID.randomUUID(), "erased"), "in-game", GlobalScope.INSTANCE,

@@ -109,9 +109,7 @@ public final class SettingsSchema {
             entry("players.remote-lookup", SettingType.BOOLEAN, Scope.INSTANCE,
                     "Whether unknown names are looked up remotely", List.of(), null, null),
             entry("commands.labels", SettingType.MAP, Scope.RESTART,
-                    "Command names and aliases", List.of(), null, null),
-            entry("commands.kinds", SettingType.MAP, Scope.RESTART,
-                    "Commands for punishment kinds", List.of(), null, null));
+                    "Command names and aliases", List.of(), null, null));
 
     private static final Map<String, Entry> BY_KEY = ENTRIES.stream()
             .collect(Collectors.toUnmodifiableMap(Entry::key, Function.identity()));

@@ -2,7 +2,6 @@ package net.serlith.sakurabans.core.storage.repository;
 
 import java.net.InetAddress;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import net.serlith.sakurabans.api.model.Actor;
@@ -43,8 +42,8 @@ class AltQueriesTest extends DatabaseTest {
     }
 
     private void punish(final PunishmentType type, final Victim victim) {
-        this.punishments.insert(new NewPunishment(type, type.name().toLowerCase(Locale.ROOT),
-                false, null, victim, GlobalScope.INSTANCE, "reason",
+        this.punishments.insert(new NewPunishment(type,
+                false, victim, GlobalScope.INSTANCE, "reason",
                 CONSOLE, this.now.get(), null, null, Visibility.NORMAL, null, null, List.of(),
                 null), OverridePolicy.REJECT).join();
     }

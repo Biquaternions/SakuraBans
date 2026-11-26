@@ -2,8 +2,6 @@ package net.serlith.sakurabans.api.template;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-import net.serlith.sakurabans.api.model.Victim;
 
 /**
  * The templates and the victims' progress on their ladders. Templates are stored in the database
@@ -26,15 +24,5 @@ public interface TemplateService {
      * @return the template, or empty if none has this name
      */
     Optional<TemplateInfo> template(String name);
-
-    /**
-     * What the next punishment from a template would be for a victim. Ladder resolution stays in
-     * SakuraBans, so callers never compute steps themselves.
-     *
-     * @param name the template name
-     * @param victim the victim
-     * @return the preview, or empty if the template doesn't exist
-     */
-    CompletableFuture<Optional<TemplatePreview>> preview(String name, Victim victim);
 
 }

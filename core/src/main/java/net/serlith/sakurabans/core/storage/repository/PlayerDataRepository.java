@@ -7,12 +7,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import net.serlith.sakurabans.api.audit.AuditAction;
-import net.serlith.sakurabans.api.audit.AuditEntry;
-import net.serlith.sakurabans.api.audit.SubjectType;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.Punishment;
+import net.serlith.sakurabans.core.model.AuditAction;
+import net.serlith.sakurabans.core.model.AuditEntry;
 import net.serlith.sakurabans.core.model.SakuraPlayerData;
+import net.serlith.sakurabans.core.model.SubjectType;
 import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.storage.dbo.OperatorKind;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
@@ -24,6 +24,7 @@ import net.serlith.sakurabans.core.storage.dbo.tables.SbPunishments;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbVictims;
 import net.serlith.sakurabans.core.util.AddressHashes;
 import net.serlith.sakurabans.core.util.InetAddresses;
+import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Table;
@@ -56,7 +57,7 @@ public final class PlayerDataRepository {
         final SbAuditLog log = SakuraTables.AUDIT_LOG;
         return this.storage.read(dsl -> new Export(
                 this.mapper.map(dsl, PunishmentMapper.select(dsl)
-                        .where(StatsRepository.naming(uuid))
+                        .where(naming(uuid))
                         .orderBy(p.ID.asc()).fetch()),
                 this.mapper.map(dsl, PunishmentMapper.select(dsl)
                         .where(p.OPERATOR_KIND.eq(OperatorKind.PLAYER))
@@ -110,7 +111,7 @@ public final class PlayerDataRepository {
             }
 
             final List<Long> naming = dsl.select(p.ID).from(p)
-                    .where(StatsRepository.naming(uuid)).fetch(p.ID);
+                    .where(naming(uuid)).fetch(p.ID);
             final long evidence = dsl.deleteFrom(SakuraTables.PUNISHMENT_EVIDENCE)
                     .where(SakuraTables.PUNISHMENT_EVIDENCE.PUNISHMENT_ID.in(naming)).execute();
             final var allowed = SakuraTables.ALLOWED_ADDRESSES;
@@ -174,4 +175,12 @@ public final class PlayerDataRepository {
                 .and(name.ne(ERASED))
                 .execute();
     }
+
+    private static Condition naming(final UUID uuid) {
+        final SbPunishments p = SakuraTables.PUNISHMENTS;
+        return p.VICTIM_ID.in(DSL.select(SakuraTables.VICTIMS.ID).from(SakuraTables.VICTIMS)
+                .where(SakuraTables.VICTIMS.UUID.eq(uuid))
+                .and(SakuraTables.VICTIMS.KIND.in(VictimKind.PLAYER, VictimKind.COMPOSITE)));
+    }
+
 }

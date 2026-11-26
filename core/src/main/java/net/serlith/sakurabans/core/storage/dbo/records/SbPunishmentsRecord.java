@@ -3,7 +3,6 @@ package net.serlith.sakurabans.core.storage.dbo.records;
 import java.io.Serial;
 import java.time.Instant;
 import java.util.UUID;
-import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.EndKind;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Visibility;
@@ -48,30 +47,12 @@ public final class SbPunishmentsRecord extends UpdatableRecordImpl<SbPunishments
         return this;
     }
 
-    public String kind() {
-        return this.get(SakuraTables.PUNISHMENTS.KIND);
-    }
-
-    public SbPunishmentsRecord kind(final String value) {
-        this.set(SakuraTables.PUNISHMENTS.KIND, value);
-        return this;
-    }
-
     public Boolean shadow() {
         return this.get(SakuraTables.PUNISHMENTS.SHADOW);
     }
 
     public SbPunishmentsRecord shadow(final Boolean value) {
         this.set(SakuraTables.PUNISHMENTS.SHADOW, value);
-        return this;
-    }
-
-    public @Nullable AddressStrictness strictness() {
-        return this.get(SakuraTables.PUNISHMENTS.STRICTNESS);
-    }
-
-    public SbPunishmentsRecord strictness(final @Nullable AddressStrictness value) {
-        this.set(SakuraTables.PUNISHMENTS.STRICTNESS, value);
         return this;
     }
 

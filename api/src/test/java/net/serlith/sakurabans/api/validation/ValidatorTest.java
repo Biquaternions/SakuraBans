@@ -14,15 +14,14 @@ class ValidatorTest {
         final Validator validator = Validator.create()
                 .name("name", " ", 10)
                 .maxLength("reason", "x".repeat(11), 10)
-                .identifier("kind", "a b")
-                .evidenceType("evidence", "hydra")
+                .identifier("template", "a b")
                 .check(true, "ignored", Code.INVALID, "never recorded");
 
         assertThat(validator.errors()).extracting(FieldError::code).containsExactly(
-                Code.BLANK, Code.TOO_LONG, Code.INVALID_IDENTIFIER, Code.INVALID_FORMAT);
+                Code.BLANK, Code.TOO_LONG, Code.INVALID_IDENTIFIER);
         assertThatThrownBy(validator::throwIfAny)
                 .isInstanceOfSatisfying(ValidationException.class,
-                        e -> assertThat(e.errors()).hasSize(4))
+                        e -> assertThat(e.errors()).hasSize(3))
                 .hasMessageContaining("name: must not be blank");
     }
 

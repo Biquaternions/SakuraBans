@@ -3,8 +3,6 @@ package net.serlith.sakurabans.core.sync;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-import net.serlith.sakurabans.api.audit.SubjectType;
-import net.serlith.sakurabans.api.event.ChangeType;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.Evidence;
 import net.serlith.sakurabans.api.model.Operator;
@@ -12,6 +10,7 @@ import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.api.punish.PunishmentEdit;
 import net.serlith.sakurabans.core.model.SakuraPlayerData;
+import net.serlith.sakurabans.core.model.SubjectType;
 import org.jspecify.annotations.Nullable;
 
 public sealed interface SyncPacket {
@@ -31,8 +30,7 @@ public sealed interface SyncPacket {
     record AllowListChangedPacket() implements SyncPacket {
     }
 
-    record EntityChangedPacket(SubjectType entity, String id, ChangeType change, long version,
-            Actor actor) implements SyncPacket {
+    record EntityChangedPacket(SubjectType entity) implements SyncPacket {
     }
 
     record PunishmentRevokePacket(long punishmentId, Visibility visibility)
@@ -65,7 +63,7 @@ public sealed interface SyncPacket {
             implements SyncPacket {
     }
 
-    record ImportedPacket(boolean enforce) implements SyncPacket {
+    record ImportedPacket() implements SyncPacket {
     }
 
     record EvidenceChangedPacket(long punishmentId, boolean attached, Evidence evidence)

@@ -146,10 +146,6 @@ public record MessageKey(String key) {
             new MessageKey("command.description.allow");
     public static final MessageKey COMMAND_DESCRIPTION_TEMPLATES =
             new MessageKey("command.description.templates");
-    public static final MessageKey COMMAND_DESCRIPTION_KINDS =
-            new MessageKey("command.description.kinds");
-    public static final MessageKey COMMAND_DESCRIPTION_KIND =
-            new MessageKey("command.description.kind");
     public static final MessageKey COMMAND_DESCRIPTION_UNLINK =
             new MessageKey("command.description.unlink");
     public static final MessageKey COMMAND_DESCRIPTION_UNMUTE =
@@ -226,10 +222,6 @@ public record MessageKey(String key) {
             new MessageKey("punish.failure.template_type");
     public static final MessageKey PUNISH_FAILURE_UNKNOWN_TEMPLATE =
             new MessageKey("punish.failure.unknown_template");
-    public static final MessageKey PUNISH_FAILURE_UNKNOWN_KIND =
-            new MessageKey("punish.failure.unknown_kind");
-    public static final MessageKey PUNISH_FAILURE_EVIDENCE_REQUIRED =
-            new MessageKey("punish.failure.evidence_required");
     public static final MessageKey PUNISH_FAILURE_FORBIDDEN =
             new MessageKey("punish.failure.forbidden");
     public static final MessageKey REVOKE_BAN = new MessageKey("revoke.ban");
@@ -318,9 +310,6 @@ public record MessageKey(String key) {
             new MessageKey("templates.import.error");
     public static final MessageKey TEMPLATES_EXPORT_DONE = new MessageKey("templates.export.done");
 
-    public static final MessageKey KINDS_LIST_HEADER = new MessageKey("kinds.list.header");
-    public static final MessageKey KINDS_LIST_ENTRY = new MessageKey("kinds.list.entry");
-
     public static final MessageKey VICTIM_WARNED_AWAY = new MessageKey("victim.warned_away");
 
     public static final MessageKey COMMAND_DESCRIPTION_INFO =
@@ -405,6 +394,35 @@ public record MessageKey(String key) {
     public static final MessageKey RELOAD_RESTART = new MessageKey("reload.restart");
     public static final MessageKey RELOAD_ERROR = new MessageKey("reload.error");
     public static final MessageKey RELOAD_FAILED = new MessageKey("reload.failed");
+    public static final MessageKey RELOAD_OVERRIDES = new MessageKey("reload.overrides");
+
+    public static final MessageKey COMMAND_DESCRIPTION_SETTINGS =
+            new MessageKey("command.description.settings");
+    public static final MessageKey COMMAND_DESCRIPTION_MESSAGES =
+            new MessageKey("command.description.messages");
+    public static final MessageKey SETTINGS_LIST_EMPTY = new MessageKey("settings.list.empty");
+    public static final MessageKey SETTINGS_LIST_HEADER = new MessageKey("settings.list.header");
+    public static final MessageKey SETTINGS_LIST_ENTRY = new MessageKey("settings.list.entry");
+    public static final MessageKey SETTINGS_RESET_DONE = new MessageKey("settings.reset.done");
+    public static final MessageKey SETTINGS_RESET_ALL_DONE =
+            new MessageKey("settings.reset.all_done");
+    public static final MessageKey SETTINGS_RESET_CONFIRM =
+            new MessageKey("settings.reset.confirm");
+    public static final MessageKey SETTINGS_NOT_OVERRIDDEN =
+            new MessageKey("settings.not_overridden");
+    public static final MessageKey MESSAGES_LIST_EMPTY = new MessageKey("messages.list.empty");
+    public static final MessageKey MESSAGES_LIST_HEADER = new MessageKey("messages.list.header");
+    public static final MessageKey MESSAGES_LIST_ENTRY = new MessageKey("messages.list.entry");
+    public static final MessageKey MESSAGES_RESET_DONE = new MessageKey("messages.reset.done");
+    public static final MessageKey MESSAGES_RESET_ALL_DONE =
+            new MessageKey("messages.reset.all_done");
+    public static final MessageKey MESSAGES_RESET_CONFIRM =
+            new MessageKey("messages.reset.confirm");
+    public static final MessageKey MESSAGES_NOT_OVERRIDDEN =
+            new MessageKey("messages.not_overridden");
+    public static final MessageKey OVERRIDES_INVALID = new MessageKey("overrides.invalid");
+    public static final MessageKey OVERRIDES_FORBIDDEN = new MessageKey("overrides.forbidden");
+    public static final MessageKey OVERRIDES_CONFLICT = new MessageKey("overrides.conflict");
 
     public static final MessageKey COMMAND_DESCRIPTION_GDPR =
             new MessageKey("command.description.gdpr");

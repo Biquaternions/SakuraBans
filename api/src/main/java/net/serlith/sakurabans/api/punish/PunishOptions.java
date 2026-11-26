@@ -25,11 +25,12 @@ public interface PunishOptions {
     OverridePolicy override();
 
     /**
-     * Where it takes effect right away.
+     * Whether it takes effect right away: online victims are kicked or muted on every instance.
+     * Without it, the punishment is only recorded and applies from the victim's next check.
      *
-     * @return the enforcement; {@link Enforcement#GLOBAL} by default
+     * @return {@code true} by default
      */
-    Enforcement enforcement();
+    boolean enforce();
 
     /**
      * Whether the operator's duration limits and cooldowns are ignored.
@@ -47,14 +48,14 @@ public interface PunishOptions {
         return builder()
                 .visibility(this.visibility())
                 .override(this.override())
-                .enforcement(this.enforcement())
+                .enforce(this.enforce())
                 .bypassLimits(this.bypassLimits());
     }
 
     /**
      * The default options.
      *
-     * @return normal visibility, reject, global enforcement, limits applied
+     * @return normal visibility, reject, enforced right away, limits applied
      */
     static PunishOptions defaults() {
         return builder().build();
@@ -76,7 +77,7 @@ public interface PunishOptions {
 
         private Visibility visibility = Visibility.NORMAL;
         private OverridePolicy override = OverridePolicy.REJECT;
-        private Enforcement enforcement = Enforcement.GLOBAL;
+        private boolean enforce = true;
         private boolean bypassLimits;
 
         private Builder() {
@@ -105,13 +106,13 @@ public interface PunishOptions {
         }
 
         /**
-         * Sets the enforcement.
+         * Sets whether it takes effect right away.
          *
-         * @param enforcement where it takes effect right away
+         * @param enforce {@code false} to only record it
          * @return this builder
          */
-        public Builder enforcement(final Enforcement enforcement) {
-            this.enforcement = Objects.requireNonNull(enforcement, "enforcement");
+        public Builder enforce(final boolean enforce) {
+            this.enforce = enforce;
             return this;
         }
 
@@ -142,16 +143,15 @@ public interface PunishOptions {
          * @return the options
          */
         public PunishOptions build() {
-            record Impl(Visibility visibility, OverridePolicy override, Enforcement enforcement,
+            record Impl(Visibility visibility, OverridePolicy override, boolean enforce,
                     boolean bypassLimits) implements PunishOptions {
                 Impl {
                     Objects.requireNonNull(visibility, "visibility");
                     Objects.requireNonNull(override, "override");
-                    Objects.requireNonNull(enforcement, "enforcement");
                 }
             }
 
-            return new Impl(this.visibility, this.override, this.enforcement, this.bypassLimits);
+            return new Impl(this.visibility, this.override, this.enforce, this.bypassLimits);
         }
     }
 }

@@ -13,12 +13,11 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
-import net.serlith.sakurabans.api.audit.SubjectType;
-import net.serlith.sakurabans.api.event.ChangeType;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.Operator;
 import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.core.model.SakuraPlayerData;
+import net.serlith.sakurabans.core.model.SubjectType;
 import net.serlith.sakurabans.core.model.ValueCodec;
 
 public final class PacketCodec {
@@ -69,10 +68,6 @@ public final class PacketCodec {
                 case SyncPacket.EntityChangedPacket changed -> {
                     out.writeByte(ENTITY_CHANGED);
                     out.writeUTF(changed.entity().name());
-                    out.writeUTF(changed.id());
-                    out.writeUTF(changed.change().name());
-                    out.writeLong(changed.version());
-                    ValueCodec.writeActor(out, changed.actor());
                 }
                 case SyncPacket.PunishmentEditedPacket edited -> {
                     out.writeByte(EDITED);
@@ -95,10 +90,7 @@ public final class PacketCodec {
                     ValueCodec.writeEvidence(out, evidence.evidence());
                 }
                 case SyncPacket.LockdownChangedPacket lockdown -> out.writeByte(LOCKDOWN);
-                case SyncPacket.ImportedPacket imported -> {
-                    out.writeByte(IMPORTED);
-                    out.writeBoolean(imported.enforce());
-                }
+                case SyncPacket.ImportedPacket imported -> out.writeByte(IMPORTED);
                 case SyncPacket.PlayerDataErasedPacket erased -> {
                     out.writeByte(ERASED);
                     final SakuraPlayerData.Erase result = erased.result();
@@ -155,16 +147,14 @@ public final class PacketCodec {
                         Visibility.valueOf(in.readUTF().toUpperCase(Locale.ROOT))));
                 case ALLOW_LIST -> Optional.of(new SyncPacket.AllowListChangedPacket());
                 case ENTITY_CHANGED -> Optional.of(new SyncPacket.EntityChangedPacket(
-                        SubjectType.valueOf(in.readUTF()), in.readUTF(),
-                        ChangeType.valueOf(in.readUTF()), in.readLong(),
-                        ValueCodec.readActor(in)));
+                        SubjectType.valueOf(in.readUTF())));
                 case EDITED -> Optional.of(new SyncPacket.PunishmentEditedPacket(in.readLong(),
                         ValueCodec.readEdit(in), ValueCodec.readEdit(in)));
                 case VOIDED -> Optional.of(new SyncPacket.PunishmentVoidedPacket(in.readLong()));
                 case EXPUNGED -> Optional.of(new SyncPacket.PunishmentExpungedPacket(
                         ValueCodec.readPunishment(in)));
                 case LOCKDOWN -> Optional.of(new SyncPacket.LockdownChangedPacket());
-                case IMPORTED -> Optional.of(new SyncPacket.ImportedPacket(in.readBoolean()));
+                case IMPORTED -> Optional.of(new SyncPacket.ImportedPacket());
                 case ERASED -> Optional.of(new SyncPacket.PlayerDataErasedPacket(
                         new SakuraPlayerData.Erase(new UUID(in.readLong(), in.readLong()),
                                 in.readLong(), in.readLong(), in.readLong(), in.readLong(),

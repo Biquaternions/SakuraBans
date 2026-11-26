@@ -19,7 +19,6 @@ import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentEnd;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.ServerScope;
-import net.serlith.sakurabans.core.model.SakuraImportReport;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -67,7 +66,7 @@ class LibertyBansSourceTest extends ImportTest {
     void importsPunishmentsWithTheirVictimsOperatorsScopesAndEnds() {
         this.load();
 
-        final SakuraImportReport report = this.importFrom("libertybans");
+        final ImportReport report = this.importFrom("libertybans");
 
         Assertions.assertThat(report.imported()).isEqualTo(8);
         Assertions.assertThat(report.failed()).isEqualTo(1);
@@ -190,7 +189,7 @@ class LibertyBansSourceTest extends ImportTest {
     void dryRunsWriteNothingAndRepeatsImportNothing() {
         this.load();
 
-        final SakuraImportReport dry = this.importFrom("libertybans", true);
+        final ImportReport dry = this.importFrom("libertybans", true);
         Assertions.assertThat(dry.dryRun()).isTrue();
         Assertions.assertThat(dry.imported()).isEqualTo(8);
         Assertions.assertThat(dry.failed()).isEqualTo(1);
@@ -198,7 +197,7 @@ class LibertyBansSourceTest extends ImportTest {
         Assertions.assertThat(this.count(SakuraTables.PLAYERS)).isZero();
 
         Assertions.assertThat(this.importFrom("libertybans").imported()).isEqualTo(8);
-        final SakuraImportReport second = this.importFrom("libertybans");
+        final ImportReport second = this.importFrom("libertybans");
         Assertions.assertThat(second.imported()).isZero();
         Assertions.assertThat(second.skipped()).isEqualTo(8);
         Assertions.assertThat(this.count(SakuraTables.PUNISHMENTS)).isEqualTo(8);

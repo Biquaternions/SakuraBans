@@ -6,19 +6,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import net.serlith.sakurabans.api.audit.AuditAction;
-import net.serlith.sakurabans.api.audit.AuditQuery;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.AddressVictim;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
 import net.serlith.sakurabans.api.model.GlobalScope;
 import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.PunishmentType;
+import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.api.punish.OverridePolicy;
 import net.serlith.sakurabans.api.template.TemplateStep;
-import net.serlith.sakurabans.core.model.SakuraTemplateInfo;
+import net.serlith.sakurabans.core.model.AuditAction;
+import net.serlith.sakurabans.core.model.SubjectType;
 import net.serlith.sakurabans.core.model.TemplateDefinition;
 import net.serlith.sakurabans.core.storage.DatabaseTest;
 import org.assertj.core.api.Assertions;
@@ -48,74 +48,75 @@ class TemplateRepositoryTest extends DatabaseTest {
     }
 
     private static TemplateDefinition hacking() {
-        return TemplateDefinition.builder("hacking", "ban")
+        return TemplateDefinition.builder("hacking", PunishmentType.BAN)
+                .ip(true)
+                .scope(ServerScope.of("survival"))
                 .reason("Hacking")
                 .ladder(List.of(TemplateStep.of(Duration.ofDays(1)),
                         TemplateStep.of(null, List.of("say {victim} is gone"))))
                 .ladderExpiry(Duration.ofDays(30))
                 .actions(List.of("say once", "say twice"))
                 .groups(Map.of("cheating", 2, "all", 1))
-                .requiredEvidence(Set.of("hydra:chat-snapshot"))
                 .build();
     }
 
     private void punish(final Victim victim, final String template) {
-        this.punishments.insert(new NewPunishment(PunishmentType.WARN, "warn", false, null,
+        this.punishments.insert(new NewPunishment(PunishmentType.WARN, false,
                 victim, GlobalScope.INSTANCE, "reason", CONSOLE, this.now.get(), null, null,
                 Visibility.NORMAL, template, 0, List.of(), null), OverridePolicy.REJECT).join();
     }
 
     @Test
     void templatesRoundTripWithStepsGroupsAndActions() {
-        final EntityWrite<SakuraTemplateInfo> created = this.templates.create(hacking(),
-                PunishmentType.BAN, CONSOLE, this.now.get()).join();
+        final TemplateRepository.Write created = this.templates.create(hacking(), CONSOLE,
+                this.now.get()).join();
 
-        Assertions.assertThat(created).isInstanceOf(EntityWrite.Done.class);
+        Assertions.assertThat(created).isInstanceOf(TemplateRepository.Write.Done.class);
         Assertions.assertThat(this.templates.all().join()).singleElement().satisfies(stored -> {
             Assertions.assertThat(stored.summary())
-                    .isEqualTo(((EntityWrite.Done<SakuraTemplateInfo>) created).value().summary());
+                    .isEqualTo(((TemplateRepository.Write.Done) created).value().summary());
             Assertions.assertThat(stored.ladder().get(1).actions())
                     .containsExactly("say {victim} is gone");
             Assertions.assertThat(stored.groups()).containsEntry("cheating", 2);
             Assertions.assertThat(stored.version()).isEqualTo(1);
+            Assertions.assertThat(stored.ip()).isTrue();
+            Assertions.assertThat(stored.scope()).contains(ServerScope.of("survival"));
         });
-        Assertions.assertThat(this.templates.create(hacking(), PunishmentType.BAN, CONSOLE,
-                this.now.get()).join()).isInstanceOf(EntityWrite.Taken.class);
+        Assertions.assertThat(this.templates.create(hacking(), CONSOLE,
+                this.now.get()).join()).isInstanceOf(TemplateRepository.Write.Taken.class);
     }
 
     @Test
     void updatesCheckVersionsAndSkipNoChanges() {
-        this.templates.create(hacking(), PunishmentType.BAN, CONSOLE, this.now.get()).join();
-        final TemplateDefinition changed = TemplateDefinition.builder("hacking", "ban")
+        this.templates.create(hacking(), CONSOLE, this.now.get()).join();
+        final TemplateDefinition changed = TemplateDefinition.builder("hacking", PunishmentType.BAN)
                 .reason("Cheating").build();
 
-        Assertions.assertThat(this.templates.update(hacking(), PunishmentType.BAN, 1L, CONSOLE,
-                this.now.get()).join()).isInstanceOf(EntityWrite.Unchanged.class);
-        Assertions.assertThat(this.templates.update(changed, PunishmentType.BAN, 3L, CONSOLE,
-                this.now.get()).join()).isEqualTo(new EntityWrite.Conflict<>(1));
-        final EntityWrite<SakuraTemplateInfo> done = this.templates.update(changed,
-                PunishmentType.BAN, 1L, CONSOLE, this.now.get()).join();
+        Assertions.assertThat(this.templates.update(hacking(), 1L, CONSOLE,
+                this.now.get()).join()).isInstanceOf(TemplateRepository.Write.Unchanged.class);
+        Assertions.assertThat(this.templates.update(changed, 3L, CONSOLE,
+                this.now.get()).join()).isEqualTo(new TemplateRepository.Write.Conflict(1));
+        final TemplateRepository.Write done = this.templates.update(changed, 1L, CONSOLE,
+                this.now.get()).join();
 
-        Assertions.assertThat(done).isInstanceOfSatisfying(EntityWrite.Done.class,
+        Assertions.assertThat(done).isInstanceOfSatisfying(TemplateRepository.Write.Done.class,
                 write -> {
-                    Assertions.assertThat(((SakuraTemplateInfo) write.value()).version())
-                            .isEqualTo(2);
-                    Assertions.assertThat(((SakuraTemplateInfo) write.value()).groups())
-                            .isEmpty();
+                    Assertions.assertThat(write.value().version()).isEqualTo(2);
+                    Assertions.assertThat(write.value().groups()).isEmpty();
                 });
-        Assertions.assertThat(new AuditRepository(this.storage).query(AuditQuery.builder()
-                        .build()).join().items())
+        Assertions.assertThat(new AuditRepository(this.storage).about(SubjectType.TEMPLATE,
+                        "hacking", 10).join())
                 .extracting(entry -> entry.action())
                 .containsExactly(AuditAction.UPDATE, AuditAction.CREATE);
     }
 
     @Test
     void deletingKeepsTheReferenceOnPunishments() {
-        this.templates.create(hacking(), PunishmentType.BAN, CONSOLE, this.now.get()).join();
+        this.templates.create(hacking(), CONSOLE, this.now.get()).join();
         this.punish(PlayerVictim.of(STEVE), "hacking");
 
         Assertions.assertThat(this.templates.delete("hacking", 1, CONSOLE, this.now.get()).join())
-                .isInstanceOf(EntityWrite.Done.class);
+                .isInstanceOf(TemplateRepository.Write.Done.class);
 
         Assertions.assertThat(this.templates.all().join()).isEmpty();
         Assertions.assertThat(this.punishments.byId(1).join().orElseThrow().template())

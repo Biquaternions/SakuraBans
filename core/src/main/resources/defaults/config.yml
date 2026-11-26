@@ -7,6 +7,11 @@
 # /sb reload applies changes; if any value is invalid, the old settings stay active (except
 # commands.labels, which needs a restart).
 #
+# A network may also hold overrides of these settings (and of messages) in the database; an
+# override wins over this file. The log says at startup and on /sb reload which ones exist;
+# /sb settings list and /sb messages list show them, /sb settings reset and /sb messages reset
+# remove them.
+#
 # Install SakuraBans either on the Velocity proxy or on every Paper backend, never on both. On
 # backends, share one MariaDB, MySQL or PostgreSQL database (storage.yml) so they share
 # punishments.
@@ -166,21 +171,11 @@ commands:
   # The labels of each command; the first is its name, the rest are aliases (1-32 characters of
   # a-z, 0-9, _ and -). A command left out uses its own name; an empty list ([]) disables it.
   # Changes need a restart. The /sb subcommands (help, status, reload, info, edit, delete,
-  # evidence, allow, templates, kinds, gdpr, import and unlink) follow the sakurabans labels.
+  # evidence, allow, templates, settings, messages, gdpr, import and unlink) follow the
+  # sakurabans labels.
   # Commands: sakurabans, ban, tempban, ipban, mute, tempmute, ipmute, warn, kick, unban, pardon
   # (unban under vanilla's name), unmute, unwarn, checkban, checkmute, checkwarn, history,
   # staffhistory, warns, banlist, mutelist, warnlist, alts, iphistory, namehistory, lastuuid,
   # ipreport, lockdown, staffrollback, prunehistory.
   labels:
     sakurabans: [sakurabans, sb]
-  # Punish commands for punishment kinds: the kind's id, its base type (ban, mute, warn or kick)
-  # and the command's labels. Each works like /ban (same arguments and flags) and needs
-  # sakurabans.<type> and sakurabans.kind.<id>. Kinds are listed by /sb kinds list; the id must
-  # be a kind that exists, or the command says so when used. Changes need a restart.
-  kinds:
-    blacklist:
-      type: ban
-      labels: [blacklist]
-    shadow-mute:
-      type: mute
-      labels: [shadowmute]

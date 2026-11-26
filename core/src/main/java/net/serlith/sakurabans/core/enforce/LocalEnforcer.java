@@ -200,8 +200,8 @@ public final class LocalEnforcer implements Enforcer {
     }
 
     private CompletableFuture<List<OnlinePlayer>> affected(final Punishment punishment) {
-        final AddressStrictness strictness = punishment.strictness()
-                .orElseGet(() -> this.config.settings().enforcement().addressStrictness());
+        final AddressStrictness strictness =
+                this.config.settings().enforcement().addressStrictness();
         switch (punishment.victim()) {
             // Ranges aren't matched in SQL: the range cache decides, as at login.
             case AddressRangeVictim range -> {

@@ -69,8 +69,8 @@ class MessageServiceTest {
 
     private static SakuraPunishment punishment(final Victim victim, final String reason,
             final @Nullable Instant expiresAt) {
-        return new SakuraPunishment(42, "K7Q2", PunishmentType.BAN, "ban", false,
-                null, victim, PlayerOperator.of(UUID.randomUUID(), "Moderator"),
+        return new SakuraPunishment(42, "K7Q2", PunishmentType.BAN, false,
+                victim, PlayerOperator.of(UUID.randomUUID(), "Moderator"),
                 "in-game", ServerScope.of("lobby"), reason, CREATED, expiresAt,
                 "lobby", Visibility.NORMAL, null, null,
                 null, List.of(), 1);
@@ -98,8 +98,8 @@ class MessageServiceTest {
 
     @Test
     void everyPunishmentTagResolves() {
-        final Punishment ban = new SakuraPunishment(42, "K7Q2", PunishmentType.BAN, "ban", false,
-                null, PlayerVictim.of(STEVE), ConsoleOperator.INSTANCE, "console",
+        final Punishment ban = new SakuraPunishment(42, "K7Q2", PunishmentType.BAN, false,
+                PlayerVictim.of(STEVE), ConsoleOperator.INSTANCE, "console",
                 ServerScope.of("lobby"), "Spam", CREATED, CREATED.plus(
                         Duration.ofDays(1).plusHours(12)), "lobby",
                 Visibility.NORMAL, null, new SakuraPunishmentEnd(
@@ -107,14 +107,14 @@ class MessageServiceTest {
                         Actor.of(PlayerOperator.of(STEVE, "Admin"), "web"),
                         "appeal"), null, List.of(), 2);
         final String template = "<victim>|<operator>|<reason>|<duration>|<remaining>|<expires>|"
-                + "<id>|<display_id>|<scope>|<type>|<kind>|<server>|<revoker>|<revoke_reason>";
+                + "<id>|<display_id>|<scope>|<type>|<server>|<revoker>|<revoke_reason>";
 
         final String text = plain(MiniMessage.miniMessage()
                 .deserialize(template, this.placeholders.punishment(ban, Locale.US,
                         CREATED.plus(Duration.ofHours(12)), uuid -> Optional.of("Steve"), false)));
 
         assertThat(text).isEqualTo("Steve|Console|Spam|1 day and 12 hours|1 day|"
-                + "20 Nov 2026 00:00|42|K7Q2|server lobby|ban|ban|lobby|Admin|appeal");
+                + "20 Nov 2026 00:00|42|K7Q2|server lobby|ban|lobby|Admin|appeal");
     }
 
     @Test

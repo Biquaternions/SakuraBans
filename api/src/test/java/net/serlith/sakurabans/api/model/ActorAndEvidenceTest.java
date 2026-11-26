@@ -13,7 +13,7 @@ class ActorAndEvidenceTest {
 
     @Test
     void sourcesAreLowerCased() {
-        assertThat(Actor.of(ConsoleOperator.INSTANCE, "API:Hydra").source()).isEqualTo("api:hydra");
+        assertThat(Actor.of(ConsoleOperator.INSTANCE, "API:Bot").source()).isEqualTo("api:bot");
     }
 
     @ParameterizedTest
@@ -28,14 +28,14 @@ class ActorAndEvidenceTest {
     }
 
     @Test
-    void evidenceIsUrlOrNamespacedReference() {
-        assertThat(EvidenceRef.of("https://example.org/clip.mp4").type()).isEmpty();
-        assertThat(EvidenceRef.of("hydra:chat-snapshot:A1.b2").type())
-                .contains("hydra:chat-snapshot");
+    void evidenceIsWebLink() {
+        assertThat(EvidenceRef.of("https://example.org/clip.mp4").uri())
+                .isEqualTo("https://example.org/clip.mp4");
+        assertThat(EvidenceRef.of("http://example.org/x").uri()).isEqualTo("http://example.org/x");
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"", "ftp://x", "hydra:chat-snapshot", "Hydra:report:1", "a b:c:d"})
+    @ValueSource(strings = {"", "ftp://x", "reports:chat:1", "https://a b", "example.org"})
     void otherEvidenceIsRejected(final String uri) {
         assertThatThrownBy(() -> EvidenceRef.of(uri)).isInstanceOf(ValidationException.class);
     }

@@ -1,6 +1,5 @@
 package net.serlith.sakurabans.core.importer;
 
-import net.serlith.sakurabans.api.imports.ImportedPunishment;
 import net.serlith.sakurabans.api.model.Lengths;
 import net.serlith.sakurabans.core.model.ImportedPlayer;
 import org.jspecify.annotations.Nullable;

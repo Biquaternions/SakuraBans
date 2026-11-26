@@ -66,13 +66,6 @@ class SakuraScopeServiceTest {
     }
 
     @Test
-    void autoIsRejectedAsAnError() {
-        Assertions.assertThatThrownBy(() -> this.paper("server:\n  name: auto\n"))
-                .hasMessageContaining("server.name")
-                .hasMessageContaining("\"auto\" was removed");
-    }
-
-    @Test
     void proxiesHaveNoServerOfTheirOwn() {
         final SakuraScopeService proxy = this.service("server:\n  name: proxy\n",
                 true, new FakePlatform());

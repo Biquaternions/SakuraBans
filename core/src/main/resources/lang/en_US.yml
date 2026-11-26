@@ -45,7 +45,7 @@ time:
   years: '<count> years'
 
 # Disconnect screens. Placeholders: <reason> <operator> <duration> <remaining> <expires> <id>
-# <display_id> <scope> <type> <kind> <server>.
+# <display_id> <scope> <type> <server>.
 screen:
   ban: |-
     <red><bold>You are banned.</bold></red>
@@ -165,8 +165,8 @@ command:
     pardon: 'Lift a ban (same as unban)'
     allow: 'Accounts and addresses that address bans don''t reach'
     templates: 'Punishment templates'
-    kinds: 'Punishment kinds'
-    kind: 'Punish with the kind <kind>'
+    settings: 'Settings overridden in the database'
+    messages: 'Messages overridden in the database'
     unlink: 'Forget addresses of an account'
     unmute: 'Lift a mute'
     unwarn: 'Remove a warning'
@@ -225,8 +225,6 @@ punish:
     no_template: '<prefix><red>There is no template or reason shortcut called <name>.</red>'
     template_no_permission: '<prefix><red>You can''t use the template <name>.</red>'
     template_type: '<prefix><red><name> is a <type> template.</red>'
-    unknown_kind: '<prefix><red>There is no such punishment kind.</red>'
-    evidence_required: '<prefix><red>This punishment needs evidence. Attach it with --evidence <namespace>:<type>:<id>.</red>'
     forbidden: '<prefix><red>You may not do that.</red>'
 revoke:
   ban: '<prefix><green>Unbanned <white><target></white> (<count>).</green>'
@@ -310,17 +308,13 @@ templates:
   list:
     empty: '<prefix><gray>There are no templates.</gray>'
     header: '<prefix><white>Templates</white> <gray>(<count>)</gray>'
-    entry: '<gray> - </gray><white><name></white> <gray><kind>:</gray> <ladder><gray>; <reason></gray>'
+    entry: '<gray> - </gray><white><name></white> <gray><type><modifiers>:</gray> <ladder><gray>; <reason></gray>'
   import:
     confirm: '<prefix><yellow>This creates or updates the templates in templates.yml (<count>) for every server. Run it again with --confirm within 30 seconds.</yellow>'
     done: '<prefix><green>Templates imported: <created> new, <updated> updated, <unchanged> unchanged.</green>'
     error: '<prefix><red><error></red>'
   export:
     done: '<prefix><green>Exported <count> templates to <file>.</green>'
-kinds:
-  list:
-    header: '<prefix><white>Kinds</white> <gray>(<count>)</gray>'
-    entry: '<gray> - </gray><white><id></white> <gray>(<name>): <type><modifiers></gray>'
 edit:
   done: '<prefix><green>Changed #<display_id>: <white><what></white>.</green>'
   permanent: '<prefix><red>#<display_id> is permanent; set a duration instead.</red>'
@@ -385,6 +379,31 @@ reload:
   restart: '<prefix><yellow>Changes in <files> need a restart.</yellow>'
   error: '<prefix><red><error></red>'
   failed: '<prefix><red>The configuration has errors; the old settings stay active.</red>'
+  overrides: '<prefix><yellow><settings> settings and <messages> messages are overridden in the database; see /sb settings list and /sb messages list.</yellow>'
+settings:
+  list:
+    empty: '<prefix><gray>No setting is overridden in the database.</gray>'
+    header: '<prefix><white>Settings overridden in the database</white> <gray>(<count>; they win over config.yml)</gray>'
+    entry: '<gray> - </gray><white><key></white><gray>: file</gray> <white><file></white><gray>, database</gray> <white><database></white>'
+  reset:
+    done: '<prefix><green>Removed the database override of <white><key></white>; config.yml applies again.</green>'
+    all_done: '<prefix><green>Removed every setting override (<count>); config.yml applies again.</green>'
+    confirm: '<prefix><yellow>This removes every setting override (<count>) on every server. Run it again with --confirm within 30 seconds.</yellow>'
+  not_overridden: '<prefix><yellow><key> isn''t overridden in the database.</yellow>'
+messages:
+  list:
+    empty: '<prefix><gray>No message is overridden in the database.</gray>'
+    header: '<prefix><white>Messages of <locale> overridden in the database</white> <gray>(<count>; they win over the language file)</gray>'
+    entry: '<gray> - </gray><white><key></white>'
+  reset:
+    done: '<prefix><green>Removed the database override of <white><key></white> (<locale>).</green>'
+    all_done: '<prefix><green>Removed every message override of <locale> (<count>).</green>'
+    confirm: '<prefix><yellow>This removes every message override of <locale> (<count>) on every server. Run it again with --confirm within 30 seconds.</yellow>'
+  not_overridden: '<prefix><yellow>Nothing of <locale> matching <key> is overridden in the database.</yellow>'
+overrides:
+  invalid: '<prefix><red>Couldn''t remove it: <details></red>'
+  forbidden: '<prefix><red>You don''t have permission to do that.</red>'
+  conflict: '<prefix><red>Someone else changed the overrides meanwhile; try again.</red>'
 gdpr:
   exported: '<prefix><green>Exported the data of <white><name></white> to <file>: <received> punishments received, <issued> issued.</green>'
   erase:

@@ -41,6 +41,10 @@ public final class FakeCommandActor implements CommandActor {
         return actor;
     }
 
+    public Set<String> permissions() {
+        return Set.copyOf(this.permissions);
+    }
+
     public FakeCommandActor grant(final String... permissions) {
         this.permissions.addAll(List.of(permissions));
         return this;

@@ -1,6 +1,7 @@
 package net.serlith.sakurabans.core.command.module;
 
 import java.util.List;
+import net.serlith.sakurabans.api.model.CategoryScope;
 import net.serlith.sakurabans.api.model.GlobalScope;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentType;
@@ -8,6 +9,7 @@ import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.api.punish.PunishmentQuery;
 import net.serlith.sakurabans.core.command.CommandTest;
 import net.serlith.sakurabans.core.command.FakeCommandActor;
+import net.serlith.sakurabans.core.model.TemplateDefinition;
 import net.serlith.sakurabans.core.permission.Permissions;
 import org.assertj.core.api.Assertions;
 import org.incendo.cloud.suggestion.Suggestion;
@@ -62,6 +64,29 @@ class ScopeCommandsTest extends CommandTest {
         this.run(mod, "ban Steve --server survival -r griefing");
         Assertions.assertThat(this.active()).singleElement()
                 .extracting(Punishment::scope).isEqualTo(ServerScope.of("survival"));
+    }
+
+    @Test
+    void templateScopesNeedTheirPermission() {
+        this.templates.create(TemplateDefinition.builder("elimination", PunishmentType.BAN)
+                .reason("Out of hearts").scope(CategoryScope.of("pvp")).build(), CONSOLE)
+                .join();
+        final FakeCommandActor mod = FakeCommandActor.player(MOD, "Mod", BAN,
+                Permissions.SCOPE_DEFAULT, Permissions.SCOPE_GLOBAL);
+
+        this.run(mod, "ban Steve -t elimination");
+        Assertions.assertThat(mod.last()).contains("can't punish in category:pvp");
+        Assertions.assertThat(this.active()).isEmpty();
+
+        // A scope named on the command wins over the template's.
+        this.run(mod, "ban Steve -t elimination -g");
+        Assertions.assertThat(this.active()).singleElement()
+                .extracting(Punishment::scope).isEqualTo(GlobalScope.INSTANCE);
+
+        mod.grant(Permissions.scopeCategory("pvp"));
+        this.run(mod, "ban Steve -t elimination");
+        Assertions.assertThat(this.active()).extracting(Punishment::scope)
+                .containsExactlyInAnyOrder(GlobalScope.INSTANCE, CategoryScope.of("pvp"));
     }
 
     @Test

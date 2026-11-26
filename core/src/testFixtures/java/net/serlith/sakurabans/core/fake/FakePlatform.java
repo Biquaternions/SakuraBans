@@ -63,6 +63,10 @@ public final class FakePlatform implements Platform {
         return player;
     }
 
+    public Optional<FakeOnlinePlayer> online(final UUID uuid) {
+        return Optional.ofNullable(this.players.get(uuid));
+    }
+
     public void leave(final UUID uuid) {
         this.players.remove(uuid);
     }

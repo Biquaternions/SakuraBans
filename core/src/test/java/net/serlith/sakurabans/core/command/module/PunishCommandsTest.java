@@ -2,7 +2,6 @@ package net.serlith.sakurabans.core.command.module;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.Set;
 import net.serlith.sakurabans.api.model.AddressVictim;
 import net.serlith.sakurabans.api.model.CompositeVictim;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
@@ -18,7 +17,6 @@ import net.serlith.sakurabans.core.command.CommandTest;
 import net.serlith.sakurabans.core.command.FakeCommandActor;
 import net.serlith.sakurabans.core.command.PunishFlags;
 import net.serlith.sakurabans.core.fake.FakeOnlinePlayer;
-import net.serlith.sakurabans.core.model.TemplateDefinition;
 import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.util.InetAddresses;
 import org.assertj.core.api.Assertions;
@@ -88,7 +86,7 @@ class PunishCommandsTest extends CommandTest {
         final FakeCommandActor mod = FakeCommandActor.player(MOD, "Mod",
                 Permissions.punish(PunishmentType.MUTE));
 
-        for (final String flag : List.of("-s", "--hide", "-o", "--skip", "-I")) {
+        for (final String flag : List.of("-s", "--hide", "-o", "--skip", "-I", "--shadow")) {
             mod.clear();
             this.run(mod, "mute Steve " + flag + " -r spam");
             Assertions.assertThat(mod.last()).as(flag).contains("You can't use the flag");
@@ -98,6 +96,29 @@ class PunishCommandsTest extends CommandTest {
         mod.grant(Permissions.flag(PunishmentType.MUTE, PunishFlags.SILENT));
         this.run(mod, "mute Steve -s -r spam");
         Assertions.assertThat(this.only().visibility()).isEqualTo(Visibility.SILENT);
+    }
+
+    @Test
+    void theShadowFlagMakesShadowMutes() {
+        final FakeCommandActor mod = FakeCommandActor.player(MOD, "Mod",
+                Permissions.punish(PunishmentType.MUTE),
+                Permissions.punish(PunishmentType.BAN),
+                Permissions.flag(PunishmentType.MUTE, PunishFlags.SHADOW));
+
+        this.run(mod, "ban Steve --shadow -r spam");
+        Assertions.assertThat(mod.last()).contains("Unknown flag");
+        this.run(mod, "mute Steve -r spam");
+        Assertions.assertThat(this.only().shadow()).isFalse();
+        this.run(this.console, "unmute Steve");
+
+        this.run(mod, "mute Steve --shadow -r spam");
+        Assertions.assertThat(this.all()).filteredOn(mute -> mute.end().isEmpty())
+                .singleElement().satisfies(mute -> Assertions.assertThat(mute.shadow()).isTrue());
+        this.known(ALEX, "Alex");
+        this.run(this.console, "tempmute Alex 1h --shadow -r spam");
+        Assertions.assertThat(this.all()).filteredOn(mute ->
+                mute.victim().equals(PlayerVictim.of(ALEX))).singleElement()
+                .satisfies(mute -> Assertions.assertThat(mute.shadow()).isTrue());
     }
 
     @Test
@@ -188,14 +209,14 @@ class PunishCommandsTest extends CommandTest {
                 .containsExactly("https://example.com/clip");
 
         this.run(this.console, "unban Steve");
-        this.run(this.console, "ban Steve --evidence hydra:chat-snapshot:12 -s "
+        this.run(this.console, "ban Steve --evidence https://example.com/chat/12 -s "
                 + "--evidence https://example.com/two -r spam -e kept-in-reason");
 
         Assertions.assertThat(this.all())
                 .filteredOn(p -> p.reason().equals("spam -e kept-in-reason"))
                 .singleElement().satisfies(ban -> Assertions.assertThat(ban.evidence())
                         .extracting(e -> e.ref().uri()).containsExactlyInAnyOrder(
-                                "hydra:chat-snapshot:12", "https://example.com/two"));
+                                "https://example.com/chat/12", "https://example.com/two"));
     }
 
     @Test
@@ -220,20 +241,5 @@ class PunishCommandsTest extends CommandTest {
         mod.grant(Permissions.flag(PunishmentType.BAN, PunishFlags.EVIDENCE));
         this.run(mod, "ban Steve -e https://example.com/clip -r xray");
         Assertions.assertThat(this.only().evidence()).hasSize(1);
-    }
-
-    @Test
-    void templatesThatRequireEvidenceNeedTheFlag() {
-        this.templates.create(TemplateDefinition.builder("chat", "ban").reason("Chat abuse")
-                .requiredEvidence(Set.of("hydra:chat-snapshot")).build(), CONSOLE).join();
-
-        this.run(this.console, "ban Steve -t chat");
-        Assertions.assertThat(this.console.last()).contains("needs evidence", "--evidence");
-        this.run(this.console, "ban Steve -t chat -e https://example.com/clip");
-        Assertions.assertThat(this.all()).isEmpty();
-
-        this.run(this.console, "ban Steve -t chat -e hydra:chat-snapshot:7");
-        Assertions.assertThat(this.only().evidence()).extracting(e -> e.ref().uri())
-                .containsExactly("hydra:chat-snapshot:7");
     }
 }

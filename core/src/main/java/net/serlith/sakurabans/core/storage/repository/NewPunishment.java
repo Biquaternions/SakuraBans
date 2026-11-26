@@ -4,7 +4,6 @@ import com.google.common.base.Preconditions;
 import java.time.Instant;
 import java.util.List;
 import net.serlith.sakurabans.api.model.Actor;
-import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.EvidenceRef;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Scope;
@@ -14,9 +13,7 @@ import org.jspecify.annotations.Nullable;
 
 public record NewPunishment(
         PunishmentType type,
-        String kind,
         boolean shadow,
-        @Nullable AddressStrictness strictness,
         Victim victim,
         Scope scope,
         String reason,
@@ -32,7 +29,6 @@ public record NewPunishment(
 
     public NewPunishment {
         Preconditions.checkNotNull(type, "type");
-        Preconditions.checkNotNull(kind, "kind");
         Preconditions.checkNotNull(victim, "victim");
         Preconditions.checkNotNull(scope, "scope");
         Preconditions.checkNotNull(reason, "reason");
@@ -43,15 +39,9 @@ public record NewPunishment(
     }
 
     public NewPunishment withExpiry(final @Nullable Instant expiry) {
-        return new NewPunishment(this.type, this.kind, this.shadow, this.strictness, this.victim,
+        return new NewPunishment(this.type, this.shadow, this.victim,
                 this.scope, this.reason, this.actor, this.createdAt, expiry, this.originServer,
                 this.visibility, this.template, this.templateStep, this.evidence, this.externalId);
-    }
-
-    public NewPunishment withTemplate(final @Nullable String name, final @Nullable Integer step) {
-        return new NewPunishment(this.type, this.kind, this.shadow, this.strictness, this.victim,
-                this.scope, this.reason, this.actor, this.createdAt, this.expiresAt,
-                this.originServer, this.visibility, name, step, this.evidence, this.externalId);
     }
 
     boolean outlasts(final @Nullable Instant otherExpiry) {

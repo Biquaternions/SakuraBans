@@ -4,6 +4,7 @@ import java.time.Duration;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.serlith.sakurabans.api.SakuraBans;
 import net.serlith.sakurabans.api.SakuraBansApi;
+import net.serlith.sakurabans.core.admin.OverrideCount;
 import net.serlith.sakurabans.core.admin.SakuraMessageTemplateService;
 import net.serlith.sakurabans.core.admin.SakuraSettingsService;
 import net.serlith.sakurabans.core.alts.SakuraAllowListService;
@@ -17,7 +18,6 @@ import net.serlith.sakurabans.core.enforce.ChatGate;
 import net.serlith.sakurabans.core.enforce.LockdownService;
 import net.serlith.sakurabans.core.enforce.LoginGate;
 import net.serlith.sakurabans.core.enforce.SyncReceiver;
-import net.serlith.sakurabans.core.kind.SakuraKindService;
 import net.serlith.sakurabans.core.message.MessageService;
 import net.serlith.sakurabans.core.notify.NotificationService;
 import net.serlith.sakurabans.core.notify.WebhookService;
@@ -53,7 +53,7 @@ public final class SakuraBansCore {
             SakuraCommands commands, SakuraScopeService scopes, SyncService sync,
             SyncReceiver syncReceiver,
             SakuraAllowListService allowList, ActiveRangeCache ranges,
-            SakuraKindService kinds, SakuraTemplateService templates,
+            SakuraTemplateService templates,
             TemplateActions templateActions, WarningActions warningActions,
             DisplayIdCodec displayIds, LockdownService lockdowns, WebhookService webhooks,
             SakuraSettingsService settings, SakuraMessageTemplateService messageTemplates,
@@ -82,10 +82,11 @@ public final class SakuraBansCore {
             this.services.displayIds().load().join();
             this.services.settings().reload().join();
             this.services.messageTemplates().reload().join();
+            OverrideCount.of(this.services.settings(), this.services.messageTemplates())
+                    .log(this.logger);
             this.services.lockdowns().reload().join();
             this.services.allowList().reload().join();
             this.services.ranges().reload().join();
-            this.services.kinds().start().join();
             this.services.templates().start().join();
             this.services.templateActions().start();
             this.services.warningActions().start();

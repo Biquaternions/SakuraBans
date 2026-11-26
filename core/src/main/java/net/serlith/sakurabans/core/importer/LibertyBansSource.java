@@ -9,7 +9,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import net.serlith.sakurabans.api.imports.ImportedPunishment;
 import net.serlith.sakurabans.api.model.AddressVictim;
 import net.serlith.sakurabans.api.model.CategoryScope;
 import net.serlith.sakurabans.api.model.CompositeVictim;
@@ -22,7 +21,7 @@ import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Scope;
 import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.api.model.Victim;
-import net.serlith.sakurabans.api.validation.ValidationException;
+import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.api.validation.Validator;
 import net.serlith.sakurabans.core.configuration.settings.ImportSettings;
 import net.serlith.sakurabans.core.model.ImportedPlayer;
@@ -231,24 +230,19 @@ public final class LibertyBansSource implements ImportSource {
         // A kick can't be temporary in LibertyBans; its end is 0.
         final Instant end = type.instant() ? null
                 : ImportValues.seconds(row.get(END)).orElse(null);
-        final ImportedPunishment.Builder builder = ImportedPunishment.builder(type, victim,
-                        operator, start)
-                .expiresAt(end)
-                .scope(scope)
-                .reason(reader.reason(row.get(REASON)))
-                .externalId(context.externalId(PUNISHMENTS, row.get(ID)));
+        final ImportedPunishment.End ended;
         if (end != null && !end.isAfter(now)) {
-            builder.ended(EndKind.EXPIRED, end, null, null);
+            ended = new ImportedPunishment.End(EndKind.EXPIRED, end, null, null);
         } else if (!type.instant() && !active(type, row)) {
             // Revoked: LibertyBans keeps neither when nor by whom, so it ends where it began
             // and the runner names the unknown revoker.
-            builder.ended(EndKind.REVOKED, start, null, null);
+            ended = new ImportedPunishment.End(EndKind.REVOKED, start, null, null);
+        } else {
+            ended = null;
         }
-        try {
-            reader.punishment(builder.build());
-        } catch (final ValidationException e) {
-            return e.getMessage();
-        }
+        reader.punishment(new ImportedPunishment(type, victim, operator, start, end, scope,
+                reader.reason(row.get(REASON)), Visibility.NORMAL, false, null, ended,
+                context.externalId(PUNISHMENTS, row.get(ID))));
         return null;
     }
 

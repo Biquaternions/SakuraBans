@@ -35,15 +35,6 @@ public final class SbTemplatesRecord extends UpdatableRecordImpl<SbTemplatesReco
         return this;
     }
 
-    public String kind() {
-        return this.get(SakuraTables.TEMPLATES.KIND);
-    }
-
-    public SbTemplatesRecord kind(final String value) {
-        this.set(SakuraTables.TEMPLATES.KIND, value);
-        return this;
-    }
-
     public PunishmentType type() {
         return this.get(SakuraTables.TEMPLATES.TYPE);
     }
@@ -53,21 +44,39 @@ public final class SbTemplatesRecord extends UpdatableRecordImpl<SbTemplatesReco
         return this;
     }
 
+    public Boolean ip() {
+        return this.get(SakuraTables.TEMPLATES.IP);
+    }
+
+    public SbTemplatesRecord ip(final Boolean value) {
+        this.set(SakuraTables.TEMPLATES.IP, value);
+        return this;
+    }
+
+    public Boolean shadow() {
+        return this.get(SakuraTables.TEMPLATES.SHADOW);
+    }
+
+    public SbTemplatesRecord shadow(final Boolean value) {
+        this.set(SakuraTables.TEMPLATES.SHADOW, value);
+        return this;
+    }
+
+    public @Nullable Integer scopeId() {
+        return this.get(SakuraTables.TEMPLATES.SCOPE_ID);
+    }
+
+    public SbTemplatesRecord scopeId(final @Nullable Integer value) {
+        this.set(SakuraTables.TEMPLATES.SCOPE_ID, value);
+        return this;
+    }
+
     public String reason() {
         return this.get(SakuraTables.TEMPLATES.REASON);
     }
 
     public SbTemplatesRecord reason(final String value) {
         this.set(SakuraTables.TEMPLATES.REASON, value);
-        return this;
-    }
-
-    public String requiredEvidence() {
-        return this.get(SakuraTables.TEMPLATES.REQUIRED_EVIDENCE);
-    }
-
-    public SbTemplatesRecord requiredEvidence(final String value) {
-        this.set(SakuraTables.TEMPLATES.REQUIRED_EVIDENCE, value);
         return this;
     }
 

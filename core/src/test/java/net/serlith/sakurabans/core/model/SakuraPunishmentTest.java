@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
@@ -37,7 +36,7 @@ class SakuraPunishmentTest {
     private static SakuraPunishment punishment(final long id, final String displayId,
             final PunishmentType type, final String reason, final @Nullable Instant expiresAt,
             final @Nullable PunishmentEnd end) {
-        return new SakuraPunishment(id, displayId, type, type.name(), false, null,
+        return new SakuraPunishment(id, displayId, type, false,
                 VICTIM, CONSOLE, "console", GlobalScope.INSTANCE, reason, CREATED, expiresAt,
                 null, Visibility.NORMAL, null, end, null,
                 List.of(), 1);
@@ -128,11 +127,10 @@ class SakuraPunishmentTest {
     }
 
     @Test
-    void kindsAreNormalisedAndOnlyMutesAreShadow() {
-        assertThat(punishment(PunishmentType.BAN, null, null).kind())
-                .isEqualTo("ban");
-        assertThatThrownBy(() -> new SakuraPunishment(1, "X", PunishmentType.BAN, "ban", true,
-                null, VICTIM, CONSOLE, "console", GlobalScope.INSTANCE, "", CREATED,
+    void onlyMutesAreShadow() {
+        assertThat(punishment(PunishmentType.BAN, null, null).shadow()).isFalse();
+        assertThatThrownBy(() -> new SakuraPunishment(1, "X", PunishmentType.BAN, true,
+                VICTIM, CONSOLE, "console", GlobalScope.INSTANCE, "", CREATED,
                 null, null, Visibility.NORMAL, null,
                 null, null, List.of(), 1))
                 .isInstanceOf(IllegalArgumentException.class);

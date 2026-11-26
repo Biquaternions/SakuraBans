@@ -250,12 +250,11 @@ class ConfigServiceTest {
     void commandChangesWaitForRestart() throws Exception {
         final ConfigService service = this.service();
         service.load();
-        this.write(ConfigFiles.CONFIG, "commands:\n  labels:\n    ban: [ban, b]\n"
-                + "  kinds:\n    blacklist:\n      type: ban\n      labels: [blacklist]\n");
+        this.write(ConfigFiles.CONFIG, "commands:\n  labels:\n    ban: [ban, b]\n");
 
         assertThat(service.reload()).isInstanceOfSatisfying(ReloadResult.Reloaded.class,
                 reloaded -> assertThat(reloaded.restartRequired())
-                        .containsExactly("commands.labels", "commands.kinds"));
+                        .containsExactly("commands.labels"));
 
         this.write(ConfigFiles.CONFIG, "reasons:\n  default: Rule breaking\n");
         service.reload();

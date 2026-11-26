@@ -6,16 +6,8 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import net.serlith.sakurabans.api.admin.AdminResult;
-import net.serlith.sakurabans.api.audit.SubjectType;
-import net.serlith.sakurabans.api.auth.Decision;
-import net.serlith.sakurabans.api.event.ChangeType;
-import net.serlith.sakurabans.api.event.EntityChangedEvent;
 import net.serlith.sakurabans.api.event.TemplateStepEvent;
-import net.serlith.sakurabans.api.model.EvidenceRef;
 import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentType;
@@ -26,8 +18,12 @@ import net.serlith.sakurabans.api.punish.RevocationRequest;
 import net.serlith.sakurabans.api.punish.RevocationTarget;
 import net.serlith.sakurabans.api.template.TemplateInfo;
 import net.serlith.sakurabans.api.template.TemplateStep;
+import net.serlith.sakurabans.api.validation.ValidationException;
 import net.serlith.sakurabans.core.ServiceTest;
 import net.serlith.sakurabans.core.configuration.TemplateFiles;
+import net.serlith.sakurabans.core.model.AdminResult;
+import net.serlith.sakurabans.core.model.SakuraTemplateInfo;
+import net.serlith.sakurabans.core.model.SubjectType;
 import net.serlith.sakurabans.core.model.TemplateDefinition;
 import net.serlith.sakurabans.core.sync.SyncPacket;
 import org.assertj.core.api.Assertions;
@@ -39,13 +35,19 @@ class SakuraTemplateServiceTest extends ServiceTest {
         return Arrays.stream(steps).map(TemplateStep::of).toList();
     }
 
-    private static TemplateDefinition.Builder template(final String name, final String kind) {
-        return TemplateDefinition.builder(name, kind).reason("Reason");
+    private static TemplateDefinition.Builder template(final String name,
+            final PunishmentType type) {
+        return TemplateDefinition.builder(name, type).reason("Reason");
     }
 
-    private TemplateInfo create(final TemplateDefinition definition) {
-        return ((AdminResult.Ok<TemplateInfo>) this.templates.create(definition, CONSOLE).join())
-                .value();
+    private int step(final String template, final UUID victim) {
+        return this.templates.resolve(template, PlayerVictim.of(victim)).join().orElseThrow()
+                .step();
+    }
+
+    private SakuraTemplateInfo create(final TemplateDefinition definition) {
+        return ((AdminResult.Ok<SakuraTemplateInfo>) this.templates.create(definition, CONSOLE)
+                .join()).value();
     }
 
     private PunishResult punish(final UUID victim, final String template) {
@@ -69,7 +71,7 @@ class SakuraTemplateServiceTest extends ServiceTest {
 
     @Test
     void eachPunishmentClimbsTheLadderAndTheLastStepRepeats() {
-        this.create(TemplateDefinition.builder("hacking", "ban").reason("Hacking")
+        this.create(TemplateDefinition.builder("hacking", PunishmentType.BAN).reason("Hacking")
                 .ladder(List.of(TemplateStep.of(Duration.ofDays(1)),
                         TemplateStep.of(Duration.ofDays(7)), TemplateStep.of(null)))
                 .build());
@@ -96,21 +98,19 @@ class SakuraTemplateServiceTest extends ServiceTest {
 
     @Test
     void ladderExpiryForgetsOldPunishments() {
-        this.create(template("spam", "ban")
+        this.create(template("spam", PunishmentType.BAN)
                 .ladder(ladder(Duration.ofHours(1), Duration.ofDays(1)))
                 .ladderExpiry(Duration.ofDays(30)).build());
         this.banAndLift(STEVE, "spam");
 
-        Assertions.assertThat(this.templates.preview("spam", PlayerVictim.of(STEVE)).join())
-                .hasValueSatisfying(preview -> Assertions.assertThat(preview.step())
-                        .isEqualTo(1));
+        Assertions.assertThat(this.step("spam", STEVE)).isEqualTo(1);
         this.now.set(this.now.get().plus(Duration.ofDays(31)));
-        Assertions.assertThat(this.templates.preview("spam", PlayerVictim.of(STEVE)).join())
-                .hasValueSatisfying(preview -> {
-                    Assertions.assertThat(preview.step()).isZero();
-                    Assertions.assertThat(preview.duration()).hasValue(Duration.ofHours(1));
+        Assertions.assertThat(this.templates.resolve("spam", PlayerVictim.of(STEVE)).join())
+                .hasValueSatisfying(resolution -> {
+                    Assertions.assertThat(resolution.step()).isZero();
+                    Assertions.assertThat(resolution.duration()).isEqualTo(Duration.ofHours(1));
                 });
-        Assertions.assertThat(this.templates.preview("nothing", PlayerVictim.of(STEVE)).join())
+        Assertions.assertThat(this.templates.resolve("nothing", PlayerVictim.of(STEVE)).join())
                 .isEmpty();
     }
 
@@ -118,23 +118,20 @@ class SakuraTemplateServiceTest extends ServiceTest {
     void groupMatesCountWithTheirWeight() {
         final List<TemplateStep> five = ladder(Duration.ofHours(1), Duration.ofHours(2),
                 Duration.ofHours(3), Duration.ofHours(4), Duration.ofHours(5));
-        this.create(template("hacking", "ban").ladder(five)
+        this.create(template("hacking", PunishmentType.BAN).ladder(five)
                 .groups(Map.of("cheating", 2)).build());
-        this.create(template("xray", "ban").ladder(five)
+        this.create(template("xray", PunishmentType.BAN).ladder(five)
                 .groups(Map.of("cheating", 1)).build());
-        this.create(template("spam", "ban").ladder(five).build());
+        this.create(template("spam", PunishmentType.BAN).ladder(five).build());
 
         this.banAndLift(STEVE, "hacking");
         this.banAndLift(STEVE, "spam");
 
         // hacking (worth 2) counts on the xray ladder; spam shares no group.
-        Assertions.assertThat(this.templates.preview("xray", PlayerVictim.of(STEVE)).join()
-                .orElseThrow().step()).isEqualTo(2);
+        Assertions.assertThat(this.step("xray", STEVE)).isEqualTo(2);
         this.banAndLift(STEVE, "xray");
-        Assertions.assertThat(this.templates.preview("hacking", PlayerVictim.of(STEVE)).join()
-                .orElseThrow().step()).isEqualTo(3);
-        Assertions.assertThat(this.templates.preview("spam", PlayerVictim.of(STEVE)).join()
-                .orElseThrow().step()).isEqualTo(1);
+        Assertions.assertThat(this.step("hacking", STEVE)).isEqualTo(3);
+        Assertions.assertThat(this.step("spam", STEVE)).isEqualTo(1);
     }
 
     @Test
@@ -142,9 +139,9 @@ class SakuraTemplateServiceTest extends ServiceTest {
         final InetAddress shared = InetAddress.getByName("203.0.113.9");
         this.players.recordConnection(STEVE, "Steve", this.now.get(), shared, null).join();
         this.players.recordConnection(ALEX, "Alex", this.now.get(), shared, null).join();
-        this.create(template("alting", "ban").addressShared(true)
+        this.create(template("alting", PunishmentType.BAN).addressShared(true)
                 .ladder(ladder(Duration.ofDays(1), Duration.ofDays(2))).build());
-        this.create(template("solo", "ban")
+        this.create(template("solo", PunishmentType.BAN)
                 .ladder(ladder(Duration.ofDays(1), Duration.ofDays(2))).build());
 
         this.banAndLift(STEVE, "alting");
@@ -157,29 +154,9 @@ class SakuraTemplateServiceTest extends ServiceTest {
     }
 
     @Test
-    void evidenceIsRequired() {
-        this.create(template("chat", "ban")
-                .requiredEvidence(Set.of("hydra:chat-snapshot")).build());
-
-        Assertions.assertThat(this.punish(STEVE, "chat")).isInstanceOfSatisfying(
-                PunishResult.Failure.class, failure -> Assertions.assertThat(failure.reason())
-                        .isEqualTo(PunishResult.Failure.Reason.EVIDENCE_REQUIRED));
-
-        final PunishResult withEvidence = this.service.punish(DraftPunishment.builder(
-                PunishmentType.BAN, PlayerVictim.of(STEVE), MODERATOR).template("chat")
-                .evidence(List.of(EvidenceRef.of("hydra:chat-snapshot:" + STEVE))).build(),
-                PunishOptions.defaults()).join();
-        Assertions.assertThat(withEvidence).isInstanceOfSatisfying(
-                PunishResult.Success.class, success -> Assertions.assertThat(
-                        success.punishment().evidence()).singleElement().satisfies(evidence ->
-                        Assertions.assertThat(evidence.ref().uri())
-                                .isEqualTo("hydra:chat-snapshot:" + STEVE)));
-    }
-
-    @Test
     void actionsRunWithPlaceholders() {
         this.names.put(STEVE, "Steve");
-        this.create(TemplateDefinition.builder("hacking", "ban").reason("Hacking")
+        this.create(TemplateDefinition.builder("hacking", PunishmentType.BAN).reason("Hacking")
                 .ladder(List.of(TemplateStep.of(Duration.ofDays(1),
                         List.of("/say step {step}: {duration}"))))
                 .actions(List.of("note {victim} {uuid} {template} #{id} by {operator}: {reason}"))
@@ -195,46 +172,44 @@ class SakuraTemplateServiceTest extends ServiceTest {
 
     @Test
     void draftsMustMatchTheTemplate() {
-        this.create(template("spam", "mute").build());
+        this.create(template("spam", PunishmentType.MUTE).build());
 
         Assertions.assertThat(this.punish(STEVE, "spam")).isInstanceOfSatisfying(
                 PunishResult.Failure.class, failure -> Assertions.assertThat(failure.reason())
                         .isEqualTo(PunishResult.Failure.Reason.UNKNOWN_TEMPLATE));
-        Assertions.assertThat(this.service.punish(DraftPunishment.builder(PunishmentType.MUTE,
-                        PlayerVictim.of(STEVE), MODERATOR).template("spam").kind("shadow-mute")
-                        .build(), PunishOptions.defaults()).join())
-                .isInstanceOfSatisfying(PunishResult.Failure.class, failure ->
-                        Assertions.assertThat(failure.reason())
-                                .isEqualTo(PunishResult.Failure.Reason.UNKNOWN_KIND));
     }
 
     @Test
-    void editingIsValidatedVersionedSyncedAndAnnounced() {
-        final TemplateInfo created = this.create(template("spam", "mute")
+    void editingIsValidatedVersionedAndSynced() {
+        final SakuraTemplateInfo created = this.create(template("spam", PunishmentType.MUTE)
                 .ladder(ladder(Duration.ofHours(1), Duration.ofDays(1))).build());
 
-        Assertions.assertThat(this.templates.create(template("spam", "mute")
+        Assertions.assertThat(this.templates.create(template("spam", PunishmentType.MUTE)
                 .build(), CONSOLE).join()).isInstanceOf(AdminResult.ValidationFailed.class);
-        Assertions.assertThat(this.templates.create(template("x", "nothing")
-                .build(), CONSOLE).join()).isInstanceOf(AdminResult.ValidationFailed.class);
-        Assertions.assertThat(this.templates.create(template("k", "kick")
-                        .ladder(ladder(Duration.ofDays(1))).build(), CONSOLE).join())
+        // Built without the builder's checks: the service checks again.
+        final TemplateDefinition loud = template("loud", PunishmentType.MUTE).shadow(true).build();
+        Assertions.assertThat(this.templates.create(new TemplateDefinition(loud.name(),
+                PunishmentType.BAN, false, true, null, loud.reason(), loud.ladder(), null, false,
+                false, List.of(), Map.of()), CONSOLE).join())
                 .isInstanceOf(AdminResult.ValidationFailed.class);
+        Assertions.assertThatThrownBy(() -> template("k", PunishmentType.KICK)
+                        .ladder(ladder(Duration.ofDays(1))).build())
+                .isInstanceOf(ValidationException.class);
         Assertions.assertThat(this.templates.reorderSteps("spam", List.of(0, 0), 1, CONSOLE)
                 .join()).isInstanceOf(AdminResult.ValidationFailed.class);
         Assertions.assertThat(this.templates.reorderSteps("spam", List.of(1, 0), 7, CONSOLE)
                 .join()).isInstanceOf(AdminResult.Conflict.class);
 
-        final AdminResult<TemplateInfo> reordered =
+        final AdminResult<SakuraTemplateInfo> reordered =
                 this.templates.reorderSteps("spam", List.of(1, 0), created.version(), CONSOLE)
                         .join();
         Assertions.assertThat(reordered).isInstanceOfSatisfying(AdminResult.Ok.class, ok -> {
-            final TemplateInfo value = (TemplateInfo) ok.value();
+            final SakuraTemplateInfo value = (SakuraTemplateInfo) ok.value();
             Assertions.assertThat(value.ladder().getFirst().duration())
                     .hasValue(Duration.ofDays(1));
             Assertions.assertThat(value.version()).isEqualTo(2);
         });
-        Assertions.assertThat(this.templates.template("SPAM").orElseThrow().version())
+        Assertions.assertThat(this.templates.find("SPAM").orElseThrow().version())
                 .isEqualTo(2);
         Assertions.assertThat(this.templates.delete("spam", 2, CONSOLE).join())
                 .isInstanceOf(AdminResult.Ok.class);
@@ -242,39 +217,32 @@ class SakuraTemplateServiceTest extends ServiceTest {
         Assertions.assertThat(this.templates.delete("spam", 2, CONSOLE).join())
                 .isInstanceOf(AdminResult.NotFound.class);
 
-        Assertions.assertThat(this.events(EntityChangedEvent.TemplateChanged.class))
-                .extracting(EntityChangedEvent::change)
-                .containsExactly(ChangeType.CREATED, ChangeType.UPDATED, ChangeType.DELETED);
         Assertions.assertThat(this.published).filteredOn(SyncPacket.EntityChangedPacket.class
-                ::isInstance).hasSize(3);
+                ::isInstance).containsOnly(new SyncPacket.EntityChangedPacket(
+                        SubjectType.TEMPLATE)).hasSize(3);
     }
 
     @Test
     void forbiddenActorsChangeNothing() {
-        this.actionCheck = (actor, action) -> CompletableFuture.completedFuture(
-                Decision.deny(Decision.Denial.NO_PERMISSION, null));
+        // The moderator without the template permission.
+        this.platform.join(MOD, "Mod", this.home);
 
-        Assertions.assertThat(this.templates.create(template("spam", "mute")
+        Assertions.assertThat(this.templates.create(template("spam", PunishmentType.MUTE)
                 .build(), MODERATOR).join()).isInstanceOf(AdminResult.Forbidden.class);
         Assertions.assertThat(this.templates.templates()).isEmpty();
     }
 
     @Test
-    void otherInstancesReloadAndAnnounceRemotely() {
+    void otherInstancesReloadThroughTheSync() {
         // Written "elsewhere": stored, but not in this instance's memory yet.
-        this.templateRepository.create(template("spam", "mute").build(),
-                PunishmentType.MUTE, CONSOLE, this.now.get()).join();
+        this.templateRepository.create(template("spam", PunishmentType.MUTE).build(), CONSOLE,
+                this.now.get()).join();
         Assertions.assertThat(this.templates.template("spam")).isEmpty();
 
-        this.templates.changed(new SyncPacket.EntityChangedPacket(SubjectType.TEMPLATE, "spam",
-                ChangeType.CREATED, 1, CONSOLE)).join();
+        this.syncReceiver().handle(new SyncPacket.EntityChangedPacket(SubjectType.TEMPLATE))
+                .join();
 
         Assertions.assertThat(this.templates.template("spam")).isPresent();
-        Assertions.assertThat(this.events(EntityChangedEvent.TemplateChanged.class))
-                .singleElement().satisfies(event -> {
-                    Assertions.assertThat(event.remote()).isTrue();
-                    Assertions.assertThat(event.template()).isPresent();
-                });
     }
 
     @Test
@@ -282,7 +250,7 @@ class SakuraTemplateServiceTest extends ServiceTest {
         this.templates.start().join();
         Assertions.assertThat(this.templates.templates()).extracting(TemplateInfo::name)
                 .contains("hacking", "spam", "xray");
-        final TemplateInfo spam = this.templates.template("spam").orElseThrow();
+        final SakuraTemplateInfo spam = this.templates.find("spam").orElseThrow();
         this.templates.delete("spam", spam.version(), CONSOLE).join();
 
         this.templates.start().join();
@@ -292,11 +260,11 @@ class SakuraTemplateServiceTest extends ServiceTest {
                 """
                 templates:
                   spam:
-                    kind: mute
+                    type: mute
                     reason: Reason
                     ladder: [1h]
                   hacking:
-                    kind: ban
+                    type: ban
                     reason: Changed
                     ladder: [permanent]
                 """);

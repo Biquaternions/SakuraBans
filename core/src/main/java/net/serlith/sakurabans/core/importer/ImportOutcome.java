@@ -2,7 +2,6 @@ package net.serlith.sakurabans.core.importer;
 
 import com.google.common.base.Preconditions;
 import java.util.Map;
-import net.serlith.sakurabans.core.model.SakuraImportReport;
 
 public sealed interface ImportOutcome {
 
@@ -13,7 +12,7 @@ public sealed interface ImportOutcome {
         }
     }
 
-    record Done(SakuraImportReport report) implements ImportOutcome {
+    record Done(ImportReport report) implements ImportOutcome {
     }
 
     record Busy() implements ImportOutcome {

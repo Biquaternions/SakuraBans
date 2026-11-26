@@ -3,9 +3,8 @@ package net.serlith.sakurabans.core.limit;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.InstantSource;
-import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
+import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.PlayerOperator;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.punish.PunishOptions;
@@ -17,7 +16,6 @@ import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.punish.PunishLimits;
 import net.serlith.sakurabans.core.punish.PunishmentFactory.Prepared;
 import net.serlith.sakurabans.core.storage.repository.NewPunishment;
-import org.jspecify.annotations.Nullable;
 
 public final class LimitService implements PunishLimits {
 
@@ -35,26 +33,23 @@ public final class LimitService implements PunishLimits {
     }
 
     @Override
-    public CompletableFuture<Prepared> apply(final Prepared.Ready ready,
-            final PunishOptions options) {
+    public Prepared apply(final Prepared.Ready ready, final PunishOptions options) {
         final LimitSettings limits = this.config.limits();
+        final Actor actor = ready.punishment().actor();
         if (options.bypassLimits() || limits.groups().isEmpty()
-                || PermissionService.console(ready.punishment().actor())
-                || !(ready.punishment().actor().operator() instanceof PlayerOperator)) {
-            return CompletableFuture.completedFuture(ready);
+                || PermissionService.console(actor)
+                || !(actor.operator() instanceof PlayerOperator player)) {
+            return ready;
         }
-        final PlayerOperator actor = (PlayerOperator) ready.punishment().actor().operator();
-        return this.group(actor, limits.groups(), 0).thenCompose(group -> {
-            if (group == null) {
-                return CompletableFuture.completedFuture(ready);
-            }
-            final CompletableFuture<Boolean> unlimited = this.has(actor,
-                    Permissions.LIMITS_UNLIMITED);
-            final CompletableFuture<Boolean> bypass = this.has(actor,
-                    Permissions.COOLDOWN_BYPASS);
-            return unlimited.thenCombine(bypass, (isUnlimited, mayBypass) ->
-                    this.limit(ready, limits, group, isUnlimited, mayBypass, actor));
-        });
+        final LimitSettings.Group group = limits.groups().stream()
+                .filter(candidate -> this.permissions.hasOnline(actor, candidate.permission()))
+                .findFirst().orElse(null);
+        if (group == null) {
+            return ready;
+        }
+        return this.limit(ready, limits, group,
+                this.permissions.hasOnline(actor, Permissions.LIMITS_UNLIMITED),
+                this.permissions.hasOnline(actor, Permissions.COOLDOWN_BYPASS), player);
     }
 
     private Prepared limit(final Prepared.Ready ready, final LimitSettings limits,
@@ -77,28 +72,13 @@ public final class LimitService implements PunishLimits {
             return new Prepared.Refused(Reason.LIMIT_EXCEEDED);
         }
         final Instant reduced = punishment.createdAt().plus(max.get());
-        return new Prepared.Ready(punishment.withExpiry(reduced), ready.kind());
+        return new Prepared.Ready(punishment.withExpiry(reduced));
     }
 
     private static boolean longer(final NewPunishment punishment, final Duration max) {
         return punishment.expiresAt() == null
                 || Duration.between(punishment.createdAt(), punishment.expiresAt())
                         .compareTo(max) > 0;
-    }
-
-    private CompletableFuture<LimitSettings.@Nullable Group> group(final PlayerOperator actor,
-            final List<LimitSettings.Group> groups, final int index) {
-        if (index >= groups.size()) {
-            return CompletableFuture.completedFuture(null);
-        }
-        final LimitSettings.Group group = groups.get(index);
-        return this.has(actor, group.permission()).thenCompose(member -> member
-                ? CompletableFuture.completedFuture(group)
-                : this.group(actor, groups, index + 1));
-    }
-
-    private CompletableFuture<Boolean> has(final PlayerOperator actor, final String node) {
-        return this.permissions.has(actor, node).thenApply(known -> known.orElse(false));
     }
 
     @Override

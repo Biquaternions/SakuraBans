@@ -4,7 +4,6 @@ import net.serlith.sakurabans.core.storage.dbo.records.SbActivePunishmentsRecord
 import net.serlith.sakurabans.core.storage.dbo.records.SbAllowedAddressesRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbAllowedPlayersRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbAuditLogRecord;
-import net.serlith.sakurabans.core.storage.dbo.records.SbKindsRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbLockdownsRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbMessageOverridesRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbMetaRecord;
@@ -73,10 +72,6 @@ public final class Keys {
                             SakuraTables.VICTIMS.ADDRESS_HASH,
                             SakuraTables.VICTIMS.PREFIX_LENGTH
                     }, true);
-
-    public static final UniqueKey<SbKindsRecord> KINDS_PK =
-            Internal.createUniqueKey(SakuraTables.KINDS, name("kinds_pk"),
-                    new TableField[] {SakuraTables.KINDS.ID}, true);
 
     public static final UniqueKey<SbTemplatesRecord> TEMPLATES_PK =
             Internal.createUniqueKey(SakuraTables.TEMPLATES, name("templates_pk"),
@@ -186,10 +181,10 @@ public final class Keys {
                     new TableField[] {SakuraTables.PLAYERS.UUID},
                     true, QOM.ForeignKeyRule.CASCADE, QOM.ForeignKeyRule.NO_ACTION);
 
-    public static final ForeignKey<SbKindsRecord, SbScopesRecord>
-            KINDS_SCOPE_FK = Internal.createForeignKey(
-                    SakuraTables.KINDS, name("kinds_scope_fk"),
-                    new TableField[] {SakuraTables.KINDS.DEFAULT_SCOPE_ID},
+    public static final ForeignKey<SbTemplatesRecord, SbScopesRecord>
+            TEMPLATES_SCOPE_FK = Internal.createForeignKey(
+                    SakuraTables.TEMPLATES, name("templates_scope_fk"),
+                    new TableField[] {SakuraTables.TEMPLATES.SCOPE_ID},
                     SCOPES_PK,
                     new TableField[] {SakuraTables.SCOPES.ID},
                     true, QOM.ForeignKeyRule.NO_ACTION, QOM.ForeignKeyRule.NO_ACTION);

@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import net.serlith.sakurabans.api.model.EndKind;
-import net.serlith.sakurabans.core.model.SakuraImportReport;
 import net.serlith.sakurabans.core.storage.dbo.OperatorKind;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import net.serlith.sakurabans.core.storage.dbo.VictimKind;
@@ -54,13 +53,13 @@ class VanillaSourceTest extends ImportTest {
         Assertions.assertThat(this.jobs().survey("vanilla").join())
                 .isEqualTo(new ImportOutcome.Surveyed(Map.of("banned-players.json", 6L,
                         "banned-ips.json", 4L)));
-        final SakuraImportReport report = this.importFrom("vanilla");
+        final ImportReport report = this.importFrom("vanilla");
 
         Assertions.assertThat(report.imported()).isEqualTo(7);
         Assertions.assertThat(report.failed()).isEqualTo(3);
         Assertions.assertThat(report.players()).isEqualTo(4);
         Assertions.assertThat(report.truncated()).isEqualTo(1);
-        Assertions.assertThat(report.failures()).extracting(failure -> failure.externalId().get())
+        Assertions.assertThat(report.failures()).extracting(ImportReport.Failure::externalId)
                 .containsExactlyInAnyOrder("vanilla:banned-players.json:not-a-uuid",
                         "vanilla:banned-players.json:9a3b1c2d-0000-4000-8000-000000000002",
                         "vanilla:banned-ips.json:not an address");
@@ -118,7 +117,7 @@ class VanillaSourceTest extends ImportTest {
         Assertions.assertThat(name).isEqualTo("Steve");
         Assertions.assertThat(this.count(SakuraTables.PUNISHMENTS)).isEqualTo(7);
 
-        final SakuraImportReport second = this.importFrom("vanilla");
+        final ImportReport second = this.importFrom("vanilla");
         Assertions.assertThat(second.imported()).isZero();
         Assertions.assertThat(second.skipped()).isEqualTo(7);
         Assertions.assertThat(this.count(SakuraTables.PUNISHMENTS)).isEqualTo(7);
@@ -128,7 +127,7 @@ class VanillaSourceTest extends ImportTest {
     void dryRunsWriteNothing() throws IOException {
         this.files();
 
-        final SakuraImportReport report = this.importFrom("vanilla", true);
+        final ImportReport report = this.importFrom("vanilla", true);
 
         Assertions.assertThat(report.dryRun()).isTrue();
         Assertions.assertThat(report.imported()).isEqualTo(7);

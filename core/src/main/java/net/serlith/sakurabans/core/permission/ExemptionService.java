@@ -35,22 +35,21 @@ public final class ExemptionService {
                         && player.uuid().equals(target)) {
             return CompletableFuture.completedFuture(false);
         }
-        return this.permissions.has(actor, Permissions.exemptBypass(type)).thenCompose(bypass -> {
-            if (bypass.orElse(false)) {
-                return CompletableFuture.completedFuture(false);
+        if (this.permissions.hasOnline(actor, Permissions.exemptBypass(type))) {
+            return CompletableFuture.completedFuture(false);
+        }
+        if (exemption.provider() == ExemptionProvider.LUCKPERMS_WEIGHT) {
+            if (this.permissions.weightsAvailable()) {
+                return this.byWeight(actor, target, exemption.permitSameWeight());
             }
-            if (exemption.provider() == ExemptionProvider.LUCKPERMS_WEIGHT) {
-                if (this.permissions.weightsAvailable()) {
-                    return this.byWeight(actor, target, exemption.permitSameWeight());
-                }
-                if (this.warned.compareAndSet(false, true)) {
-                    this.logger.warn("exemption.provider is LUCKPERMS_WEIGHT but LuckPerms isn't"
-                            + " installed; using PERMISSION instead");
-                }
+            if (this.warned.compareAndSet(false, true)) {
+                this.logger.warn("exemption.provider is LUCKPERMS_WEIGHT but LuckPerms isn't"
+                        + " installed; using PERMISSION instead");
             }
-            return this.permissions.has(target, Permissions.exempt(type))
-                    .thenApply(exempt -> exempt.orElse(false));
-        });
+        }
+        // The target may be offline: its permission comes from LuckPerms then.
+        return this.permissions.has(target, Permissions.exempt(type))
+                .thenApply(exempt -> exempt.orElse(false));
     }
 
     private CompletableFuture<Boolean> byWeight(final Actor actor, final UUID target,

@@ -2,7 +2,6 @@ package net.serlith.sakurabans.api.data;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import net.serlith.sakurabans.api.admin.AdminResult;
 import net.serlith.sakurabans.api.model.Actor;
 
 /**
@@ -16,9 +15,9 @@ public interface PlayerDataService {
      *
      * @param uuid the account
      * @param actor who requests the export
-     * @return the export
+     * @return the export, or {@code Forbidden}
      */
-    CompletableFuture<AdminResult<PlayerDataExport>> export(UUID uuid, Actor actor);
+    CompletableFuture<PlayerDataResult<PlayerDataExport>> export(UUID uuid, Actor actor);
 
     /**
      * Erases an account's personal data, keeping every punishment in force and every UUID.
@@ -53,7 +52,7 @@ public interface PlayerDataService {
      *
      * @param uuid the account
      * @param actor who requests the erase
-     * @return what was removed or changed
+     * @return what was removed or changed, or {@code Forbidden}
      */
-    CompletableFuture<AdminResult<EraseResult>> erase(UUID uuid, Actor actor);
+    CompletableFuture<PlayerDataResult<EraseResult>> erase(UUID uuid, Actor actor);
 }

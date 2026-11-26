@@ -38,15 +38,15 @@ class DraftPunishmentTest {
         assertThat(draft.reason()).isEmpty();
         assertThat(draft.duration()).isEmpty();
         assertThat(draft.template()).isEmpty();
-        assertThat(draft.kind()).isEmpty();
+        assertThat(draft.shadow()).isFalse();
         assertThat(draft.evidence()).isEmpty();
     }
 
     @Test
     void toBuilderCopiesEveryValue() {
         final DraftPunishment draft = ban().scope(ServerScope.of("lobby")).reason("spam")
-                .duration(Duration.ofDays(1)).kind("ip-ban")
-                .evidence(List.of(EvidenceRef.of("hydra:report:7"))).build();
+                .duration(Duration.ofDays(1)).shadow(false)
+                .evidence(List.of(EvidenceRef.of("https://example.org/report/7"))).build();
 
         assertThat(draft.toBuilder().build()).isEqualTo(draft);
         assertThat(draft.toBuilder().permanent().build().duration()).isEmpty();
@@ -88,25 +88,33 @@ class DraftPunishmentTest {
     void validateReportsEveryProblem() {
         final List<FieldError> errors = ban().type(PunishmentType.KICK)
                 .reason("x".repeat(Lengths.MAX_REASON + 1))
-                .kind("Not A Kind")
+                .shadow(true)
                 .duration(Duration.ofHours(1))
                 .validate();
 
         assertThat(errors).extracting(FieldError::path, FieldError::code).containsExactlyInAnyOrder(
                 tuple("reason", Code.TOO_LONG),
-                tuple("kind", Code.INVALID_IDENTIFIER),
+                tuple("shadow", Code.NOT_ALLOWED),
                 tuple("duration", Code.NOT_ALLOWED));
         assertThat(ban().validate()).isEmpty();
     }
 
     @Test
-    void kindsAreNormalisedAndEvidenceDeduplicated() {
-        final EvidenceRef report = EvidenceRef.of("hydra:report:7");
-        final DraftPunishment draft = ban().kind("Blacklist")
-                .evidence(List.of(report, EvidenceRef.of("hydra:report:7"))).build();
+    void evidenceIsDeduplicated() {
+        final EvidenceRef report = EvidenceRef.of("https://example.org/report/7");
+        final DraftPunishment draft = ban()
+                .evidence(List.of(report, EvidenceRef.of("https://example.org/report/7"))).build();
 
-        assertThat(draft.kind()).contains("blacklist");
         assertThat(draft.evidence()).containsExactly(report);
+    }
+
+    @Test
+    void onlyMutesCanBeShadowMutes() {
+        assertThat(ban().shadow(true).validate()).extracting(FieldError::path, FieldError::code)
+                .containsExactly(tuple("shadow", Code.NOT_ALLOWED));
+        final DraftPunishment mute = ban().type(PunishmentType.MUTE).shadow(true).build();
+        assertThat(mute.shadow()).isTrue();
+        assertThat(mute.toBuilder().build()).isEqualTo(mute);
     }
 
     @Test
@@ -121,7 +129,7 @@ class DraftPunishmentTest {
 
         assertThat(defaults.visibility()).isEqualTo(Visibility.NORMAL);
         assertThat(defaults.override()).isEqualTo(OverridePolicy.REJECT);
-        assertThat(defaults.enforcement()).isEqualTo(Enforcement.GLOBAL);
+        assertThat(defaults.enforce()).isTrue();
         assertThat(defaults.bypassLimits()).isFalse();
         assertThat(defaults.toBuilder().visibility(Visibility.SILENT).build().visibility())
                 .isEqualTo(Visibility.SILENT);

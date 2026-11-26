@@ -20,14 +20,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import net.serlith.sakurabans.api.imports.ImportedPunishment;
 import net.serlith.sakurabans.api.model.AddressVictim;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
+import net.serlith.sakurabans.api.model.GlobalScope;
 import net.serlith.sakurabans.api.model.Operator;
 import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Victim;
-import net.serlith.sakurabans.api.validation.ValidationException;
+import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.core.model.ImportedPlayer;
 import org.jspecify.annotations.Nullable;
 
@@ -168,17 +168,11 @@ public final class VanillaSource implements ImportSource {
                 reader.player(ImportedPlayer.named(uuid, name.strip(), created));
             }
         }
-        try {
-            reader.punishment(ImportedPunishment.builder(PunishmentType.BAN, victim,
-                            operator(text(entry, "source")), created)
-                    .expiresAt(expires)
-                    .reason(reader.reason(text(entry, "reason")))
-                    .externalId(context.externalId(players ? "players" : "ips",
-                            id + ":" + created.getEpochSecond()))
-                    .build());
-        } catch (final ValidationException e) {
-            reader.failure(label, id, e.getMessage());
-        }
+        reader.punishment(new ImportedPunishment(PunishmentType.BAN, victim,
+                operator(text(entry, "source")), created, expires, GlobalScope.INSTANCE,
+                reader.reason(text(entry, "reason")), Visibility.NORMAL, false, null, null,
+                context.externalId(players ? "players" : "ips",
+                        id + ":" + created.getEpochSecond())));
     }
 
     private static Operator operator(final @Nullable String source) {

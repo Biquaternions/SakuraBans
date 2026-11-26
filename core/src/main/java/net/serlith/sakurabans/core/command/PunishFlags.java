@@ -21,6 +21,7 @@ public final class PunishFlags {
     public static final String SILENT = "silent";
     public static final String HIDE = "hide";
     public static final String IP = "ip";
+    public static final String SHADOW = "shadow";
     public static final String GLOBAL = "global";
     public static final String SERVER = "server";
     public static final String CATEGORY = "category";
@@ -55,6 +56,11 @@ public final class PunishFlags {
     public CommandFlag<Void> ip(final PunishmentType type) {
         return CommandFlag.<CommandActor>builder(IP).withAliases("I")
                 .withPermission(Permissions.flag(type, IP)).build();
+    }
+
+    public CommandFlag<Void> shadow(final PunishmentType type) {
+        return CommandFlag.<CommandActor>builder(SHADOW)
+                .withPermission(Permissions.flag(type, SHADOW)).build();
     }
 
     public CommandFlag<Void> global() {

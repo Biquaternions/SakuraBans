@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import net.serlith.sakurabans.api.allow.AllowEntry;
-import net.serlith.sakurabans.api.audit.AuditEntry;
 import net.serlith.sakurabans.api.model.AddressRecord;
 import net.serlith.sakurabans.api.model.NameRecord;
 import net.serlith.sakurabans.api.model.PlayerProfileView;
@@ -77,5 +76,5 @@ public interface PlayerDataExport {
      *
      * @return the entries, newest first
      */
-    List<AuditEntry> auditEntries();
+    List<AuditRecord> auditEntries();
 }

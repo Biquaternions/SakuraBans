@@ -110,7 +110,7 @@ class StrictnessTest extends DatabaseTest {
     }
 
     private Punishment ban(final Victim victim) {
-        final NewPunishment punishment = new NewPunishment(PunishmentType.BAN, "ban", false, null,
+        final NewPunishment punishment = new NewPunishment(PunishmentType.BAN, false,
                 victim, GlobalScope.INSTANCE, "reason", CONSOLE, this.now.get(), null, null,
                 Visibility.NORMAL, null, null, List.of(), null);
         return ((InsertOutcome.Inserted) this.punishments.insert(punishment,

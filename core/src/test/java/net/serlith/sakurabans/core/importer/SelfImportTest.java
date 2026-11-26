@@ -7,7 +7,7 @@ import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.function.Consumer;
-import net.serlith.sakurabans.api.kind.KindDefinition;
+import net.serlith.sakurabans.api.model.CategoryScope;
 import net.serlith.sakurabans.api.model.EndKind;
 import net.serlith.sakurabans.api.model.EvidenceRef;
 import net.serlith.sakurabans.api.model.GlobalScope;
@@ -19,18 +19,20 @@ import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.core.TestConfig;
 import net.serlith.sakurabans.core.model.ImportedPlayer;
-import net.serlith.sakurabans.core.model.SakuraImportReport;
-import net.serlith.sakurabans.core.punish.BuiltInKinds;
+import net.serlith.sakurabans.core.model.TemplateDefinition;
 import net.serlith.sakurabans.core.storage.DisplayIdCodec;
 import net.serlith.sakurabans.core.storage.SchemaManager;
 import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import net.serlith.sakurabans.core.storage.repository.AllowListRepository;
+import net.serlith.sakurabans.core.storage.repository.AltPolicy;
 import net.serlith.sakurabans.core.storage.repository.ImportRepository;
 import net.serlith.sakurabans.core.storage.repository.ImportRow;
-import net.serlith.sakurabans.core.storage.repository.KindRepository;
 import net.serlith.sakurabans.core.storage.repository.MetaRepository;
 import net.serlith.sakurabans.core.storage.repository.NewPunishment;
+import net.serlith.sakurabans.core.storage.repository.PunishmentMapper;
+import net.serlith.sakurabans.core.storage.repository.PunishmentRepository;
+import net.serlith.sakurabans.core.storage.repository.TemplateRepository;
 import org.assertj.core.api.Assertions;
 import org.jooq.impl.DSL;
 import org.junit.jupiter.api.Test;
@@ -44,13 +46,11 @@ class SelfImportTest extends ImportTest {
         return this.now.get().minus(duration);
     }
 
-    private NewPunishment punishment(final PunishmentType type, final String kind,
-            final Scope scope, final String externalId) {
-        return new NewPunishment(type, kind, false, null, PlayerVictim.of(STEVE), scope,
+    private NewPunishment punishment(final PunishmentType type, final Scope scope,
+            final String externalId) {
+        return new NewPunishment(type, false, PlayerVictim.of(STEVE), scope,
                 "reason " + externalId, MODERATOR, this.ago(Duration.ofDays(2)), null, null,
-                Visibility.NORMAL, null, null,
-                List.of(EvidenceRef.of("https://example.com/" + externalId)),
-                "old:" + externalId);
+                Visibility.NORMAL, null, null, List.of(), "old:" + externalId);
     }
 
     /** Sets up the other database in its own H2 file and points {@code self} at it. */
@@ -62,18 +62,20 @@ class SelfImportTest extends ImportTest {
                 this.executors, this.log.logger());
         source.start();
         try {
-            new KindRepository(source).seed(BuiltInKinds.all(), this.ago(Duration.ofDays(9)))
-                    .join();
-            new KindRepository(source).create(KindDefinition.builder("hacking-ban",
-                    PunishmentType.BAN).build(), CONSOLE, this.ago(Duration.ofDays(8))).join();
+            new TemplateRepository(source, AltPolicy.NONE).create(TemplateDefinition.builder(
+                            "lifesteal", PunishmentType.BAN)
+                    .ip(true)
+                    .scope(CategoryScope.of("lifesteal"))
+                    .reason("Out of hearts")
+                    .build(), CONSOLE, this.ago(Duration.ofDays(8))).join();
             new ImportRepository(source).write(List.of(
                             ImportedPlayer.named(STEVE, "Steve", this.ago(Duration.ofDays(5))),
                             ImportedPlayer.at(STEVE, this.home, this.ago(Duration.ofDays(5)))),
-                    List.of(new ImportRow(this.punishment(PunishmentType.BAN, "ban",
+                    List.of(new ImportRow(this.punishment(PunishmentType.BAN,
                                     GlobalScope.INSTANCE, "1"), null, null, null, null),
-                            new ImportRow(this.punishment(PunishmentType.BAN, "hacking-ban",
+                            new ImportRow(this.punishment(PunishmentType.BAN,
                                     ServerScope.of("survival"), "2"), null, null, null, null),
-                            new ImportRow(this.punishment(PunishmentType.MUTE, "mute",
+                            new ImportRow(this.punishment(PunishmentType.MUTE,
                                     GlobalScope.INSTANCE, "3"), EndKind.REVOKED,
                                     this.ago(Duration.ofDays(1)), PlayerOperator.of(MOD, "Mod"),
                                     "appeal")),
@@ -85,15 +87,18 @@ class SelfImportTest extends ImportTest {
             source.write(configuration -> {
                 final long first = configuration.dsl().select(DSL.min(SakuraTables.PUNISHMENTS.ID))
                         .from(SakuraTables.PUNISHMENTS).fetchSingle().value1();
-                configuration.dsl().deleteFrom(SakuraTables.PUNISHMENT_EVIDENCE)
-                        .where(SakuraTables.PUNISHMENT_EVIDENCE.PUNISHMENT_ID.eq(first))
-                        .execute();
                 configuration.dsl().deleteFrom(SakuraTables.ACTIVE_PUNISHMENTS)
                         .where(SakuraTables.ACTIVE_PUNISHMENTS.PUNISHMENT_ID.eq(first))
                         .execute();
                 return configuration.dsl().deleteFrom(SakuraTables.PUNISHMENTS)
                         .where(SakuraTables.PUNISHMENTS.ID.eq(first)).execute();
             }).join();
+            final PunishmentRepository punishments =
+                    new PunishmentRepository(source, new PunishmentMapper(Long::toString));
+            for (final long id : List.of(2L, 3L)) {
+                punishments.evidence(id, EvidenceRef.of("https://example.com/" + id), true,
+                        CONSOLE, this.ago(Duration.ofDays(1))).join();
+            }
             fill.accept(source);
         } finally {
             source.stop();
@@ -112,19 +117,24 @@ class SelfImportTest extends ImportTest {
     void everyTableIsCopiedWithItsIdsAndNewRowsComeAfterThem() throws Exception {
         this.source(source -> { });
 
-        final SakuraImportReport report = this.importFrom("self");
+        final ImportReport report = this.importFrom("self");
 
         Assertions.assertThat(report.imported()).isEqualTo(2);
         Assertions.assertThat(report.players()).isEqualTo(1);
         Assertions.assertThat(report.tables()).containsEntry("punishments", 2L)
-                .containsEntry("allowed_players", 1L).containsEntry("kinds", 9L);
+                .containsEntry("allowed_players", 1L).containsEntry("templates", 1L);
         Assertions.assertThat(this.punishmentIds()).containsExactly(2L, 3L);
         Assertions.assertThat(this.count(SakuraTables.ACTIVE_PUNISHMENTS)).isEqualTo(1);
         Assertions.assertThat(this.count(SakuraTables.PUNISHMENT_EVIDENCE)).isEqualTo(2);
         Assertions.assertThat(this.count(SakuraTables.PLAYER_ADDRESSES)).isEqualTo(1);
         Assertions.assertThat(this.count(SakuraTables.SCOPES,
                 SakuraTables.SCOPES.VALUE.eq("survival"))).isEqualTo(1);
-        Assertions.assertThat(this.kinds.find("hacking-ban")).isPresent();
+        Assertions.assertThat(this.templates.template("lifesteal")).hasValueSatisfying(
+                template -> {
+                    Assertions.assertThat(template.ip()).isTrue();
+                    Assertions.assertThat(template.scope())
+                            .contains(CategoryScope.of("lifesteal"));
+                });
         Assertions.assertThat(this.allowList.isAllowed(ALEX)).isTrue();
         final DisplayIdCodec expected = new DisplayIdCodec(new MetaRepository(this.storage),
                 this.config);
@@ -132,7 +142,7 @@ class SelfImportTest extends ImportTest {
         Assertions.assertThat(this.displayIds.display(2)).isEqualTo(expected.display(2));
 
         new ImportRepository(this.storage).write(List.of(), List.of(new ImportRow(
-                this.punishment(PunishmentType.WARN, "warn", GlobalScope.INSTANCE, "4"), null,
+                this.punishment(PunishmentType.WARN, GlobalScope.INSTANCE, "4"), null,
                 null, null, null)), this.now.get()).join();
         Assertions.assertThat(this.punishmentIds()).containsExactly(2L, 3L, 4L);
 
@@ -146,7 +156,7 @@ class SelfImportTest extends ImportTest {
     void dryRunsCountAndCopyNothing() throws Exception {
         this.source(source -> { });
 
-        final SakuraImportReport report = this.importFrom("self", true);
+        final ImportReport report = this.importFrom("self", true);
 
         Assertions.assertThat(report.dryRun()).isTrue();
         Assertions.assertThat(report.tables()).containsEntry("punishments", 2L);

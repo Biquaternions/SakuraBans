@@ -14,7 +14,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import net.serlith.sakurabans.api.imports.ImportedPunishment;
 import net.serlith.sakurabans.api.model.AddressRangeVictim;
 import net.serlith.sakurabans.api.model.AddressVictim;
 import net.serlith.sakurabans.api.model.CompositeVictim;
@@ -170,27 +169,24 @@ public final class LiteBansSource implements ImportSource {
         final String scopeName = columns.text(row, "server_scope");
         final Scope scope = ImportValues.scope(scopeName)
                 .orElseThrow(() -> new Rejected("not a server name: " + scopeName));
-        final ImportedPunishment.Builder builder = ImportedPunishment.builder(kind.type(),
-                        victim, operator(columns.text(row, "banned_by_uuid"),
-                                columns.text(row, "banned_by_name")), createdAt)
-                .scope(scope)
-                .reason(reader.reason(columns.text(row, "reason")))
-                .visibility(flag(columns.get(row, "silent"))
-                        ? Visibility.SILENT : Visibility.NORMAL)
-                .externalId(context.externalId(kind.table(), id));
         final String origin = columns.text(row, "server_origin");
-        if (origin != null && !origin.isBlank()) {
-            builder.originServer(reader.fit(origin.strip(), Lengths.MAX_IDENTIFIER));
-        }
+        Instant until = null;
+        ImportedPunishment.End ended = null;
         if (!kind.type().instant()) {
             // Sometimes 0, sometimes -1 for permanent.
-            final Optional<Instant> until = ImportValues.millis(columns.number(row, "until"));
-            builder.expiresAt(until.orElse(null));
+            until = ImportValues.millis(columns.number(row, "until")).orElse(null);
             if (!flag(columns.get(row, "active"))) {
-                end(reader, builder, columns, row, createdAt, until.orElse(null));
+                ended = end(reader, columns, row, createdAt, until);
             }
         }
-        reader.punishment(builder.build());
+        reader.punishment(new ImportedPunishment(kind.type(), victim,
+                operator(columns.text(row, "banned_by_uuid"),
+                        columns.text(row, "banned_by_name")), createdAt, until, scope,
+                reader.reason(columns.text(row, "reason")),
+                flag(columns.get(row, "silent")) ? Visibility.SILENT : Visibility.NORMAL, false,
+                origin == null || origin.isBlank() ? null
+                        : reader.fit(origin.strip(), Lengths.MAX_IDENTIFIER),
+                ended, context.externalId(kind.table(), id)));
     }
 
     private static Victim victim(final Columns columns, final Record row) throws Rejected {
@@ -230,7 +226,7 @@ public final class LiteBansSource implements ImportSource {
                 : "an IP ban with neither a UUID nor an address");
     }
 
-    private static void end(final SourceReader reader, final ImportedPunishment.Builder builder,
+    private static ImportedPunishment.End end(final SourceReader reader,
             final Columns columns, final Record row, final Instant createdAt,
             final @Nullable Instant until) {
         final String removerUuid = columns.text(row, "removed_by_uuid");
@@ -241,18 +237,16 @@ public final class LiteBansSource implements ImportSource {
         final boolean known = present(removerUuid) || present(removerName);
         if (until != null && (expired || !known && (removedAt == null
                 || !removedAt.isBefore(until)))) {
-            builder.ended(EndKind.EXPIRED, until.isBefore(createdAt) ? createdAt : until, null,
-                    null);
-            return;
+            return new ImportedPunishment.End(EndKind.EXPIRED,
+                    until.isBefore(createdAt) ? createdAt : until, null, null);
         }
         final Instant at = removedAt == null ? createdAt : removedAt;
         if (expired) {
             // A permanent punishment LiteBans still marked as run out.
-            builder.ended(EndKind.EXPIRED, at, null, null);
-            return;
+            return new ImportedPunishment.End(EndKind.EXPIRED, at, null, null);
         }
         final String reason = columns.text(row, "removed_by_reason");
-        builder.ended(EndKind.REVOKED, at,
+        return new ImportedPunishment.End(EndKind.REVOKED, at,
                 known ? operator(removerUuid, removerName) : null,
                 reason == null || reason.isBlank() ? null : reader.reason(reason));
     }

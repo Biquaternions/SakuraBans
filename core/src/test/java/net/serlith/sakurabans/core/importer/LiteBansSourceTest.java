@@ -7,7 +7,6 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import net.serlith.sakurabans.api.imports.ImportReport;
 import net.serlith.sakurabans.api.model.AddressRangeVictim;
 import net.serlith.sakurabans.api.model.AddressRecord;
 import net.serlith.sakurabans.api.model.AddressVictim;
@@ -24,7 +23,6 @@ import net.serlith.sakurabans.api.model.PunishmentEnd;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.api.model.Visibility;
-import net.serlith.sakurabans.core.model.SakuraImportReport;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -80,11 +78,11 @@ class LiteBansSourceTest extends ImportTest {
     void importsEveryPunishmentOnce() throws Exception {
         this.fill();
 
-        final SakuraImportReport first = this.importFrom("litebans");
+        final ImportReport first = this.importFrom("litebans");
 
         Assertions.assertThat(first.imported()).isEqualTo(16);
         Assertions.assertThat(first.failed()).isEqualTo(4);
-        Assertions.assertThat(first.failures()).extracting(f -> f.externalId().orElseThrow())
+        Assertions.assertThat(first.failures()).extracting(ImportReport.Failure::externalId)
                 .containsExactlyInAnyOrder("litebans:history:8", "litebans:bans:5",
                         "litebans:bans:10", "litebans:bans:11");
         Assertions.assertThat(first.truncated()).isEqualTo(1);
@@ -171,7 +169,7 @@ class LiteBansSourceTest extends ImportTest {
 
         Assertions.assertThat(this.count(SakuraTables.ACTIVE_PUNISHMENTS)).isEqualTo(8);
 
-        final SakuraImportReport second = this.importFrom("litebans");
+        final ImportReport second = this.importFrom("litebans");
         Assertions.assertThat(second.imported()).isZero();
         Assertions.assertThat(second.skipped()).isEqualTo(16);
         Assertions.assertThat(this.count(SakuraTables.PUNISHMENTS)).isEqualTo(16);
@@ -205,7 +203,7 @@ class LiteBansSourceTest extends ImportTest {
     void dryRunsWriteNothing() {
         this.fill();
 
-        final SakuraImportReport dry = this.importFrom("litebans", true);
+        final ImportReport dry = this.importFrom("litebans", true);
 
         Assertions.assertThat(dry.dryRun()).isTrue();
         Assertions.assertThat(dry.imported()).isEqualTo(16);

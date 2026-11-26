@@ -2,6 +2,7 @@ package net.serlith.sakurabans.core.admin;
 
 import java.time.InstantSource;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -9,6 +10,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.SortedSet;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -18,19 +23,15 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
-import net.serlith.sakurabans.api.admin.AdminResult;
-import net.serlith.sakurabans.api.audit.SubjectType;
-import net.serlith.sakurabans.api.auth.Action;
-import net.serlith.sakurabans.api.event.ChangeType;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.validation.FieldError;
-import net.serlith.sakurabans.core.event.SakuraEventBus;
-import net.serlith.sakurabans.core.event.SakuraOverridesChangedEvents;
 import net.serlith.sakurabans.core.message.MessageKey;
 import net.serlith.sakurabans.core.message.MessageService;
+import net.serlith.sakurabans.core.model.AdminResult;
 import net.serlith.sakurabans.core.model.ApiValues;
-import net.serlith.sakurabans.core.model.SakuraAdminResult;
-import net.serlith.sakurabans.core.punish.ActionCheck;
+import net.serlith.sakurabans.core.model.SubjectType;
+import net.serlith.sakurabans.core.permission.Action;
+import net.serlith.sakurabans.core.permission.AuthorizationService;
 import net.serlith.sakurabans.core.storage.repository.OverrideRepository;
 import net.serlith.sakurabans.core.sync.SyncPacket;
 import net.serlith.sakurabans.core.sync.SyncService;
@@ -43,21 +44,19 @@ public final class SakuraMessageTemplateService {
 
     private final MessageService messages;
     private final OverrideRepository repository;
-    private final ActionCheck actions;
+    private final AuthorizationService authorization;
     private final SyncService sync;
-    private final SakuraEventBus events;
     private final InstantSource clock;
     private final AtomicLong version = new AtomicLong(1);
     private final AtomicReference<@Nullable List<MessageField>> schema = new AtomicReference<>();
 
     public SakuraMessageTemplateService(final MessageService messages,
-            final OverrideRepository repository, final ActionCheck actions,
-            final SyncService sync, final SakuraEventBus events, final InstantSource clock) {
+            final OverrideRepository repository, final AuthorizationService authorization,
+            final SyncService sync, final InstantSource clock) {
         this.messages = messages;
         this.repository = repository;
-        this.actions = actions;
+        this.authorization = authorization;
         this.sync = sync;
-        this.events = events;
         this.clock = clock;
     }
 
@@ -66,15 +65,6 @@ public final class SakuraMessageTemplateService {
             this.version.set(stored.version());
             this.messages.overrides(stored.texts());
         });
-    }
-
-    public CompletableFuture<Void> changed(final SyncPacket.EntityChangedPacket packet) {
-        final String id = packet.id();
-        final Locale locale = Locale.forLanguageTag(id.contains(":")
-                ? id.substring(0, id.indexOf(':')) : id);
-        return this.reload().thenRun(() -> this.events.post(new SakuraOverridesChangedEvents
-                .Messages(packet.change(), id, packet.version(), packet.actor(), locale,
-                        true)));
     }
 
     public List<MessageField> schema() {
@@ -104,6 +94,17 @@ public final class SakuraMessageTemplateService {
             }
         }
         return List.copyOf(names);
+    }
+
+    public SortedMap<Locale, SortedSet<String>> overrides() {
+        final SortedMap<Locale, SortedSet<String>> overrides =
+                new TreeMap<>(Comparator.comparing(Locale::toLanguageTag));
+        this.messages.overrides().forEach((locale, texts) -> {
+            if (!texts.isEmpty()) {
+                overrides.put(locale, new TreeSet<>(texts.keySet()));
+            }
+        });
+        return overrides;
     }
 
     public MessageSnapshot messages(final Locale locale) {
@@ -176,32 +177,27 @@ public final class SakuraMessageTemplateService {
         } catch (final RuntimeException e) {
             return CompletableFuture.failedFuture(e);
         }
-        return this.actions.check(checked, Action.Manage.of(Action.Manage.Area.MESSAGES))
+        return this.authorization.check(checked, new Action.Manage(Action.Manage.Area.MESSAGES))
                 .thenCompose(decision -> {
                     if (!decision.allowed()) {
                         return CompletableFuture.completedFuture(
-                                new SakuraAdminResult.Forbidden<>(decision));
+                                new AdminResult.Forbidden<>());
                     }
                     if (!errors.isEmpty()) {
                         return CompletableFuture.completedFuture(
-                                new SakuraAdminResult.ValidationFailed<>(errors));
+                                new AdminResult.ValidationFailed<>(errors));
                     }
                     return this.repository.changeMessages(locale, changes, expectedVersion,
                             checked, this.clock.instant()).thenCompose(written -> {
                                 if (written.conflict()) {
                                     return CompletableFuture.completedFuture(
-                                            new SakuraAdminResult.Conflict<>(
+                                            new AdminResult.Conflict<>(
                                                     written.version()));
                                 }
                                 return this.reload().thenApply(ignored -> {
-                                    final String id = locale.toLanguageTag();
                                     this.sync.publish(new SyncPacket.EntityChangedPacket(
-                                            SubjectType.MESSAGE, id, ChangeType.UPDATED,
-                                            written.version(), checked));
-                                    this.events.post(new SakuraOverridesChangedEvents.Messages(
-                                            ChangeType.UPDATED, id, written.version(), checked,
-                                            locale, false));
-                                    return new SakuraAdminResult.Ok<>(this.messages(locale));
+                                            SubjectType.MESSAGE));
+                                    return new AdminResult.Ok<>(this.messages(locale));
                                 });
                             });
                 });

@@ -159,6 +159,18 @@ public final class ConfigService {
         }
     }
 
+    /** The value config.yml gives a key, or its default: what applies without an override. */
+    public Optional<Object> fileValue(final String key) {
+        final ConfigurationNode node = this.fileNode.get();
+        if (node != null) {
+            final ConfigurationNode child = node.node(path(key));
+            if (!child.virtual()) {
+                return Optional.ofNullable(plain(child));
+            }
+        }
+        return this.defaultValue(key);
+    }
+
     public boolean inFile(final String key) {
         final ConfigurationNode node = this.fileNode.get();
         return node != null && !node.node(path(key)).virtual();
@@ -196,9 +208,6 @@ public final class ConfigService {
         final Settings.Commands after = loaded.settings().commands();
         if (!before.labels().equals(after.labels())) {
             restartRequired.add("commands.labels");
-        }
-        if (!before.kinds().equals(after.kinds())) {
-            restartRequired.add("commands.kinds");
         }
         this.settings.set(loaded.settings());
         this.limits.set(loaded.limits());

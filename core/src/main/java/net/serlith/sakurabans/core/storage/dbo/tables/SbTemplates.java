@@ -10,6 +10,7 @@ import net.serlith.sakurabans.core.storage.dbo.SbTable;
 import net.serlith.sakurabans.core.storage.dbo.SbTypes;
 import net.serlith.sakurabans.core.storage.dbo.records.SbTemplatesRecord;
 import org.jooq.Constraint;
+import org.jooq.ForeignKey;
 import org.jooq.Name;
 import org.jooq.Table;
 import org.jooq.TableField;
@@ -30,17 +31,20 @@ public final class SbTemplates extends SbTable<SbTemplatesRecord> {
     public final TableField<SbTemplatesRecord, String> NAME = createField(
             DSL.name("name"), SQLDataType.VARCHAR(64).nullable(false), this, "");
 
-    public final TableField<SbTemplatesRecord, String> KIND = createField(
-            DSL.name("kind"), SQLDataType.VARCHAR(64).nullable(false), this, "");
-
     public final TableField<SbTemplatesRecord, PunishmentType> TYPE = createField(
             DSL.name("type"), SbTypes.PUNISHMENT_TYPE.nullable(false), this, "");
 
+    public final TableField<SbTemplatesRecord, Boolean> IP = createField(
+            DSL.name("ip"), SbTypes.FLAG.nullable(false), this, "");
+
+    public final TableField<SbTemplatesRecord, Boolean> SHADOW = createField(
+            DSL.name("shadow"), SbTypes.FLAG.nullable(false), this, "");
+
+    public final TableField<SbTemplatesRecord, Integer> SCOPE_ID = createField(
+            DSL.name("scope_id"), SQLDataType.INTEGER.nullable(true), this, "");
+
     public final TableField<SbTemplatesRecord, String> REASON = createField(
             DSL.name("reason"), SQLDataType.VARCHAR(1024).nullable(false), this, "");
-
-    public final TableField<SbTemplatesRecord, String> REQUIRED_EVIDENCE = createField(
-            DSL.name("required_evidence"), SQLDataType.VARCHAR(1024).nullable(false), this, "");
 
     public final TableField<SbTemplatesRecord, Duration> LADDER_EXPIRY_MS = createField(
             DSL.name("ladder_expiry_ms"), SbTypes.DURATION.nullable(true), this, "");
@@ -85,6 +89,12 @@ public final class SbTemplates extends SbTable<SbTemplatesRecord> {
     @Override
     public List<UniqueKey<SbTemplatesRecord>> getUniqueKeys() {
         return List.of(Keys.TEMPLATES_NAME_UQ);
+    }
+
+    @Override
+    public List<ForeignKey<SbTemplatesRecord, ?>> getReferences() {
+        return List.of(
+                Keys.TEMPLATES_SCOPE_FK);
     }
 
     @Override

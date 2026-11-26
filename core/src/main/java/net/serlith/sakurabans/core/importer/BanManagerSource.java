@@ -13,15 +13,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import net.serlith.sakurabans.api.imports.ImportedPunishment;
 import net.serlith.sakurabans.api.model.AddressVictim;
 import net.serlith.sakurabans.api.model.EndKind;
+import net.serlith.sakurabans.api.model.GlobalScope;
 import net.serlith.sakurabans.api.model.Operator;
 import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.api.model.Visibility;
-import net.serlith.sakurabans.api.validation.ValidationException;
 import net.serlith.sakurabans.core.configuration.settings.ImportSettings;
 import net.serlith.sakurabans.core.model.ImportedPlayer;
 import org.jooq.Cursor;
@@ -42,8 +41,6 @@ import org.jspecify.annotations.Nullable;
  * bans ({@code ip_range_bans}), notes, reports, rollbacks and {@code player_history}.
  */
 public final class BanManagerSource implements ImportSource {
-
-    private static final String SHADOW_MUTE = "shadow-mute";
 
     private enum Spec {
         PLAYER_BANS("player_bans", PunishmentType.BAN, false, true),
@@ -276,38 +273,28 @@ public final class BanManagerSource implements ImportSource {
                 row.get(spec.active ? ACTOR_NAME : PAST_ACTOR_NAME), console);
         final Instant expires = spec.type == PunishmentType.KICK ? null
                 : ImportValues.seconds(row.get(spec.active ? EXPIRES : EXPIRED)).orElse(null);
-        final ImportedPunishment.Builder builder = ImportedPunishment.builder(spec.type, victim,
-                        operator, created)
-                .expiresAt(expires)
-                .reason(reader.reason(row.get(REASON)))
-                .visibility(silent && row.get(SILENT) != null && row.get(SILENT) != 0
-                        ? Visibility.SILENT : Visibility.NORMAL)
-                .externalId(context.externalId(spec.table, id));
-        if (soft && row.get(SOFT) != null && row.get(SOFT) != 0) {
-            builder.kind(SHADOW_MUTE);
-        }
-        if (!spec.active) {
-            this.ended(reader, builder, row, expires, created, console);
-        }
-        try {
-            reader.punishment(builder.build());
-        } catch (final ValidationException e) {
-            reader.failure(spec.table, id, e.getMessage());
-        }
+        reader.punishment(new ImportedPunishment(spec.type, victim, operator, created, expires,
+                GlobalScope.INSTANCE, reader.reason(row.get(REASON)),
+                silent && row.get(SILENT) != null && row.get(SILENT) != 0
+                        ? Visibility.SILENT : Visibility.NORMAL,
+                soft && spec.type == PunishmentType.MUTE && row.get(SOFT) != null
+                        && row.get(SOFT) != 0,
+                null, spec.active ? null : this.ended(reader, row, expires, created, console),
+                context.externalId(spec.table, id)));
     }
 
     // A record is a punishment that ended: expired when it was archived at or after its expiry
     // (BanManager's own sweep), otherwise removed by the actor of the record.
-    private void ended(final SourceReader reader, final ImportedPunishment.Builder builder,
-            final Record row, final @Nullable Instant expires, final Instant created,
+    private ImportedPunishment.End ended(final SourceReader reader, final Record row,
+            final @Nullable Instant expires, final Instant created,
             final @Nullable UUID console) {
         final Instant removed = ImportValues.seconds(row.get(CREATED)).orElse(created);
         if (expires != null && !removed.isBefore(expires)) {
-            builder.ended(EndKind.EXPIRED, expires, null, null);
-            return;
+            return new ImportedPunishment.End(EndKind.EXPIRED, expires, null, null);
         }
         final String why = row.get(CREATED_REASON);
-        builder.ended(EndKind.REVOKED, removed.isBefore(created) ? created : removed,
+        return new ImportedPunishment.End(EndKind.REVOKED,
+                removed.isBefore(created) ? created : removed,
                 this.operator(row.get(ACTOR_ID), row.get(ACTOR_NAME), console),
                 why == null || why.isBlank() ? null : reader.reason(why));
     }

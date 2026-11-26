@@ -191,7 +191,6 @@ public final class WebhookService {
         values.put("expires", this.formats.expiry(punishment, locale));
         values.put("type", this.messages.renderPlain(Placeholders.typeKey(punishment.type()),
                 locale));
-        values.put("kind", punishment.kind());
         values.put("scope", this.scopes.format(punishment.scope()));
         values.put("server", punishment.originServer().orElse(""));
         values.put("revoker", punishment.end().flatMap(end -> end.actor())

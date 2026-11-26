@@ -46,11 +46,14 @@ class BrigadierSuggestionsTest extends CommandTest {
                         .createNode(name, command, context -> 1));
             }
         }
-        this.templates.create(TemplateDefinition.builder("hacking", "ban").reason("Hacking")
+        this.templates.create(TemplateDefinition.builder("hacking", PunishmentType.BAN)
+                .reason("Hacking")
                 .build(), CONSOLE).join();
-        this.templates.create(TemplateDefinition.builder("secret", "ban").reason("Secret")
+        this.templates.create(TemplateDefinition.builder("secret", PunishmentType.BAN)
+                .reason("Secret")
                 .permissionRequired(true).build(), CONSOLE).join();
-        this.templates.create(TemplateDefinition.builder("spam", "mute").reason("Spam")
+        this.templates.create(TemplateDefinition.builder("spam", PunishmentType.MUTE)
+                .reason("Spam")
                 .build(), CONSOLE).join();
     }
 

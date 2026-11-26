@@ -9,7 +9,6 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.UUID;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.AddressStrictness;
@@ -58,7 +57,7 @@ class LoginQueryPlanIT extends DatabaseTest {
                 PunishmentRepository.activeApplicableQuery(dsl, PunishmentType.BAN,
                         Applicability.of(player, address, AddressStrictness.NORMAL),
                         List.of(GlobalScope.INSTANCE, ServerScope.of("lobby")),
-                        this.now.get(), AltPolicy.NONE, Set.of(AddressStrictness.STRICT))));
+                        this.now.get(), AltPolicy.NONE)));
         final List<String> plan = this.read(dsl -> dsl.connectionResult(connection ->
                 this.container == ContainerDatabase.POSTGRESQL
                         ? postgresPlan(connection, sql)
@@ -83,7 +82,7 @@ class LoginQueryPlanIT extends DatabaseTest {
                     .join();
             final Victim victim = i % 3 == 0 ? AddressVictim.of(address(i % 50))
                     : PlayerVictim.of(uuid);
-            punishments.insert(new NewPunishment(PunishmentType.BAN, "ban", false, null,
+            punishments.insert(new NewPunishment(PunishmentType.BAN, false,
                     victim, i % 2 == 0 ? GlobalScope.INSTANCE : ServerScope.of("lobby"), "",
                     console, this.now.get(), null, null, Visibility.NORMAL, null, null,
                     List.of(), null), OverridePolicy.REPLACE).join();

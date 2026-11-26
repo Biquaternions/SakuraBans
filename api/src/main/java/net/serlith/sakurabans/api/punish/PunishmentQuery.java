@@ -8,7 +8,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.Operator;
 import net.serlith.sakurabans.api.model.Page;
@@ -40,13 +39,6 @@ public interface PunishmentQuery {
      * @return the types, never empty; all types by default
      */
     Set<PunishmentType> types();
-
-    /**
-     * Only punishments of these kinds.
-     *
-     * @return the kind ids, lower case; empty for every kind
-     */
-    Set<String> kinds();
 
     /**
      * Only punishments of exactly this victim.
@@ -158,7 +150,6 @@ public interface PunishmentQuery {
                 .types(this.types())
                 .victim(this.victim().orElse(null))
                 .applicableTo(this.applicableTo().orElse(null))
-                .kinds(this.kinds())
                 .operator(this.operator().orElse(null))
                 .revokedBy(this.revokedBy().orElse(null))
                 .scope(this.scope().orElse(null))
@@ -258,7 +249,6 @@ public interface PunishmentQuery {
     final class Builder {
 
         private Set<PunishmentType> types = EnumSet.allOf(PunishmentType.class);
-        private Set<String> kinds = Set.of();
         private @Nullable Victim victim;
         private @Nullable Applicability applicableTo;
         private @Nullable Operator operator;
@@ -297,17 +287,6 @@ public interface PunishmentQuery {
          */
         public Builder types(final PunishmentType first, final PunishmentType... more) {
             return this.types(EnumSet.of(first, more));
-        }
-
-        /**
-         * Restricts to some kinds.
-         *
-         * @param kinds the kind ids, or an empty set for every kind
-         * @return this builder
-         */
-        public Builder kinds(final Set<String> kinds) {
-            this.kinds = Set.copyOf(kinds);
-            return this;
         }
 
         /**
@@ -470,16 +449,14 @@ public interface PunishmentQuery {
         /**
          * Checks the values without building.
          *
-         * @return every problem: no {@code types}, a {@code kinds} entry that isn't an
-         *         identifier, both {@code victim} and {@code applicableTo}, creation bounds in the
-         *         wrong order, {@code page} or {@code pageSize} out of range, or a page number
-         *         with a cursor
+         * @return every problem: no {@code types}, both {@code victim} and
+         *         {@code applicableTo}, creation bounds in the wrong order, {@code page} or
+         *         {@code pageSize} out of range, or a page number with a cursor
          */
         public List<FieldError> validate() {
             final Validator errors = Validator.create();
             errors.check(!this.types.isEmpty(), "types", Code.OUT_OF_RANGE,
                     "select at least one type");
-            this.kinds.forEach(kind -> errors.identifier("kinds", kind));
             errors.check(this.victim == null || this.applicableTo == null, "applicableTo",
                     Code.EXCLUSIVE, "choose either a victim or an applicability, not both");
             errors.check(this.createdAfter == null || this.createdBefore == null
@@ -503,7 +480,7 @@ public interface PunishmentQuery {
          * @throws ValidationException with every problem {@link #validate()} reports
          */
         public PunishmentQuery build() {
-            record Impl(Set<PunishmentType> types, Set<String> kinds, Optional<Victim> victim,
+            record Impl(Set<PunishmentType> types, Optional<Victim> victim,
                     Optional<Applicability> applicableTo, Optional<Operator> operator,
                     Optional<Operator> revokedBy, Optional<Scope> scope, boolean activeOnly,
                     boolean includeHidden, boolean includeVoided, Optional<Instant> createdAfter,
@@ -512,10 +489,7 @@ public interface PunishmentQuery {
             }
 
             ValidationException.throwIfAny(this.validate());
-            final Set<String> kinds = this.kinds.stream()
-                    .map(name -> Validator.normalizeIdentifier(name).orElseThrow())
-                    .collect(Collectors.toUnmodifiableSet());
-            return new Impl(Set.copyOf(this.types), kinds,
+            return new Impl(Set.copyOf(this.types),
                     Optional.ofNullable(this.victim), Optional.ofNullable(this.applicableTo),
                     Optional.ofNullable(this.operator), Optional.ofNullable(this.revokedBy),
                     Optional.ofNullable(this.scope), this.activeOnly, this.includeHidden,

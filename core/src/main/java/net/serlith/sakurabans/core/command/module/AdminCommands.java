@@ -9,6 +9,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.serlith.sakurabans.api.model.AddressVictim;
 import net.serlith.sakurabans.api.model.CategoryScope;
@@ -25,6 +26,9 @@ import net.serlith.sakurabans.api.punish.ExpungeResult;
 import net.serlith.sakurabans.api.punish.PunishmentQuery;
 import net.serlith.sakurabans.api.punish.RollbackRequest;
 import net.serlith.sakurabans.api.punish.RollbackResult;
+import net.serlith.sakurabans.core.admin.OverrideCount;
+import net.serlith.sakurabans.core.admin.SakuraMessageTemplateService;
+import net.serlith.sakurabans.core.admin.SakuraSettingsService;
 import net.serlith.sakurabans.core.command.CommandActor;
 import net.serlith.sakurabans.core.command.CommandModule;
 import net.serlith.sakurabans.core.command.CommandRegistrar;
@@ -82,8 +86,11 @@ public final class AdminCommands implements CommandModule {
     private final MessageService messages;
     private final Platform platform;
     private final ConfirmationTracker confirmations;
+    private final SakuraSettingsService settingsService;
+    private final SakuraMessageTemplateService messageTemplates;
     private final Executor worker;
     private final InstantSource clock;
+    private final ComponentLogger logger;
 
     public AdminCommands(final CommandRegistrar registrar, final CommandRunner runner,
             final Replies replies, final Placeholders placeholders, final Formats formats,
@@ -92,8 +99,9 @@ public final class AdminCommands implements CommandModule {
             final PunishmentRepository repository, final LockdownService lockdowns,
             final SakuraScopeService scopes, final ConfigService config,
             final MessageService messages, final Platform platform,
-            final ConfirmationTracker confirmations,
-            final Executor worker, final InstantSource clock) {
+            final ConfirmationTracker confirmations, final SakuraSettingsService settingsService,
+            final SakuraMessageTemplateService messageTemplates, final Executor worker,
+            final InstantSource clock, final ComponentLogger logger) {
         this.registrar = registrar;
         this.runner = runner;
         this.replies = replies;
@@ -110,8 +118,11 @@ public final class AdminCommands implements CommandModule {
         this.messages = messages;
         this.platform = platform;
         this.confirmations = confirmations;
+        this.settingsService = settingsService;
+        this.messageTemplates = messageTemplates;
         this.worker = worker;
         this.clock = clock;
+        this.logger = logger;
     }
 
     @Override
@@ -365,6 +376,16 @@ public final class AdminCommands implements CommandModule {
                 if (!reloaded.restartRequired().isEmpty()) {
                     this.runner.send(actor, MessageKey.RELOAD_RESTART, Placeholder.unparsed(
                             "files", String.join(", ", reloaded.restartRequired())));
+                }
+                final OverrideCount overrides =
+                        OverrideCount.of(this.settingsService, this.messageTemplates);
+                overrides.log(this.logger);
+                if (overrides.any()) {
+                    this.runner.send(actor, MessageKey.RELOAD_OVERRIDES,
+                            Placeholder.unparsed("settings",
+                                    Integer.toString(overrides.settings().size())),
+                            Placeholder.unparsed("messages",
+                                    Integer.toString(overrides.messageCount())));
                 }
             }
             case ReloadResult.Failed failed -> {

@@ -66,7 +66,8 @@ class LoginGateTest extends ServiceTest {
     void bannedPlayersAreDeniedWithTheScreenAndStaffAreTold() {
         final FakeOnlinePlayer staff = this.platform.join(MOD, "Mod",
                 InetAddresses.parseLiteral("198.51.100.1").orElseThrow())
-                .grant(Permissions.NOTIFY_ATTEMPT_JOIN);
+                .grant(Permissions.NOTIFY_ATTEMPT_JOIN)
+                .grant(staffPermissions());
         final Punishment ban = this.ban(PlayerVictim.of(STEVE));
         final int before = staff.messages().size();
 

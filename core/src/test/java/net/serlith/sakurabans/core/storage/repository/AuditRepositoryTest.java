@@ -1,18 +1,14 @@
 package net.serlith.sakurabans.core.storage.repository;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
-import net.serlith.sakurabans.api.audit.AuditAction;
-import net.serlith.sakurabans.api.audit.AuditEntry;
-import net.serlith.sakurabans.api.audit.AuditQuery;
-import net.serlith.sakurabans.api.audit.SubjectType;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
-import net.serlith.sakurabans.api.model.Page;
 import net.serlith.sakurabans.api.model.PlayerOperator;
+import net.serlith.sakurabans.core.model.AuditAction;
+import net.serlith.sakurabans.core.model.AuditEntry;
+import net.serlith.sakurabans.core.model.SubjectType;
 import net.serlith.sakurabans.core.storage.DatabaseTest;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,64 +37,30 @@ class AuditRepositoryTest extends DatabaseTest {
     @Test
     void entriesRoundTripNewestFirst() {
         final long first = this.append(MODERATOR, AuditAction.EDIT_REASON, "1");
-        final long second = this.append(CONSOLE, AuditAction.VOID, "2");
+        final long second = this.append(CONSOLE, AuditAction.VOID, "1");
 
-        final Page<AuditEntry> page = this.audit.query(AuditQuery.builder().build()).join();
+        final List<AuditEntry> entries = this.audit.about(SubjectType.PUNISHMENT, "1", 10)
+                .join();
 
-        Assertions.assertThat(page.items()).extracting(AuditEntry::id).containsExactly(second,
-                first);
-        final AuditEntry entry = page.items().getLast();
+        Assertions.assertThat(entries).extracting(AuditEntry::id).containsExactly(second, first);
+        final AuditEntry entry = entries.getLast();
         Assertions.assertThat(entry.actor()).isEqualTo(MODERATOR);
         Assertions.assertThat(entry.action()).isEqualTo(AuditAction.EDIT_REASON);
         Assertions.assertThat(entry.subjectId()).isEqualTo("1");
-        Assertions.assertThat(entry.oldValue()).contains("old");
-        Assertions.assertThat(entry.newValue()).contains("new");
-        Assertions.assertThat(page.total()).isEqualTo(2);
+        Assertions.assertThat(entry.oldValue()).isEqualTo("old");
+        Assertions.assertThat(entry.newValue()).isEqualTo("new");
     }
 
     @Test
-    void queriesFilter() {
-        final long edit = this.append(MODERATOR, AuditAction.EDIT_REASON, "1");
-        final long voided = this.append(CONSOLE, AuditAction.VOID, "1");
-        final long other = this.append(MODERATOR, AuditAction.VOID, "2");
+    void onlyTheSubjectsNewestEntriesAreRead() {
+        final long older = this.append(MODERATOR, AuditAction.EDIT_REASON, "1");
+        final long newer = this.append(CONSOLE, AuditAction.VOID, "1");
+        this.append(MODERATOR, AuditAction.VOID, "2");
 
-        Assertions.assertThat(this.ids(AuditQuery.builder().subject(SubjectType.PUNISHMENT, "1")))
-                .containsExactly(voided, edit);
-        Assertions.assertThat(this.ids(AuditQuery.builder().actor(PlayerOperator.of(MOD,
-                "Renamed"))))
-                .containsExactly(other, edit);
-        Assertions.assertThat(this.ids(AuditQuery.builder().source("console")))
-                .containsExactly(voided);
-        Assertions.assertThat(this.ids(AuditQuery.builder().actions(Set.of(AuditAction.VOID))))
-                .containsExactly(other, voided);
-        Assertions.assertThat(this.ids(AuditQuery.builder().subject(SubjectType.TEMPLATE, null)))
-                .isEmpty();
-    }
-
-    @Test
-    void pagesByCursor() {
-        final List<Long> appended = new ArrayList<>();
-        for (int i = 0; i < 5; i++) {
-            appended.add(this.append(CONSOLE, AuditAction.UPDATE, String.valueOf(i)));
-        }
-
-        final List<Long> walked = new ArrayList<>();
-        final List<Integer> pages = new ArrayList<>();
-        String cursor = null;
-        do {
-            final Page<AuditEntry> page = this.audit.query(AuditQuery.builder().pageSize(2)
-                    .after(cursor).build()).join();
-            page.items().forEach(entry -> walked.add(entry.id()));
-            pages.add(page.page());
-            cursor = page.nextCursor().orElse(null);
-        } while (cursor != null);
-
-        Assertions.assertThat(walked).containsExactlyElementsOf(appended.reversed());
-        Assertions.assertThat(pages).containsExactly(1, 2, 3);
-    }
-
-    private List<Long> ids(final AuditQuery.Builder query) {
-        return this.audit.query(query.build()).join().items().stream().map(AuditEntry::id)
-                .toList();
+        Assertions.assertThat(this.audit.about(SubjectType.PUNISHMENT, "1", 10).join())
+                .extracting(AuditEntry::id).containsExactly(newer, older);
+        Assertions.assertThat(this.audit.about(SubjectType.PUNISHMENT, "1", 1).join())
+                .extracting(AuditEntry::id).containsExactly(newer);
+        Assertions.assertThat(this.audit.about(SubjectType.TEMPLATE, "1", 10).join()).isEmpty();
     }
 }

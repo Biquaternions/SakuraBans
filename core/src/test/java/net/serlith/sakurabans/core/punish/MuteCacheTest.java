@@ -65,7 +65,7 @@ class MuteCacheTest extends DatabaseTest {
             final @Nullable Duration duration) {
         final Instant at = this.now.get();
         final InsertOutcome outcome = this.punishments.insert(new NewPunishment(
-                PunishmentType.MUTE, "mute", false, null, victim, scope, "spam", CONSOLE, at,
+                PunishmentType.MUTE, false, victim, scope, "spam", CONSOLE, at,
                 duration == null ? null : at.plus(duration), null, Visibility.NORMAL, null, null,
                 List.of(), null), OverridePolicy.REJECT).join();
         return ((InsertOutcome.Inserted) outcome).punishment();

@@ -8,18 +8,23 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import net.serlith.sakurabans.api.model.PunishmentType;
+import net.serlith.sakurabans.api.model.Scope;
 import net.serlith.sakurabans.api.template.TemplateInfo;
 import net.serlith.sakurabans.api.template.TemplateStep;
 import net.serlith.sakurabans.api.validation.FieldError;
 import net.serlith.sakurabans.api.validation.ValidationException;
 import net.serlith.sakurabans.core.model.TemplateDefinition;
 import net.serlith.sakurabans.core.util.Durations;
+import net.serlith.sakurabans.core.util.Scopes;
 import org.jspecify.annotations.Nullable;
 import org.spongepowered.configurate.ConfigurationNode;
 import org.spongepowered.configurate.serialize.SerializationException;
@@ -31,9 +36,9 @@ public final class TemplateFiles {
     private static final String EXPORTS = "exports";
     private static final DateTimeFormatter STAMP =
             DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(ZoneOffset.UTC);
-    private static final Set<String> KEYS = Set.of("kind", "reason", "ladder", "ladder-expiry",
-            "address-shared", "permission-required", "actions", "step-actions", "groups",
-            "required-evidence");
+    private static final Set<String> KEYS = Set.of("type", "ip", "shadow", "scope", "reason",
+            "ladder", "ladder-expiry", "address-shared", "permission-required", "actions",
+            "step-actions", "groups");
 
     private final Path dataDirectory;
 
@@ -85,7 +90,8 @@ public final class TemplateFiles {
                 errors.add(ConfigIssue.error(FILE, path + "." + key, "unknown key"));
             }
         }
-        final String kind = node.node("kind").getString("");
+        final PunishmentType type = type(node.node("type"), path, errors);
+        final Scope scope = scope(node.node("scope"), path, errors);
         final List<String> actions = strings(node.node("actions"), path + ".actions", errors);
         final Map<Integer, List<String>> stepActions = new TreeMap<>();
         final ConfigurationNode stepActionsNode = node.node("step-actions");
@@ -144,28 +150,58 @@ public final class TemplateFiles {
                         "must be a weight (a number)"));
             }
         });
+        final Boolean ip = flag(node.node("ip"), path, errors);
+        final Boolean shadow = flag(node.node("shadow"), path, errors);
         final Boolean addressShared = flag(node.node("address-shared"), path, errors);
         final Boolean permissionRequired = flag(node.node("permission-required"), path, errors);
-        final List<String> required =
-                strings(node.node("required-evidence"), path + ".required-evidence", errors);
-        if (errors.size() > before) {
+        if (errors.size() > before || type == null) {
             return Optional.empty();
         }
-        final TemplateDefinition.Builder builder = TemplateDefinition.builder(name, kind)
+        final TemplateDefinition.Builder builder = TemplateDefinition.builder(name, type)
+                .ip(Boolean.TRUE.equals(ip))
+                .shadow(Boolean.TRUE.equals(shadow))
+                .scope(scope)
                 .reason(node.node("reason").getString(""))
                 .ladder(ladder)
                 .ladderExpiry(expiry)
                 .addressShared(Boolean.TRUE.equals(addressShared))
                 .permissionRequired(Boolean.TRUE.equals(permissionRequired))
                 .actions(actions)
-                .groups(groups)
-                .requiredEvidence(Set.copyOf(required));
+                .groups(groups);
         final List<FieldError> problems = builder.validate();
         if (!problems.isEmpty()) {
             report(errors, path, problems);
             return Optional.empty();
         }
         return Optional.of(builder.build());
+    }
+
+    private static @Nullable PunishmentType type(final ConfigurationNode node, final String path,
+            final List<ConfigIssue> errors) {
+        final String text = node.getString("").strip();
+        final Optional<PunishmentType> type = Arrays.stream(PunishmentType.values())
+                .filter(value -> value.name().equalsIgnoreCase(text))
+                .findFirst();
+        if (type.isEmpty()) {
+            errors.add(ConfigIssue.error(FILE, path + ".type", text.isEmpty() ? "is required"
+                    : "\"" + text + "\" is not a type (ban, mute, warn or kick)"));
+        }
+        return type.orElse(null);
+    }
+
+    // No "local": a template is shared by every server, so "this server" means nothing.
+    private static @Nullable Scope scope(final ConfigurationNode node, final String path,
+            final List<ConfigIssue> errors) {
+        if (node.virtual()) {
+            return null;
+        }
+        final String text = node.getString("");
+        final Optional<Scope> scope = Scopes.parse(text);
+        if (scope.isEmpty()) {
+            errors.add(ConfigIssue.error(FILE, path + ".scope", "\"" + text
+                    + "\" is not a scope (global, server:<name> or category:<name>)"));
+        }
+        return scope.orElse(null);
     }
 
     private static @Nullable Duration expiry(final ConfigurationNode node, final String path,
@@ -239,7 +275,16 @@ public final class TemplateFiles {
 
     private static void write(final ConfigurationNode node, final TemplateInfo template)
             throws SerializationException {
-        node.node("kind").set(template.kind());
+        node.node("type").set(template.type().name().toLowerCase(Locale.ROOT));
+        if (template.ip()) {
+            node.node("ip").set(true);
+        }
+        if (template.shadow()) {
+            node.node("shadow").set(true);
+        }
+        if (template.scope().isPresent()) {
+            node.node("scope").set(Scopes.format(template.scope().get()));
+        }
         node.node("reason").set(template.reason());
         final List<String> ladder = new ArrayList<>();
         final Map<Integer, List<String>> stepActions = new TreeMap<>();
@@ -268,8 +313,6 @@ public final class TemplateFiles {
                 throw new IllegalStateException(e);
             }
         });
-        node.node("required-evidence").setList(String.class,
-                template.requiredEvidence().stream().sorted().toList());
     }
 
     private static String describe(final Exception e) {

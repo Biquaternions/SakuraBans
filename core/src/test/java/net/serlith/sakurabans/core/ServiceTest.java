@@ -2,6 +2,7 @@ package net.serlith.sakurabans.core;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -15,11 +16,11 @@ import net.serlith.sakurabans.api.event.SakuraEvent;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
 import net.serlith.sakurabans.api.model.PlayerOperator;
+import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.core.admin.SakuraMessageTemplateService;
 import net.serlith.sakurabans.core.admin.SakuraSettingsService;
 import net.serlith.sakurabans.core.alts.AltService;
 import net.serlith.sakurabans.core.alts.SakuraAllowListService;
-import net.serlith.sakurabans.core.auth.SakuraAuthorizationService;
 import net.serlith.sakurabans.core.concurrent.Lifecycle;
 import net.serlith.sakurabans.core.concurrent.LifecycleState;
 import net.serlith.sakurabans.core.configuration.TemplateFiles;
@@ -37,8 +38,6 @@ import net.serlith.sakurabans.core.importer.ImportJobs;
 import net.serlith.sakurabans.core.importer.ImportRunner;
 import net.serlith.sakurabans.core.importer.ImportSources;
 import net.serlith.sakurabans.core.importer.SelfImport;
-import net.serlith.sakurabans.core.integration.SakuraIntegrationRegistry;
-import net.serlith.sakurabans.core.kind.SakuraKindService;
 import net.serlith.sakurabans.core.limit.CooldownTracker;
 import net.serlith.sakurabans.core.limit.LimitService;
 import net.serlith.sakurabans.core.message.Formats;
@@ -46,11 +45,13 @@ import net.serlith.sakurabans.core.message.MessageService;
 import net.serlith.sakurabans.core.message.Placeholders;
 import net.serlith.sakurabans.core.notify.NotificationService;
 import net.serlith.sakurabans.core.notify.Throttle;
+import net.serlith.sakurabans.core.permission.AuthorizationService;
 import net.serlith.sakurabans.core.permission.ExemptionService;
 import net.serlith.sakurabans.core.permission.OfflinePermissions;
 import net.serlith.sakurabans.core.permission.PermissionService;
+import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.player.NameCache;
-import net.serlith.sakurabans.core.punish.ActionCheck;
+import net.serlith.sakurabans.core.player.SakuraIntegrationRegistry;
 import net.serlith.sakurabans.core.punish.ActiveRangeCache;
 import net.serlith.sakurabans.core.punish.ExpirySweeper;
 import net.serlith.sakurabans.core.punish.MuteCache;
@@ -64,7 +65,6 @@ import net.serlith.sakurabans.core.storage.Lease;
 import net.serlith.sakurabans.core.storage.repository.AllowListRepository;
 import net.serlith.sakurabans.core.storage.repository.AuditRepository;
 import net.serlith.sakurabans.core.storage.repository.ImportRepository;
-import net.serlith.sakurabans.core.storage.repository.KindRepository;
 import net.serlith.sakurabans.core.storage.repository.LockdownRepository;
 import net.serlith.sakurabans.core.storage.repository.MetaRepository;
 import net.serlith.sakurabans.core.storage.repository.OverrideRepository;
@@ -95,7 +95,6 @@ public abstract class ServiceTest extends DatabaseTest {
     protected final Lifecycle lifecycle = new Lifecycle();
     protected final List<SakuraEvent> events = new CopyOnWriteArrayList<>();
     protected final List<SyncPacket> published = new CopyOnWriteArrayList<>();
-    protected ActionCheck actionCheck = ActionCheck.ALLOW_ALL;
 
     protected SakuraEventBus bus;
     protected MessageService messages;
@@ -118,10 +117,9 @@ public abstract class ServiceTest extends DatabaseTest {
     protected SakuraAllowListService allowList;
     protected AltService altService;
     protected ActiveRangeCache ranges;
-    protected SakuraKindService kinds;
     protected PermissionService permissions;
     protected ExemptionService exemption;
-    protected SakuraAuthorizationService authorization;
+    protected AuthorizationService authorization;
     /** What LuckPerms would say about offline players; none by default. */
     protected OfflinePermissions offline = OfflinePermissions.NONE;
     protected LimitService limits;
@@ -153,6 +151,22 @@ public abstract class ServiceTest extends DatabaseTest {
         this.platform = platform;
     }
 
+    /**
+     * What the moderator may do: every action authorization checks. {@link #MODERATOR} is online
+     * with these, as staff acting in game are.
+     */
+    protected static String[] staffPermissions() {
+        final List<String> nodes = new ArrayList<>(List.of(Permissions.ADMIN_TEMPLATES,
+                Permissions.ADMIN_SETTINGS, Permissions.ADMIN_MESSAGES, Permissions.ADMIN_GDPR,
+                Permissions.ADMIN_STAFFROLLBACK));
+        for (final PunishmentType type : PunishmentType.values()) {
+            nodes.addAll(List.of(Permissions.punish(type), Permissions.revoke(type),
+                    Permissions.edit(type), Permissions.voidPunishment(type),
+                    Permissions.delete(type)));
+        }
+        return nodes.toArray(String[]::new);
+    }
+
     @BeforeEach
     final void wireServices() throws UnknownHostException {
         this.home = InetAddress.getByName("203.0.113.7");
@@ -172,12 +186,8 @@ public abstract class ServiceTest extends DatabaseTest {
         this.allowList = new SakuraAllowListService(new AllowListRepository(this.storage),
                 this.syncService, this.config, this.clock);
         this.allowList.reload().join();
-        this.kinds = new SakuraKindService(new KindRepository(this.storage),
-                (actor, action) -> this.actionCheck.check(actor, action), this.syncService,
-                this.bus, this.clock);
-        this.kinds.start().join();
         this.punishments = new PunishmentRepository(this.storage,
-                new PunishmentMapper(this.displayIds::display), this.allowList, this.kinds);
+                new PunishmentMapper(this.displayIds::display), this.allowList);
         this.altService = new AltService(this.players, this.punishments, this.allowList,
                 this.clock);
         this.lease = new Lease(this.storage, UUID.randomUUID(), this.clock);
@@ -193,29 +203,29 @@ public abstract class ServiceTest extends DatabaseTest {
         this.notifications.start();
         this.permissions = new PermissionService(this.platform, new DelegatingPermissions(),
                 this.log.logger());
+        this.exemption = new ExemptionService(this.config, this.permissions, this.log.logger());
+        this.authorization = new AuthorizationService(this.permissions, this.exemption,
+                this.punishments, this.config);
         final OverrideRepository overrides = new OverrideRepository(this.storage);
         this.settingsService = new SakuraSettingsService(this.config, overrides,
-                (actor, action) -> this.actionCheck.check(actor, action), this.syncService,
-                this.bus, this.clock, this.log.logger());
+                this.authorization, this.syncService,
+                this.clock, this.log.logger());
         this.messageTemplates = new SakuraMessageTemplateService(this.messages, overrides,
-                (actor, action) -> this.actionCheck.check(actor, action), this.syncService,
-                this.bus, this.clock);
+                this.authorization, this.syncService,
+                this.clock);
         this.lockdowns = new LockdownService(new LockdownRepository(this.storage),
                 this.permissions, this.allowList, this.syncService, this.config, this.clock,
                 this.log.logger());
         this.enforcer = new LocalEnforcer(this.platform, this.scopes, this.punishments, this.mutes,
                 this.enforcementMessages, this.config, this.clock, this.ranges,
                 this.log.logger());
-        this.exemption = new ExemptionService(this.config, this.permissions, this.log.logger());
-        this.authorization = new SakuraAuthorizationService(this.permissions, this.exemption,
-                this.kinds, this.punishments, this.integrations, this.config, this.log.logger());
         this.limits = new LimitService(this.config, this.permissions, new CooldownTracker(),
                 this.clock);
         this.templateRepository = new TemplateRepository(this.storage, this.allowList);
         this.templates = new SakuraTemplateService(this.templateRepository,
-                new MetaRepository(this.storage), new TemplateFiles(this.dir), this.kinds,
-                (actor, action) -> this.actionCheck.check(actor, action), this.syncService,
-                this.bus, this.clock, this.log.logger());
+                new MetaRepository(this.storage), new TemplateFiles(this.dir),
+                this.authorization, this.syncService,
+                this.clock, this.log.logger());
         this.templates.reload().join();
         this.templateActions = new TemplateActions(this.bus, this.templates, this.platform,
                 this.names, this.log.logger());
@@ -226,13 +236,13 @@ public abstract class ServiceTest extends DatabaseTest {
         this.service = new SakuraPunishmentService(this.lifecycle, this.executors.worker(),
                 this.clock, this.config, this.scopes, this.punishments,
                 new PunishmentFactory(this.scopes, this.config, this.players, this.platform,
-                        this.clock, this.templates, this.kinds),
-                this.mutes, this.enforcer, (actor, action) -> this.actionCheck.check(actor, action),
+                        this.clock, this.templates),
+                this.mutes, this.enforcer, this.authorization,
                 this.limits, this.exemption, this.bus, this.syncService, this.displayIds);
         this.playerData = new SakuraPlayerDataService(new PlayerDataRepository(this.storage,
                 new PunishmentMapper(this.displayIds::display)), this.players,
                 new AuditRepository(this.storage), this.allowList, this.mutes, this.names,
-                (actor, action) -> this.actionCheck.check(actor, action), this.syncService,
+                this.authorization, this.syncService,
                 this.bus, this.clock);
         this.loginGate = new LoginGate(this.lifecycle, this.config, this.scopes,
                 this.punishments, this.players, this.names, this.mutes,
@@ -244,6 +254,8 @@ public abstract class ServiceTest extends DatabaseTest {
         this.sweeper = new ExpirySweeper(this.lease, this.punishments, this.mutes, this.enforcer,
                 this.syncService, this.bus, this.executors, this.platform, this.clock,
                 this.log.logger());
+        this.platform.join(MOD, "Mod", InetAddress.getByName("203.0.113.254"))
+                .grant(staffPermissions());
         this.lifecycle.advance(LifecycleState.NEW, LifecycleState.CREATED);
         this.lifecycle.advance(LifecycleState.CREATED, LifecycleState.STARTING);
         this.lifecycle.advance(LifecycleState.STARTING, LifecycleState.RUNNING);
@@ -253,7 +265,7 @@ public abstract class ServiceTest extends DatabaseTest {
     protected final SyncReceiver syncReceiver() {
         return new SyncReceiver(this.punishments, this.enforcer, this.mutes, this.scopes,
                 this.platform, this.bus, this.config, this.clock, this.allowList,
-                this.templates, this.kinds, this.lockdowns, this.settingsService,
+                this.templates, this.lockdowns, this.settingsService,
                 this.messageTemplates, this.playerData, this.ranges, this.displayIds,
                 this.log.logger());
     }
@@ -262,7 +274,7 @@ public abstract class ServiceTest extends DatabaseTest {
     protected final ImportJobs importJobs(final ImportSources sources) {
         final ImportRepository repository = new ImportRepository(this.storage);
         return new ImportJobs(sources,
-                new ImportRunner(repository, this.kinds, this.clock, this.log.logger()),
+                new ImportRunner(repository, this.clock, this.log.logger()),
                 new SelfImport(repository, this.log.logger()), repository, this.lease,
                 this.config, this.syncService, this.syncReceiver(), this.executors.worker(),
                 this.clock, this.log.logger());

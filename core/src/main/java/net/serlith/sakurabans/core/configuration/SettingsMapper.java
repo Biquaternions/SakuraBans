@@ -433,24 +433,7 @@ final class SettingsMapper {
             }
             labels.put(command.toLowerCase(Locale.ROOT), List.copyOf(valid));
         });
-        final Map<String, Settings.KindCommand> kinds = new LinkedHashMap<>();
-        section.kinds().forEach((kind, command) -> {
-            final String path = "commands.kinds." + kind;
-            this.identifier(path, kind).ifPresent(id -> {
-                final List<String> valid = new ArrayList<>();
-                for (final String name : command.labels()) {
-                    final String lower = name.strip().toLowerCase(Locale.ROOT);
-                    if (LABEL.matcher(lower).matches()) {
-                        valid.add(lower);
-                    } else {
-                        this.error(path + ".labels", "\"" + name
-                                + "\" must be 1-32 characters of a-z, 0-9, '_' or '-'");
-                    }
-                }
-                kinds.put(id, new Settings.KindCommand(command.type(), valid));
-            });
-        });
-        return new Settings.Commands(labels, kinds);
+        return new Settings.Commands(labels);
     }
 
     private Map<String, Set<String>> categories(final Map<String, List<String>> section) {

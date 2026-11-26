@@ -32,10 +32,12 @@ class TemplateCommandsTest extends CommandTest {
     @BeforeEach
     void fixture() {
         this.known(STEVE, "Steve");
-        this.templates.create(TemplateDefinition.builder("hacking", "ban").reason("Hacking")
+        this.templates.create(TemplateDefinition.builder("hacking", PunishmentType.BAN)
+                .reason("Hacking")
                 .ladder(List.of(TemplateStep.of(Duration.ofDays(7)), TemplateStep.of(null)))
                 .build(), CONSOLE).join();
-        this.templates.create(TemplateDefinition.builder("secret", "ban").reason("Reason")
+        this.templates.create(TemplateDefinition.builder("secret", PunishmentType.BAN)
+                .reason("Reason")
                 .permissionRequired(true).build(), CONSOLE).join();
     }
 
@@ -84,7 +86,7 @@ class TemplateCommandsTest extends CommandTest {
                 """
                 templates:
                   spam:
-                    kind: mute
+                    type: mute
                     reason: Reason
                     ladder: [1h]
                 """);

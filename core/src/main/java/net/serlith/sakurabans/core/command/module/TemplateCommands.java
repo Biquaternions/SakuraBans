@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.time.InstantSource;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -19,9 +20,11 @@ import net.serlith.sakurabans.core.command.SakuraCommands;
 import net.serlith.sakurabans.core.configuration.ConfigIssue;
 import net.serlith.sakurabans.core.configuration.TemplateFiles;
 import net.serlith.sakurabans.core.message.MessageKey;
+import net.serlith.sakurabans.core.message.Placeholders;
 import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.template.SakuraTemplateService;
 import net.serlith.sakurabans.core.util.Durations;
+import net.serlith.sakurabans.core.util.Scopes;
 import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.parser.flag.CommandFlag;
@@ -81,10 +84,24 @@ public final class TemplateCommands implements CommandModule {
         for (final TemplateInfo template : all) {
             this.runner.send(actor, MessageKey.TEMPLATES_LIST_ENTRY,
                     Placeholder.unparsed("name", template.name()),
-                    Placeholder.unparsed("kind", template.kind()),
+                    Placeholder.component("type", this.runner.render(actor,
+                            Placeholders.typeKey(template.type()))),
+                    Placeholder.unparsed("modifiers", modifiers(template)),
                     Placeholder.unparsed("ladder", ladder(template)),
                     Placeholder.unparsed("reason", template.reason()));
         }
+    }
+
+    static String modifiers(final TemplateInfo template) {
+        final List<String> modifiers = new ArrayList<>();
+        if (template.ip()) {
+            modifiers.add("ip");
+        }
+        if (template.shadow()) {
+            modifiers.add("shadow");
+        }
+        template.scope().ifPresent(scope -> modifiers.add("scope=" + Scopes.format(scope)));
+        return modifiers.isEmpty() ? "" : " [" + String.join(" ", modifiers) + "]";
     }
 
     static String ladder(final TemplateInfo template) {

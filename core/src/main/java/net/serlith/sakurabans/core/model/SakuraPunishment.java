@@ -4,7 +4,6 @@ import com.google.common.base.Preconditions;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.EndKind;
 import net.serlith.sakurabans.api.model.Evidence;
 import net.serlith.sakurabans.api.model.Lengths;
@@ -24,9 +23,7 @@ public record SakuraPunishment(
         long id,
         String displayId,
         PunishmentType type,
-        String kind,
         boolean shadow,
-        @Nullable AddressStrictness strictnessOrNull,
         Victim victim,
         Operator operator,
         String source,
@@ -48,7 +45,6 @@ public record SakuraPunishment(
         }
         ModelChecks.name(displayId, Lengths.MAX_IDENTIFIER, "displayId");
         Preconditions.checkNotNull(type, "type");
-        kind = ModelChecks.identifier(kind, "kind");
         if (shadow && type != PunishmentType.MUTE) {
             throw new IllegalArgumentException("only a mute can be a shadow mute");
         }
@@ -92,17 +88,12 @@ public record SakuraPunishment(
             case PunishmentEdit.NewScope value -> scope = value.scope();
         }
         return new SakuraPunishment(current.id(), current.displayId(), current.type(),
-                current.kind(), current.shadow(), current.strictness().orElse(null),
+                current.shadow(),
                 current.victim(), current.operator(), current.source(), scope, reason,
                 current.createdAt(), expiresAt, current.originServer().orElse(null),
                 current.visibility(), current.template().orElse(null),
                 current.end().orElse(null), current.voiding().orElse(null), current.evidence(),
                 Math.max(1, current.version() - 1));
-    }
-
-    @Override
-    public Optional<AddressStrictness> strictness() {
-        return Optional.ofNullable(this.strictnessOrNull);
     }
 
     @Override

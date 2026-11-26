@@ -33,29 +33,12 @@ public interface Punishment {
     PunishmentType type();
 
     /**
-     * The punishment kind it was created as ({@code ban}, {@code shadow-mute},
-     * {@code blacklist}, ...). Its modifiers were copied into this punishment when it was
-     * created, so later changes to the kind don't affect it.
-     *
-     * @return the kind id, lower case
-     */
-    String kind();
-
-    /**
      * Whether this is a shadow mute: the muted player's messages are shown to themselves only.
      * Always {@code false} for other types.
      *
      * @return {@code true} for a shadow mute
      */
     boolean shadow();
-
-    /**
-     * How far it reaches through shared addresses, when its kind sets one (a blacklist is
-     * {@link AddressStrictness#STRICT}).
-     *
-     * @return the strictness, or empty for the configured one
-     */
-    Optional<AddressStrictness> strictness();
 
     /**
      * Who it applies to.
