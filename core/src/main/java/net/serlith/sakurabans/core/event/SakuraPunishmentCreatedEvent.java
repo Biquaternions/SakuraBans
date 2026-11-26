@@ -6,7 +6,7 @@ import net.serlith.sakurabans.api.model.Punishment;
 import org.jspecify.annotations.Nullable;
 
 public record SakuraPunishmentCreatedEvent(Punishment punishment,
-        @Nullable Punishment supersededOrNull, boolean remote) implements PunishmentCreatedEvent {
+        @Nullable Punishment supersededOrNull) implements PunishmentCreatedEvent {
 
     @Override
     public Optional<Punishment> superseded() {

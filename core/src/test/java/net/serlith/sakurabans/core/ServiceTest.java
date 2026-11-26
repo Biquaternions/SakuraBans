@@ -57,6 +57,7 @@ import net.serlith.sakurabans.core.punish.ExpirySweeper;
 import net.serlith.sakurabans.core.punish.MuteCache;
 import net.serlith.sakurabans.core.punish.PunishmentFactory;
 import net.serlith.sakurabans.core.punish.SakuraPunishmentService;
+import net.serlith.sakurabans.core.punish.TemplateActions;
 import net.serlith.sakurabans.core.punish.WarningActions;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
 import net.serlith.sakurabans.core.storage.DatabaseTest;
@@ -76,7 +77,6 @@ import net.serlith.sakurabans.core.storage.repository.TemplateRepository;
 import net.serlith.sakurabans.core.sync.SyncPacket;
 import net.serlith.sakurabans.core.sync.SyncService;
 import net.serlith.sakurabans.core.template.SakuraTemplateService;
-import net.serlith.sakurabans.core.template.TemplateActions;
 import org.junit.jupiter.api.BeforeEach;
 
 /**
@@ -264,7 +264,7 @@ public abstract class ServiceTest extends DatabaseTest {
     /** What receives other instances' packets, wired like {@code CoreComponents} does. */
     protected final SyncReceiver syncReceiver() {
         return new SyncReceiver(this.punishments, this.enforcer, this.mutes, this.scopes,
-                this.platform, this.bus, this.config, this.clock, this.allowList,
+                this.platform, this.notifications, this.config, this.clock, this.allowList,
                 this.templates, this.lockdowns, this.settingsService,
                 this.messageTemplates, this.playerData, this.ranges, this.displayIds,
                 this.log.logger());

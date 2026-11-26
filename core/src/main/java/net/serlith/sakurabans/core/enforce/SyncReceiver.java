@@ -10,18 +10,12 @@ import java.util.concurrent.CompletableFuture;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentType;
-import net.serlith.sakurabans.api.punish.RollbackRequest;
 import net.serlith.sakurabans.core.admin.SakuraMessageTemplateService;
 import net.serlith.sakurabans.core.admin.SakuraSettingsService;
 import net.serlith.sakurabans.core.alts.SakuraAllowListService;
 import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.data.SakuraPlayerDataService;
-import net.serlith.sakurabans.core.event.SakuraEventBus;
-import net.serlith.sakurabans.core.event.SakuraPunishmentChangeEvents;
-import net.serlith.sakurabans.core.event.SakuraPunishmentCreatedEvent;
-import net.serlith.sakurabans.core.event.SakuraPunishmentRevokedEvent;
-import net.serlith.sakurabans.core.event.SakuraPunishmentsRolledBackEvent;
-import net.serlith.sakurabans.core.model.SakuraPunishment;
+import net.serlith.sakurabans.core.notify.NotificationService;
 import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import net.serlith.sakurabans.core.platform.Platform;
 import net.serlith.sakurabans.core.punish.ActiveRangeCache;
@@ -45,7 +39,7 @@ public final class SyncReceiver implements SyncPacketHandler {
     private final MuteCache mutes;
     private final SakuraScopeService scopes;
     private final Platform platform;
-    private final SakuraEventBus events;
+    private final NotificationService notifications;
     private final ConfigService config;
     private final InstantSource clock;
     private final SakuraAllowListService allowList;
@@ -60,8 +54,9 @@ public final class SyncReceiver implements SyncPacketHandler {
 
     public SyncReceiver(final PunishmentRepository punishments, final Enforcer enforcer,
             final MuteCache mutes, final SakuraScopeService scopes, final Platform platform,
-            final SakuraEventBus events, final ConfigService config, final InstantSource clock,
-            final SakuraAllowListService allowList, final SakuraTemplateService templates,
+            final NotificationService notifications, final ConfigService config,
+            final InstantSource clock, final SakuraAllowListService allowList,
+            final SakuraTemplateService templates,
             final LockdownService lockdowns, final SakuraSettingsService settings,
             final SakuraMessageTemplateService messageTemplates,
             final SakuraPlayerDataService playerData, final ActiveRangeCache ranges,
@@ -71,7 +66,7 @@ public final class SyncReceiver implements SyncPacketHandler {
         this.mutes = mutes;
         this.scopes = scopes;
         this.platform = platform;
-        this.events = events;
+        this.notifications = notifications;
         this.config = config;
         this.clock = clock;
         this.allowList = allowList;
@@ -90,14 +85,12 @@ public final class SyncReceiver implements SyncPacketHandler {
         return switch (packet) {
             case SyncPacket.PunishmentEnforcePacket enforce -> this.enforce(enforce);
             case SyncPacket.PunishmentRevokePacket revoke -> this.revoke(revoke);
-            case SyncPacket.AllowListChangedPacket _ -> this.allowList.reload();
             case SyncPacket.PunishmentEditedPacket edited -> this.edited(edited);
-            case SyncPacket.PunishmentVoidedPacket voided -> this.voided(voided);
+            case SyncPacket.PunishmentsEndedPacket ended -> this.ended(ended);
             case SyncPacket.PunishmentExpungedPacket expunged -> this.expunged(expunged);
-            case SyncPacket.EvidenceChangedPacket evidence -> this.evidence(evidence);
+            case SyncPacket.PlayerDataErasedPacket erased -> this.playerData.forget(erased.uuid());
+            case SyncPacket.AllowListChangedPacket _ -> this.allowList.reload();
             case SyncPacket.LockdownChangedPacket _ -> this.lockdowns.reload();
-            case SyncPacket.PunishmentsRolledBackPacket rolledBack -> this.rolledBack(rolledBack);
-            case SyncPacket.PlayerDataErasedPacket erased -> this.playerData.erased(erased);
             case SyncPacket.ImportedPacket imported -> this.imported();
             case SyncPacket.EntityChangedPacket changed -> switch (changed.entity()) {
                 case TEMPLATE -> this.templates.reload();
@@ -125,8 +118,7 @@ public final class SyncReceiver implements SyncPacketHandler {
                             .map(this.enforcer::ended)
                             .orElseGet(() -> CompletableFuture.completedFuture(null));
                     return before.thenCompose(ignored -> this.enforcer.created(punishment))
-                            .thenRun(() -> this.events.post(new SakuraPunishmentCreatedEvent(
-                                    punishment, old.orElse(null), true)));
+                            .thenRun(() -> this.notifications.created(punishment));
                 }));
     }
 
@@ -142,66 +134,32 @@ public final class SyncReceiver implements SyncPacketHandler {
                 return CompletableFuture.completedFuture(null);
             }
             final Punishment punishment = found.get();
-            return this.enforcer.ended(punishment).thenRun(() -> this.events.post(
-                    new SakuraPunishmentRevokedEvent(punishment, packet.visibility(), true)));
+            return this.enforcer.ended(punishment).thenRun(() ->
+                    this.notifications.revoked(punishment, packet.visibility()));
         });
     }
 
     private CompletableFuture<Void> edited(final SyncPacket.PunishmentEditedPacket packet) {
-        return this.punishments.byId(packet.punishmentId()).thenCompose(found -> {
-            if (found.isEmpty()) {
-                return CompletableFuture.completedFuture(null);
-            }
-            final Punishment current = found.get();
-            final Punishment previous = SakuraPunishment.before(current, packet.previous());
-            return this.enforcer.changed(previous, current).thenRun(() -> this.events.post(
-                    new SakuraPunishmentChangeEvents.Edited(previous, current, packet.edit(),
-                            true)));
-        });
+        return this.punishments.byId(packet.punishmentId()).thenCompose(found -> found
+                .map(current -> this.enforcer.changed(current, packet.rescoped()))
+                .orElseGet(() -> CompletableFuture.completedFuture(null)));
     }
 
-    private CompletableFuture<Void> voided(final SyncPacket.PunishmentVoidedPacket packet) {
-        return this.punishments.byId(packet.punishmentId()).thenCompose(found -> {
-            if (found.isEmpty()) {
-                return CompletableFuture.completedFuture(null);
-            }
-            final Punishment punishment = found.get();
-            return this.enforcer.ended(punishment).thenRun(() -> this.events.post(
-                    new SakuraPunishmentChangeEvents.Voided(punishment, true)));
-        });
+    private CompletableFuture<Void> ended(final SyncPacket.PunishmentsEndedPacket packet) {
+        final List<CompletableFuture<Optional<Punishment>>> reads = packet.punishmentIds()
+                .stream().map(this.punishments::byId).toList();
+        return Futures.allOf(reads).thenCompose(found -> CompletableFuture.allOf(found.stream()
+                .flatMap(Optional::stream)
+                .map(this.enforcer::ended)
+                .toArray(CompletableFuture[]::new)));
     }
 
     private CompletableFuture<Void> expunged(final SyncPacket.PunishmentExpungedPacket packet) {
-        final Punishment punishment = packet.punishment();
-        return this.enforcer.ended(punishment).thenRun(() -> this.events.post(
-                new SakuraPunishmentChangeEvents.Expunged(punishment, true)));
-    }
-
-    private CompletableFuture<Void> rolledBack(
-            final SyncPacket.PunishmentsRolledBackPacket packet) {
-        final List<CompletableFuture<Optional<Punishment>>> reads = packet.punishmentIds()
-                .stream().map(this.punishments::byId).toList();
-        return Futures.allOf(reads).thenCompose(found -> {
-            final List<Punishment> ended = found.stream().flatMap(Optional::stream).toList();
-            final CompletableFuture<?>[] local = ended.stream().map(this.enforcer::ended)
-                    .toArray(CompletableFuture[]::new);
-            final RollbackRequest request = RollbackRequest.builder(packet.target(),
-                            packet.since(), packet.actor())
-                    .reason(packet.reasonOrNull())
-                    .visibility(packet.visibility())
-                    .build();
-            return CompletableFuture.allOf(local).thenRun(() -> this.events.post(
-                    new SakuraPunishmentsRolledBackEvent(request, ended, true)));
-        });
-    }
-
-    private CompletableFuture<Void> evidence(final SyncPacket.EvidenceChangedPacket packet) {
-        return this.punishments.byId(packet.punishmentId()).thenAccept(found -> found.ifPresent(
-                punishment -> this.events.post(packet.attached()
-                        ? new SakuraPunishmentChangeEvents.EvidenceAttached(punishment,
-                                packet.evidence(), true)
-                        : new SakuraPunishmentChangeEvents.EvidenceDetached(punishment,
-                                packet.evidence(), true))));
+        // The row is gone, so there is nothing to read: let the caches drop it.
+        this.mutes.ended(packet.punishmentId());
+        return packet.range()
+                ? Futures.logged(this.ranges.reload(), this.logger, "reload the range punishments")
+                : CompletableFuture.completedFuture(null);
     }
 
     @Override

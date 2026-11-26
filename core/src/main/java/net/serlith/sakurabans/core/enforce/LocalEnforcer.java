@@ -111,12 +111,9 @@ public final class LocalEnforcer implements Enforcer {
     }
 
     @Override
-    public CompletableFuture<Void> changed(final Punishment previous, final Punishment current) {
-        final boolean ranged = previous.victim() instanceof AddressRangeVictim
-                || current.victim() instanceof AddressRangeVictim;
-        final CompletableFuture<Void> ranges = ranged
-                ? this.ranges.reload()
-                : CompletableFuture.completedFuture(null);
+    public CompletableFuture<Void> changed(final Punishment current, final boolean rescoped) {
+        // An edit never changes the victim.
+        final CompletableFuture<Void> ranges = this.rangesChanged(current);
         final CompletableFuture<Void> work = ranges.thenCompose(ignored -> {
             if (!current.isActiveAt(this.clock.instant())) {
                 return this.ended(current);
@@ -126,9 +123,9 @@ public final class LocalEnforcer implements Enforcer {
                 case MUTE -> CompletableFuture.allOf(this.platform.onlinePlayers().stream()
                         .map(player -> this.mutes.load(player.uuid(), player.address()))
                         .toArray(CompletableFuture[]::new));
-                case BAN -> previous.scope().equals(current.scope())
-                        ? CompletableFuture.completedFuture(null)
-                        : this.created(current);
+                case BAN -> rescoped
+                        ? this.created(current)
+                        : CompletableFuture.completedFuture(null);
                 case WARN, KICK -> CompletableFuture.completedFuture(null);
             };
         });

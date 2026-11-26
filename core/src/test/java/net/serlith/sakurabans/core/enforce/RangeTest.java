@@ -111,4 +111,21 @@ class RangeTest extends ServiceTest {
         Assertions.assertThat(this.join(STEVE, "10.0.0.1"))
                 .isInstanceOf(LoginDecision.Allowed.class);
     }
+
+    @Test
+    void anExpungedRangeLeavesTheCache() throws Exception {
+        final Punishment ban = this.punish(PunishmentType.BAN, TEN, false);
+        this.syncReceiver().handle(SyncPacket.PunishmentEnforcePacket.of(ban.id())).join();
+        Assertions.assertThat(this.ranges.all()).hasSize(1);
+
+        // Expunged elsewhere: the row is gone, the packet says it was a range.
+        this.punishments.expunge(ban.id(), MODERATOR, this.now.get()).join();
+        this.syncReceiver().handle(new SyncPacket.PunishmentExpungedPacket(ban.id(), true))
+                .join();
+
+        Assertions.assertThat(this.ranges.all()).isEmpty();
+        Assertions.assertThat(this.join(STEVE, "10.0.0.1"))
+                .isInstanceOf(LoginDecision.Allowed.class);
+    }
+
 }

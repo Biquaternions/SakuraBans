@@ -9,7 +9,7 @@ import net.serlith.sakurabans.api.model.TemplateRef;
  *
  * <p>Runs on a SakuraBans worker thread.
  */
-public interface TemplateStepEvent extends SyncedEvent {
+public interface TemplateStepEvent extends SakuraEvent {
 
     /**
      * The punishment that was created.

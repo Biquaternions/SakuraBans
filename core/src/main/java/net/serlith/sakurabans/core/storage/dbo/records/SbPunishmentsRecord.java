@@ -290,15 +290,6 @@ public final class SbPunishmentsRecord extends UpdatableRecordImpl<SbPunishments
         return this;
     }
 
-    public Long version() {
-        return this.get(SakuraTables.PUNISHMENTS.VERSION);
-    }
-
-    public SbPunishmentsRecord version(final Long value) {
-        this.set(SakuraTables.PUNISHMENTS.VERSION, value);
-        return this;
-    }
-
     public @Nullable String externalId() {
         return this.get(SakuraTables.PUNISHMENTS.EXTERNAL_ID);
     }

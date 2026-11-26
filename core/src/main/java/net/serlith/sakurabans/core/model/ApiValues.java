@@ -101,10 +101,8 @@ public final class ApiValues {
     }
 
     public static EditRequest edit(final EditRequest request) {
-        final EditRequest.Builder builder = EditRequest.builder(request.id(),
-                edit(request.edit()), actor(request.actor()));
-        request.expectedVersion().ifPresent(builder::expectedVersion);
-        return builder.build();
+        return EditRequest.builder(request.id(), edit(request.edit()), actor(request.actor()))
+                .build();
     }
 
     public static PunishmentEdit edit(final PunishmentEdit edit) {

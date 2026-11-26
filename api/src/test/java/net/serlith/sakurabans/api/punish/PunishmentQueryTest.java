@@ -7,7 +7,6 @@ import static org.assertj.core.api.Assertions.tuple;
 import java.net.InetAddress;
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import net.serlith.sakurabans.api.model.AddressStrictness;
@@ -70,7 +69,6 @@ class PunishmentQueryTest {
 
         assertThat(query.includeVoided()).isFalse();
         assertThat(query.order()).isEqualTo(PunishmentQuery.Order.NEWEST_FIRST);
-        assertThat(query.after()).isEmpty();
     }
 
     @Test
@@ -78,15 +76,15 @@ class PunishmentQueryTest {
         final List<FieldError> errors = PunishmentQuery.builder()
                 .types(Set.of())
                 .createdAfter(T2).createdBefore(T1)
-                .page(2).after("cursor")
+                .page(0)
                 .pageSize(0)
                 .validate();
 
         assertThat(errors).extracting(FieldError::path, FieldError::code).containsExactlyInAnyOrder(
                 tuple("types", Code.OUT_OF_RANGE),
                 tuple("createdAfter", Code.WRONG_ORDER),
-                tuple("pageSize", Code.OUT_OF_RANGE),
-                tuple("after", Code.EXCLUSIVE));
+                tuple("page", Code.OUT_OF_RANGE),
+                tuple("pageSize", Code.OUT_OF_RANGE));
         assertThatThrownBy(() -> PunishmentQuery.builder().pageSize(0).build())
                 .isInstanceOfSatisfying(ValidationException.class,
                         e -> assertThat(e.errors()).hasSize(1));
@@ -131,11 +129,6 @@ class PunishmentQueryTest {
             @Override
             public int pageSize() {
                 return pageSize;
-            }
-
-            @Override
-            public Optional<String> nextCursor() {
-                return Optional.empty();
             }
         };
     }

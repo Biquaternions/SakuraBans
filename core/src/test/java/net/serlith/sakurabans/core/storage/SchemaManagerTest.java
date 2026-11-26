@@ -165,7 +165,6 @@ class SchemaManagerTest extends DatabaseTest {
                 .set(SakuraTables.PUNISHMENTS.SOURCE, "console")
                 .set(SakuraTables.PUNISHMENTS.CREATED_AT, Instant.ofEpochMilli(1000))
                 .set(SakuraTables.PUNISHMENTS.VISIBILITY, Visibility.NORMAL)
-                .set(SakuraTables.PUNISHMENTS.VERSION, 1L)
                 .set(SakuraTables.PUNISHMENTS.ACKNOWLEDGED, false)
                 .returningResult(SakuraTables.PUNISHMENTS.ID)
                 .fetchSingle()

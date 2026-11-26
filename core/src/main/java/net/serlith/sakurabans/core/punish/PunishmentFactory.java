@@ -35,6 +35,7 @@ import net.serlith.sakurabans.core.platform.Platform;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
 import net.serlith.sakurabans.core.storage.repository.NewPunishment;
 import net.serlith.sakurabans.core.storage.repository.PlayerRepository;
+import net.serlith.sakurabans.core.template.SakuraTemplateService;
 import org.jspecify.annotations.Nullable;
 
 public final class PunishmentFactory {
@@ -44,11 +45,11 @@ public final class PunishmentFactory {
     private final PlayerRepository players;
     private final Platform platform;
     private final InstantSource clock;
-    private final TemplateResolver templates;
+    private final SakuraTemplateService templates;
 
     public PunishmentFactory(final SakuraScopeService scopes, final ConfigService config,
             final PlayerRepository players, final Platform platform, final InstantSource clock,
-            final TemplateResolver templates) {
+            final SakuraTemplateService templates) {
         this.scopes = scopes;
         this.config = config;
         this.players = players;
@@ -97,7 +98,8 @@ public final class PunishmentFactory {
     }
 
     private CompletableFuture<Prepared> prepare(final DraftPunishment draft,
-            final PunishOptions options, final TemplateResolver.@Nullable Resolution resolution) {
+            final PunishOptions options,
+            final SakuraTemplateService.@Nullable Resolution resolution) {
         final TemplateInfo template = resolution == null ? null : resolution.template();
         final Settings settings = this.config.settings();
         final Duration duration = resolution != null ? resolution.duration()

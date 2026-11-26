@@ -10,8 +10,8 @@ import net.serlith.sakurabans.api.punish.DraftPunishment;
 import net.serlith.sakurabans.api.punish.PunishOptions;
 import net.serlith.sakurabans.api.punish.PunishResult;
 import net.serlith.sakurabans.core.ServiceTest;
-import net.serlith.sakurabans.core.event.SakuraPunishmentCreatedEvent;
 import net.serlith.sakurabans.core.fake.FakeOnlinePlayer;
+import net.serlith.sakurabans.core.sync.SyncPacket;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -87,7 +87,7 @@ class WarningsTest extends ServiceTest {
         final Punishment second = this.warn("two");
         eventually(() -> this.platform.consoleCommands().size() == 1);
 
-        this.bus.post(new SakuraPunishmentCreatedEvent(second, null, true));
+        this.syncReceiver().handle(SyncPacket.PunishmentEnforcePacket.of(second.id())).join();
         Assertions.assertThat(this.platform.consoleCommands()).hasSize(1);
     }
 

@@ -3,11 +3,11 @@ package net.serlith.sakurabans.core.event;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
+import net.serlith.sakurabans.api.event.Cancellable;
 import net.serlith.sakurabans.api.event.EventPriority;
 import net.serlith.sakurabans.api.event.PunishmentCreateEvent;
 import net.serlith.sakurabans.api.event.SakuraEvent;
 import net.serlith.sakurabans.api.event.Subscription;
-import net.serlith.sakurabans.api.event.SyncedEvent;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
 import net.serlith.sakurabans.api.model.PlayerVictim;
@@ -51,16 +51,16 @@ class SakuraEventBusTest {
     @Test
     void supertypesReceiveSubtypes() {
         final List<SakuraEvent> all = new CopyOnWriteArrayList<>();
-        final List<SakuraEvent> synced = new CopyOnWriteArrayList<>();
+        final List<SakuraEvent> cancellable = new CopyOnWriteArrayList<>();
         this.bus.subscribe(SakuraEvent.class, all::add);
-        this.bus.subscribe(SyncedEvent.class, synced::add);
+        this.bus.subscribe(Cancellable.class, cancellable::add);
 
         this.bus.post(createEvent());
-        this.bus.post(new SakuraPunishmentExpiredEvent(Fixtures.ban(1), false));
+        this.bus.post(new SakuraPunishmentExpiredEvent(Fixtures.ban(1)));
 
         Assertions.assertThat(all).hasSize(2);
-        Assertions.assertThat(synced).singleElement()
-                .isInstanceOf(SakuraPunishmentExpiredEvent.class);
+        Assertions.assertThat(cancellable).singleElement()
+                .isInstanceOf(PunishmentCreateEvent.class);
     }
 
     @Test

@@ -70,33 +70,23 @@ class PunishmentChangesTest extends ServiceTest {
     }
 
     @Test
-    void reasonsChangeWithVersionsEventsSyncAndAudit() {
+    void reasonsChangeWithEventsSyncAndAudit() {
         final Punishment ban = this.punished(PunishmentType.BAN, Duration.ofDays(1));
         this.published.clear();
 
         final Punishment edited = changed(this.edit(ban.id(),
                 PunishmentEdit.NewReason.of("griefing\nspawn")));
         Assertions.assertThat(edited.reason()).isEqualTo("griefing spawn");
-        Assertions.assertThat(edited.version()).isEqualTo(ban.version() + 1);
         Assertions.assertThat(this.published).containsExactly(
-                new SyncPacket.PunishmentEditedPacket(ban.id(),
-                        PunishmentEdit.NewReason.of("first"),
-                        PunishmentEdit.NewReason.of("griefing spawn")));
+                new SyncPacket.PunishmentEditedPacket(ban.id(), false));
         Assertions.assertThat(this.events(PunishmentEditEvent.class)).hasSize(1);
         Assertions.assertThat(this.events(PunishmentEditedEvent.class)).singleElement()
                 .satisfies(event -> {
                     Assertions.assertThat(event.previous().reason()).isEqualTo("first");
                     Assertions.assertThat(event.punishment()).isEqualTo(edited);
-                    Assertions.assertThat(event.remote()).isFalse();
                 });
 
-        // A stale version conflicts; a blank reason means the default one.
-        final EditResult stale = this.service.edit(EditRequest.builder(ban.id(),
-                PunishmentEdit.NewReason.of("x"), MODERATOR).expectedVersion(ban.version())
-                .build()).join();
-        Assertions.assertThat(failure(stale)).isEqualTo(EditResult.Failure.Reason.CONFLICT);
-        Assertions.assertThat(((EditResult.Failure) stale).currentVersion())
-                .hasValue(edited.version());
+        // A blank reason means the default one.
         Assertions.assertThat(changed(this.edit(ban.id(), PunishmentEdit.NewReason.of(" ")))
                 .reason()).isEqualTo("No reason specified");
 
@@ -180,7 +170,7 @@ class PunishmentChangesTest extends ServiceTest {
                 });
         Assertions.assertThat(this.mutes.activeMute(STEVE)).isEmpty();
         Assertions.assertThat(this.published).containsExactly(
-                new SyncPacket.PunishmentVoidedPacket(mute.id()));
+                new SyncPacket.PunishmentsEndedPacket(List.of(mute.id())));
         Assertions.assertThat(this.events(PunishmentVoidedEvent.class)).hasSize(1);
         Assertions.assertThat(this.service.count(PunishmentQuery.builder().build()).join())
                 .isZero();
@@ -203,9 +193,8 @@ class PunishmentChangesTest extends ServiceTest {
         final ExpungeResult result = this.service.expunge(ban.id(), MODERATOR).join();
         Assertions.assertThat(result).isInstanceOf(ExpungeResult.Success.class);
         Assertions.assertThat(this.service.byId(ban.id()).join()).isEmpty();
-        Assertions.assertThat(this.published).singleElement().isInstanceOfSatisfying(
-                SyncPacket.PunishmentExpungedPacket.class, packet ->
-                        Assertions.assertThat(packet.punishment().id()).isEqualTo(ban.id()));
+        Assertions.assertThat(this.published).containsExactly(
+                new SyncPacket.PunishmentExpungedPacket(ban.id(), false));
         Assertions.assertThat(this.events(PunishmentExpungedEvent.class)).hasSize(1);
         Assertions.assertThat(this.audit(ban.id()).getLast()).satisfies(entry -> {
             Assertions.assertThat(entry.action()).isEqualTo(AuditAction.EXPUNGE);
@@ -234,8 +223,9 @@ class PunishmentChangesTest extends ServiceTest {
                 .join()).evidence()).isEmpty();
         Assertions.assertThat(failure(this.service.detachEvidence(ban.id(), ref, MODERATOR)
                 .join())).isEqualTo(EditResult.Failure.Reason.EVIDENCE_NOT_ATTACHED);
+        // The other instances have nothing to do: evidence changes no enforcement or notice.
         Assertions.assertThat(this.published).filteredOn(
-                SyncPacket.EvidenceChangedPacket.class::isInstance).hasSize(2);
+                packet -> !(packet instanceof SyncPacket.PunishmentEnforcePacket)).isEmpty();
     }
 
     @Test

@@ -7,7 +7,7 @@ import net.serlith.sakurabans.api.model.Punishment;
  *
  * <p>Runs on a SakuraBans worker thread.
  */
-public interface PunishmentRevokedEvent extends SyncedEvent {
+public interface PunishmentRevokedEvent extends SakuraEvent {
 
     /**
      * The punishment, now ended.

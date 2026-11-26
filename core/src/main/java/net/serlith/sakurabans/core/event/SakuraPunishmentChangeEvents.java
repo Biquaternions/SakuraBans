@@ -53,8 +53,8 @@ public final class SakuraPunishmentChangeEvents {
         }
     }
 
-    public record Edited(Punishment previous, Punishment punishment, PunishmentEdit edit,
-            boolean remote) implements PunishmentEditedEvent {
+    public record Edited(Punishment previous, Punishment punishment, PunishmentEdit edit)
+            implements PunishmentEditedEvent {
     }
 
     public static final class Voiding implements PunishmentVoidEvent {
@@ -97,7 +97,7 @@ public final class SakuraPunishmentChangeEvents {
         }
     }
 
-    public record Voided(Punishment punishment, boolean remote) implements PunishmentVoidedEvent {
+    public record Voided(Punishment punishment) implements PunishmentVoidedEvent {
     }
 
     public static final class Expunge implements PunishmentExpungeEvent {
@@ -132,15 +132,14 @@ public final class SakuraPunishmentChangeEvents {
         }
     }
 
-    public record Expunged(Punishment punishment, boolean remote)
-            implements PunishmentExpungedEvent {
+    public record Expunged(Punishment punishment) implements PunishmentExpungedEvent {
     }
 
-    public record EvidenceAttached(Punishment punishment, Evidence evidence, boolean remote)
+    public record EvidenceAttached(Punishment punishment, Evidence evidence)
             implements EvidenceAttachedEvent {
     }
 
-    public record EvidenceDetached(Punishment punishment, Evidence evidence, boolean remote)
+    public record EvidenceDetached(Punishment punishment, Evidence evidence)
             implements EvidenceDetachedEvent {
     }
 

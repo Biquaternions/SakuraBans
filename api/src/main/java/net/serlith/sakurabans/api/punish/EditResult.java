@@ -1,6 +1,5 @@
 package net.serlith.sakurabans.api.punish;
 
-import java.util.OptionalLong;
 import net.serlith.sakurabans.api.model.Punishment;
 
 /**
@@ -35,13 +34,6 @@ public sealed interface EditResult permits EditResult.Success, EditResult.Failur
         Reason reason();
 
         /**
-         * The punishment's current version, for {@link Reason#CONFLICT}.
-         *
-         * @return the version, or empty for other reasons
-         */
-        OptionalLong currentVersion();
-
-        /**
          * Why nothing was changed.
          */
         enum Reason {
@@ -66,12 +58,6 @@ public sealed interface EditResult permits EditResult.Success, EditResult.Failur
 
             /** An event listener cancelled it. */
             CANCELLED,
-
-            /**
-             * The punishment changed since the expected version, or the new scope already has
-             * an active punishment of the same type for the victim.
-             */
-            CONFLICT,
 
             /** The evidence is already attached. */
             EVIDENCE_ALREADY_ATTACHED,

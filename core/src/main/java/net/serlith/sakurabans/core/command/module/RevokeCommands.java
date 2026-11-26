@@ -328,7 +328,6 @@ public final class RevokeCommands implements CommandModule {
             case ALREADY_VOIDED -> MessageKey.EDIT_FAILURE_ALREADY_VOIDED;
             case EXEMPT -> MessageKey.EDIT_FAILURE_EXEMPT;
             case CANCELLED -> MessageKey.EDIT_FAILURE_CANCELLED;
-            case CONFLICT -> MessageKey.EDIT_FAILURE_CONFLICT;
             case FORBIDDEN -> MessageKey.EDIT_FAILURE_FORBIDDEN;
         };
     }

@@ -10,7 +10,7 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * One change to an existing punishment, sent through an {@link EditRequest}. Every edit is
- * recorded in the audit log and raises the punishment's version.
+ * recorded in the audit log.
  */
 public sealed interface PunishmentEdit permits PunishmentEdit.NewReason, PunishmentEdit.NewExpiry,
         PunishmentEdit.NewScope {
@@ -80,7 +80,8 @@ public sealed interface PunishmentEdit permits PunishmentEdit.NewReason, Punishm
 
     /**
      * Moves the punishment to another scope. Allowed on active punishments only; it fails with
-     * {@code CONFLICT} if the victim already has an active punishment of the same type there.
+     * {@code ALREADY_PUNISHED} if the victim already has an active punishment of the same type
+     * there.
      */
     non-sealed interface NewScope extends PunishmentEdit {
 

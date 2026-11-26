@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -28,6 +29,7 @@ import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.api.punish.OverridePolicy;
+import net.serlith.sakurabans.api.punish.PunishmentEdit;
 import net.serlith.sakurabans.api.punish.PunishmentQuery;
 import net.serlith.sakurabans.api.punish.PunishmentQuery.Applicability;
 import net.serlith.sakurabans.core.storage.DatabaseTest;
@@ -110,7 +112,6 @@ class PunishmentRepositoryTest extends DatabaseTest {
             Assertions.assertThat(evidence.addedBy()).isEqualTo(MODERATOR);
         });
         Assertions.assertThat(stored.end()).isEmpty();
-        Assertions.assertThat(stored.version()).isOne();
     }
 
     @Test
@@ -221,7 +222,6 @@ class PunishmentRepositoryTest extends DatabaseTest {
             Assertions.assertThat(end.actor()).contains(CONSOLE);
             Assertions.assertThat(end.reason()).contains("appeal");
         });
-        Assertions.assertThat(ended.version()).isEqualTo(2);
         Assertions.assertThat(this.punishments.end(ban.id(), EndKind.REVOKED, this.now.get(),
                 CONSOLE,
                 null).join()).isEmpty();
@@ -324,13 +324,16 @@ class PunishmentRepositoryTest extends DatabaseTest {
     }
 
     @Test
-    void pagesByNumberAndByCursorInEveryOrder() {
+    void pagesByNumberAreCompleteAndStableInEveryOrder() {
         final List<Long> all = new ArrayList<>();
         for (int i = 0; i < 7; i++) {
             all.add(this.inserted(this.punishment(PunishmentType.WARN, PlayerVictim.of(STEVE),
-                    GlobalScope.INSTANCE, i % 2 == 0 ? null : Duration.ofHours(i), MODERATOR))
+                    GlobalScope.INSTANCE, i % 2 == 0 ? null : Duration.ofHours(1), MODERATOR))
                     .id());
-            this.advance(Duration.ofSeconds(1));
+            // Pairs share their creation time, and the timed ones their expiry: the id decides.
+            if (i % 2 == 1) {
+                this.advance(Duration.ofSeconds(1));
+            }
         }
 
         final Page<Punishment> second = this.punishments.query(PunishmentQuery.builder()
@@ -342,23 +345,71 @@ class PunishmentRepositoryTest extends DatabaseTest {
 
         for (final PunishmentQuery.Order order : PunishmentQuery.Order.values()) {
             final List<Long> walked = new ArrayList<>();
-            final List<Integer> pages = new ArrayList<>();
-            String cursor = null;
-            do {
-                final Page<Punishment> page = this.punishments.query(PunishmentQuery.builder()
-                        .order(order).pageSize(3).after(cursor).build(), this.now.get()).join();
+            Page<Punishment> page = null;
+            for (int number = 1; page == null || page.hasNext(); number++) {
+                page = this.punishments.query(PunishmentQuery.builder().order(order)
+                        .page(number).pageSize(3).build(), this.now.get()).join();
                 page.items().forEach(item -> walked.add(item.id()));
-                pages.add(page.page());
-                cursor = page.nextCursor().orElse(null);
-            } while (cursor != null);
+            }
 
+            Assertions.assertThat(page.pageCount()).as(order.name()).isEqualTo(3);
             Assertions.assertThat(walked).as(order.name()).hasSize(7).doesNotHaveDuplicates()
-                    .containsExactlyInAnyOrderElementsOf(all);
-            Assertions.assertThat(pages).as(order.name()).containsExactly(1, 2, 3);
+                    .containsExactlyElementsOf(this.ids(PunishmentQuery.builder().order(order)));
         }
-        Assertions.assertThatThrownBy(() -> this.punishments.query(PunishmentQuery.builder()
-                .after("bm9wZQ").build(), this.now.get()).join())
-                .hasCauseInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void racingEndsEndOnce() {
+        final Punishment ban = this.inserted(this.ban(PlayerVictim.of(UUID.randomUUID()), null));
+
+        final List<CompletableFuture<Optional<Punishment>>> racing = IntStream.range(0, 8)
+                .mapToObj(ignored -> this.punishments.end(ban.id(), EndKind.REVOKED,
+                        this.now.get(), CONSOLE, null)).toList();
+
+        Assertions.assertThat(racing).filteredOn(future -> future.join().isPresent()).hasSize(1);
+        Assertions.assertThat(this.count(SakuraTables.ACTIVE_PUNISHMENTS)).isZero();
+    }
+
+    @Test
+    void racingVoidsVoidOnce() {
+        final Punishment ban = this.inserted(this.ban(PlayerVictim.of(UUID.randomUUID()), null));
+
+        final List<CompletableFuture<ChangeOutcome>> racing = IntStream.range(0, 8)
+                .mapToObj(ignored -> this.punishments.voidPunishment(ban.id(), CONSOLE, null,
+                        this.now.get())).toList();
+
+        Assertions.assertThat(racing).map(CompletableFuture::join)
+                .filteredOn(ChangeOutcome.Changed.class::isInstance).hasSize(1);
+        Assertions.assertThat(racing).map(CompletableFuture::join)
+                .filteredOn(ChangeOutcome.Refused.class::isInstance).hasSize(7);
+        Assertions.assertThat(racing).map(CompletableFuture::join)
+                .filteredOn(ChangeOutcome.Refused.class::isInstance)
+                .allSatisfy(outcome -> Assertions.assertThat(((ChangeOutcome.Refused) outcome)
+                        .problem()).isEqualTo(ChangeOutcome.Problem.ALREADY_VOIDED));
+    }
+
+    @Test
+    void racingRevokesAndVoidsEndOnce() {
+        final Punishment ban = this.inserted(this.ban(PlayerVictim.of(UUID.randomUUID()), null));
+
+        final CompletableFuture<Optional<Punishment>> revoke = this.punishments.end(ban.id(),
+                EndKind.REVOKED, this.now.get(), CONSOLE, null);
+        final CompletableFuture<ChangeOutcome> voided = this.punishments.voidPunishment(ban.id(),
+                CONSOLE, null, this.now.get());
+        final CompletableFuture<ChangeOutcome> edit = this.punishments.edit(ban.id(),
+                PunishmentEdit.NewExpiry.of(this.now.get().plus(Duration.ofDays(2))), CONSOLE,
+                this.now.get());
+
+        Assertions.assertThat(voided.join()).isInstanceOf(ChangeOutcome.Changed.class);
+        Assertions.assertThat(edit.join()).isInstanceOfAny(ChangeOutcome.Changed.class,
+                ChangeOutcome.Refused.class);
+        final Punishment stored = this.punishments.byId(ban.id()).join().orElseThrow();
+        // Whichever ended it first, it ended once and stays voided.
+        Assertions.assertThat(stored.end()).isPresent();
+        Assertions.assertThat(stored.voiding()).isPresent();
+        Assertions.assertThat(revoke.join().isPresent())
+                .isEqualTo(stored.end().orElseThrow().kind() == EndKind.REVOKED);
+        Assertions.assertThat(this.count(SakuraTables.ACTIVE_PUNISHMENTS)).isZero();
     }
 
     @Test

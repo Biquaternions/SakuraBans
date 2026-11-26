@@ -1,6 +1,7 @@
 package net.serlith.sakurabans.core.template;
 
 import com.google.common.base.Preconditions;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.util.ArrayList;
@@ -33,14 +34,13 @@ import net.serlith.sakurabans.core.model.SubjectType;
 import net.serlith.sakurabans.core.model.TemplateDefinition;
 import net.serlith.sakurabans.core.permission.Action;
 import net.serlith.sakurabans.core.permission.AuthorizationService;
-import net.serlith.sakurabans.core.punish.TemplateResolver;
 import net.serlith.sakurabans.core.storage.repository.MetaRepository;
 import net.serlith.sakurabans.core.storage.repository.TemplateRepository;
 import net.serlith.sakurabans.core.sync.SyncPacket;
 import net.serlith.sakurabans.core.sync.SyncService;
 import org.jspecify.annotations.Nullable;
 
-public final class SakuraTemplateService implements TemplateService, TemplateResolver {
+public final class SakuraTemplateService implements TemplateService {
 
     static final String SEEDED = "templates.seeded";
     static final Actor SEED_ACTOR = Actor.of(ConsoleOperator.INSTANCE, "config");
@@ -142,7 +142,6 @@ public final class SakuraTemplateService implements TemplateService, TemplateRes
         return Validator.normalizeIdentifier(name).map(this.templates.get()::get);
     }
 
-    @Override
     public CompletableFuture<Optional<Resolution>> resolve(final String name,
             final Victim victim) {
         final SakuraTemplateInfo template = this.find(name).orElse(null);
@@ -297,4 +296,8 @@ public final class SakuraTemplateService implements TemplateService, TemplateRes
         }
         return all;
     }
+
+    public record Resolution(TemplateInfo template, @Nullable Duration duration, int step) {
+    }
+
 }

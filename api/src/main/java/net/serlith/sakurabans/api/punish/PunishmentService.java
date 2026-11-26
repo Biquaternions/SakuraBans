@@ -40,9 +40,10 @@ public interface PunishmentService {
     CompletableFuture<RevokeResult> revoke(RevocationRequest request);
 
     /**
-     * Changes one aspect of a punishment, records it in the audit log and raises its version.
+     * Changes one aspect of a punishment and records it in the audit log. Two changes at once
+     * both apply, the later one last.
      *
-     * @param request the punishment, the change, the actor and the expected version
+     * @param request the punishment, the change and the actor
      * @return the outcome
      */
     CompletableFuture<EditResult> edit(EditRequest request);
@@ -61,20 +62,6 @@ public interface PunishmentService {
     CompletableFuture<VoidResult> voidPunishment(long id, Actor actor, @Nullable String reason);
 
     /**
-     * Voids a punishment if it is still at the expected version.
-     *
-     * @param id the punishment's database id
-     * @param actor who voids it
-     * @param reason why, plain text, or {@code null}
-     * @param expectedVersion the version the caller last saw
-     * @return the outcome; {@code CONFLICT} if the version differs
-     * @throws net.serlith.sakurabans.api.validation.ValidationException if the reason is too
-     *         long (thrown immediately, not through the future)
-     */
-    CompletableFuture<VoidResult> voidPunishment(
-            long id, Actor actor, @Nullable String reason, long expectedVersion);
-
-    /**
      * Deletes a punishment from the history for good. The audit log keeps a record of it.
      *
      * @param id the punishment's database id
@@ -82,16 +69,6 @@ public interface PunishmentService {
      * @return the outcome
      */
     CompletableFuture<ExpungeResult> expunge(long id, Actor actor);
-
-    /**
-     * Deletes a punishment if it is still at the expected version.
-     *
-     * @param id the punishment's database id
-     * @param actor who deletes it
-     * @param expectedVersion the version the caller last saw
-     * @return the outcome; {@code CONFLICT} if the version differs
-     */
-    CompletableFuture<ExpungeResult> expunge(long id, Actor actor, long expectedVersion);
 
     /**
      * Attaches evidence to a punishment, active or not.
@@ -140,7 +117,7 @@ public interface PunishmentService {
     /**
      * Selects punishments.
      *
-     * @param query the filters, the order and the page or cursor
+     * @param query the filters, the order and the page
      * @return one page of punishments
      */
     CompletableFuture<Page<Punishment>> query(PunishmentQuery query);

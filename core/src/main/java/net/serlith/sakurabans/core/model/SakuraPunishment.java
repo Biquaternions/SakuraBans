@@ -36,8 +36,7 @@ public record SakuraPunishment(
         @Nullable TemplateRef templateOrNull,
         @Nullable PunishmentEnd endOrNull,
         @Nullable PunishmentVoid voidingOrNull,
-        List<Evidence> evidence,
-        long version) implements Punishment {
+        List<Evidence> evidence) implements Punishment {
 
     public SakuraPunishment {
         if (id < 1) {
@@ -57,9 +56,6 @@ public record SakuraPunishment(
         ModelChecks.optionalText(originServerOrNull, Lengths.MAX_IDENTIFIER, "originServer");
         Preconditions.checkNotNull(visibility, "visibility");
         evidence = List.copyOf(evidence);
-        if (version < 1) {
-            throw new IllegalArgumentException("version must be positive: " + version);
-        }
         if (expiresAtOrNull != null && !expiresAtOrNull.isAfter(createdAt)) {
             throw new IllegalArgumentException("expiresAt must be after createdAt");
         }
@@ -75,25 +71,6 @@ public record SakuraPunishment(
         if (type.instant() && (expiresAtOrNull != null || endOrNull != null)) {
             throw new IllegalArgumentException(type + " can't expire or end");
         }
-    }
-
-    public static SakuraPunishment before(final Punishment current,
-            final PunishmentEdit previous) {
-        String reason = current.reason();
-        Instant expiresAt = current.expiresAt().orElse(null);
-        Scope scope = current.scope();
-        switch (previous) {
-            case PunishmentEdit.NewReason value -> reason = value.reason();
-            case PunishmentEdit.NewExpiry value -> expiresAt = value.expiresAt().orElse(null);
-            case PunishmentEdit.NewScope value -> scope = value.scope();
-        }
-        return new SakuraPunishment(current.id(), current.displayId(), current.type(),
-                current.shadow(),
-                current.victim(), current.operator(), current.source(), scope, reason,
-                current.createdAt(), expiresAt, current.originServer().orElse(null),
-                current.visibility(), current.template().orElse(null),
-                current.end().orElse(null), current.voiding().orElse(null), current.evidence(),
-                Math.max(1, current.version() - 1));
     }
 
     @Override

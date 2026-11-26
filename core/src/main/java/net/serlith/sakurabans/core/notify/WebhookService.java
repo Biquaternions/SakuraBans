@@ -96,49 +96,27 @@ public final class WebhookService {
                 .executor(this.executors.worker())
                 .build());
         this.subscriptions.add(this.events.subscribe(PunishmentCreatedEvent.class,
-                EventPriority.MONITOR, event -> {
-                    if (!event.remote()) {
-                        this.punishment(event.punishment().type().name(), event.punishment(),
-                                event.punishment().visibility(), Map.of());
-                    }
-                }));
+                EventPriority.MONITOR, event -> this.punishment(
+                        event.punishment().type().name(), event.punishment(),
+                        event.punishment().visibility(), Map.of())));
         this.subscriptions.add(this.events.subscribe(PunishmentRevokedEvent.class,
-                EventPriority.MONITOR, event -> {
-                    if (!event.remote()) {
-                        this.punishment("UN" + event.punishment().type().name(),
-                                event.punishment(), event instanceof SakuraPunishmentRevokedEvent
-                                        revoked ? revoked.visibility()
-                                        : event.punishment().visibility(), Map.of());
-                    }
-                }));
+                EventPriority.MONITOR, event -> this.punishment(
+                        "UN" + event.punishment().type().name(), event.punishment(),
+                        event instanceof SakuraPunishmentRevokedEvent revoked
+                                ? revoked.visibility()
+                                : event.punishment().visibility(), Map.of())));
         this.subscriptions.add(this.events.subscribe(PunishmentVoidedEvent.class,
-                EventPriority.MONITOR, event -> {
-                    if (!event.remote()) {
-                        this.punishment("void", event.punishment(), Visibility.NORMAL,
-                                Map.of());
-                    }
-                }));
+                EventPriority.MONITOR, event -> this.punishment("void", event.punishment(),
+                        Visibility.NORMAL, Map.of())));
         this.subscriptions.add(this.events.subscribe(PunishmentExpungedEvent.class,
-                EventPriority.MONITOR, event -> {
-                    if (!event.remote()) {
-                        this.punishment("delete", event.punishment(), Visibility.NORMAL,
-                                Map.of());
-                    }
-                }));
+                EventPriority.MONITOR, event -> this.punishment("delete", event.punishment(),
+                        Visibility.NORMAL, Map.of())));
         this.subscriptions.add(this.events.subscribe(PunishmentEditedEvent.class,
-                EventPriority.MONITOR, event -> {
-                    if (!event.remote()) {
-                        this.punishment("edit", event.punishment(),
-                                event.punishment().visibility(),
-                                Map.of("edit", this.describe(event.edit())));
-                    }
-                }));
+                EventPriority.MONITOR, event -> this.punishment("edit", event.punishment(),
+                        event.punishment().visibility(),
+                        Map.of("edit", this.describe(event.edit())))));
         this.subscriptions.add(this.events.subscribe(PunishmentsRolledBackEvent.class,
-                EventPriority.MONITOR, event -> {
-                    if (!event.remote()) {
-                        this.rolledBack(event);
-                    }
-                }));
+                EventPriority.MONITOR, this::rolledBack));
     }
 
     public void stop() {

@@ -325,7 +325,6 @@ edit:
     already_punished: '<prefix><red>The victim already has an active <type> there.</red>'
     exempt: '<prefix><red>You can''t change that punishment.</red>'
     cancelled: '<prefix><red>Another plugin cancelled this.</red>'
-    conflict: '<prefix><red>Someone else changed it meanwhile; try again.</red>'
     evidence_already_attached: '<prefix><yellow>That evidence is already attached.</yellow>'
     evidence_not_attached: '<prefix><yellow>That evidence isn''t attached.</yellow>'
     forbidden: '<prefix><red>You may not do that.</red>'

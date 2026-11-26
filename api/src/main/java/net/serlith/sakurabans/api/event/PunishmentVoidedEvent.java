@@ -7,7 +7,7 @@ import net.serlith.sakurabans.api.model.Punishment;
  *
  * <p>Runs on a SakuraBans worker thread.
  */
-public interface PunishmentVoidedEvent extends SyncedEvent {
+public interface PunishmentVoidedEvent extends SakuraEvent {
 
     /**
      * The punishment, now voided (and ended with {@code VOIDED} if it was active).

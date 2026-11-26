@@ -6,7 +6,7 @@ import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.punish.RollbackRequest;
 
 public record SakuraPunishmentsRolledBackEvent(RollbackRequest request,
-        List<Punishment> punishments, boolean remote) implements PunishmentsRolledBackEvent {
+        List<Punishment> punishments) implements PunishmentsRolledBackEvent {
 
     public SakuraPunishmentsRolledBackEvent {
         punishments = List.copyOf(punishments);

@@ -19,6 +19,6 @@ final class Fixtures {
         return new SakuraPunishment(id, Long.toString(id), PunishmentType.BAN, false,
                 PlayerVictim.of(UUID.randomUUID()), ConsoleOperator.INSTANCE, "console",
                 GlobalScope.INSTANCE, "reason", Instant.parse("2026-11-19T12:00:00Z"), null, null,
-                Visibility.NORMAL, null, null, null, List.of(), 1);
+                Visibility.NORMAL, null, null, null, List.of());
     }
 }

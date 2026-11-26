@@ -8,10 +8,7 @@ public sealed interface ChangeOutcome {
     record NotFound() implements ChangeOutcome {
     }
 
-    record Conflict(long currentVersion) implements ChangeOutcome {
-    }
-
-    record Refused(Problem problem, long currentVersion) implements ChangeOutcome {
+    record Refused(Problem problem) implements ChangeOutcome {
 
         public Refused {
             Preconditions.checkNotNull(problem, "problem");

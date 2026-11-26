@@ -1,4 +1,4 @@
-package net.serlith.sakurabans.core.template;
+package net.serlith.sakurabans.core.punish;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -16,7 +16,7 @@ import net.serlith.sakurabans.core.event.SakuraEventBus;
 import net.serlith.sakurabans.core.event.SakuraTemplateStepEvent;
 import net.serlith.sakurabans.core.platform.Platform;
 import net.serlith.sakurabans.core.player.NameCache;
-import net.serlith.sakurabans.core.punish.ConsoleActions;
+import net.serlith.sakurabans.core.template.SakuraTemplateService;
 import org.jspecify.annotations.Nullable;
 
 public final class TemplateActions {
@@ -58,10 +58,7 @@ public final class TemplateActions {
         if (ref == null) {
             return;
         }
-        this.events.post(new SakuraTemplateStepEvent(punishment, ref, event.remote()));
-        if (event.remote()) {
-            return;
-        }
+        this.events.post(new SakuraTemplateStepEvent(punishment, ref));
         final TemplateInfo template = this.templates.template(ref.name()).orElse(null);
         if (template == null) {
             return;

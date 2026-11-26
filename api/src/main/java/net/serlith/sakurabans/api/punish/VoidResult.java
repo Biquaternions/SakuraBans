@@ -1,6 +1,5 @@
 package net.serlith.sakurabans.api.punish;
 
-import java.util.OptionalLong;
 import net.serlith.sakurabans.api.model.Punishment;
 
 /**
@@ -36,13 +35,6 @@ public sealed interface VoidResult permits VoidResult.Success, VoidResult.Failur
         Reason reason();
 
         /**
-         * The punishment's current version, for {@link Reason#CONFLICT}.
-         *
-         * @return the version, or empty for other reasons
-         */
-        OptionalLong currentVersion();
-
-        /**
          * Why nothing was voided.
          */
         enum Reason {
@@ -58,9 +50,6 @@ public sealed interface VoidResult permits VoidResult.Success, VoidResult.Failur
 
             /** An event listener cancelled it. */
             CANCELLED,
-
-            /** The punishment changed since the expected version. */
-            CONFLICT,
 
             /** The actor isn't allowed to do this (permissions or an integration's guard). */
             FORBIDDEN

@@ -1,7 +1,6 @@
 package net.serlith.sakurabans.api.model;
 
 import java.util.List;
-import java.util.Optional;
 
 /**
  * One page of results. Implemented by SakuraBans; don't implement it.
@@ -11,7 +10,7 @@ import java.util.Optional;
 public interface Page<T> {
 
     /**
-     * The items on this page, newest first.
+     * The items on this page, in the query's order.
      *
      * @return the items, at most {@link #pageSize()}
      */
@@ -25,8 +24,7 @@ public interface Page<T> {
     long total();
 
     /**
-     * This page's number. For a query that pages by cursor, it is the number this page would
-     * have if counted from the first one.
+     * This page's number.
      *
      * @return the page, counted from 1
      */
@@ -38,14 +36,6 @@ public interface Page<T> {
      * @return the page size
      */
     int pageSize();
-
-    /**
-     * A cursor for the next page, for queries that page by cursor
-     * (for example {@code PunishmentQuery.after()}). Cursors are opaque; pass them back unchanged.
-     *
-     * @return the cursor, or empty on the last page
-     */
-    Optional<String> nextCursor();
 
     /**
      * The number of pages.

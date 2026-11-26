@@ -10,7 +10,6 @@ import java.util.Set;
 import java.util.UUID;
 import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.Operator;
-import net.serlith.sakurabans.api.model.Page;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Scope;
 import net.serlith.sakurabans.api.model.Victim;
@@ -119,19 +118,11 @@ public interface PunishmentQuery {
     Order order();
 
     /**
-     * The page to return, when paging by number.
+     * The page to return.
      *
      * @return the page, counted from 1
      */
     int page();
-
-    /**
-     * Where to continue, when paging by cursor: the {@link Page#nextCursor()} of the previous
-     * page. Can't be combined with a page number other than 1.
-     *
-     * @return the cursor, or empty to start from the beginning
-     */
-    Optional<String> after();
 
     /**
      * The number of punishments per page.
@@ -157,7 +148,6 @@ public interface PunishmentQuery {
                 .includeHidden(this.includeHidden())
                 .includeVoided(this.includeVoided())
                 .order(this.order())
-                .after(this.after().orElse(null))
                 .createdAfter(this.createdAfter().orElse(null))
                 .createdBefore(this.createdBefore().orElse(null));
         return builder.page(this.page()).pageSize(this.pageSize());
@@ -261,7 +251,6 @@ public interface PunishmentQuery {
         private @Nullable Instant createdBefore;
         private Order order = Order.NEWEST_FIRST;
         private int page = 1;
-        private @Nullable String after;
         private int pageSize = 10;
 
         private Builder() {
@@ -392,17 +381,6 @@ public interface PunishmentQuery {
         }
 
         /**
-         * Continues after a cursor.
-         *
-         * @param after a {@link Page#nextCursor()}, or {@code null} to start from the beginning
-         * @return this builder
-         */
-        public Builder after(final @Nullable String after) {
-            this.after = after;
-            return this;
-        }
-
-        /**
          * Sets the lower creation bound (inclusive).
          *
          * @param createdAfter the bound, or {@code null} for none
@@ -451,7 +429,7 @@ public interface PunishmentQuery {
          *
          * @return every problem: no {@code types}, both {@code victim} and
          *         {@code applicableTo}, creation bounds in the wrong order, {@code page} or
-         *         {@code pageSize} out of range, or a page number with a cursor
+         *         {@code pageSize} out of range
          */
         public List<FieldError> validate() {
             final Validator errors = Validator.create();
@@ -466,10 +444,6 @@ public interface PunishmentQuery {
                     "must be at least 1: " + this.page);
             errors.check(this.pageSize >= 1 && this.pageSize <= MAX_PAGE_SIZE, "pageSize",
                     Code.OUT_OF_RANGE, "must be 1-" + MAX_PAGE_SIZE + ": " + this.pageSize);
-            errors.check(this.after == null || this.page == 1, "after", Code.EXCLUSIVE,
-                    "page by number or by cursor, not both");
-            errors.check(this.after == null || !this.after.isBlank(), "after", Code.BLANK,
-                    "must not be blank");
             return errors.errors();
         }
 
@@ -484,8 +458,8 @@ public interface PunishmentQuery {
                     Optional<Applicability> applicableTo, Optional<Operator> operator,
                     Optional<Operator> revokedBy, Optional<Scope> scope, boolean activeOnly,
                     boolean includeHidden, boolean includeVoided, Optional<Instant> createdAfter,
-                    Optional<Instant> createdBefore, Order order, int page, Optional<String> after,
-                    int pageSize) implements PunishmentQuery {
+                    Optional<Instant> createdBefore, Order order, int page, int pageSize)
+                    implements PunishmentQuery {
             }
 
             ValidationException.throwIfAny(this.validate());
@@ -495,7 +469,7 @@ public interface PunishmentQuery {
                     Optional.ofNullable(this.scope), this.activeOnly, this.includeHidden,
                     this.includeVoided, Optional.ofNullable(this.createdAfter),
                     Optional.ofNullable(this.createdBefore), this.order, this.page,
-                    Optional.ofNullable(this.after), this.pageSize);
+                    this.pageSize);
         }
     }
 }

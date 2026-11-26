@@ -9,7 +9,8 @@ public interface EventBus {
 
     /**
      * Subscribes a handler. It also receives subtypes of {@code type}, so subscribing to
-     * {@link SyncedEvent} receives every synced event.
+     * {@link SakuraEvent} receives every event. Events are local to the server where the action
+     * happens.
      *
      * @param type the event type
      * @param priority when the handler runs relative to others

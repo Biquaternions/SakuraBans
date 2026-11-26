@@ -108,7 +108,7 @@ class AdminCommandsTest extends CommandTest {
                 .satisfies(event -> Assertions.assertThat(event.punishments())
                         .extracting(Punishment::id).containsExactly(ban.id()));
         Assertions.assertThat(this.published).filteredOn(
-                SyncPacket.PunishmentsRolledBackPacket.class::isInstance).hasSize(1);
+                SyncPacket.PunishmentsEndedPacket.class::isInstance).hasSize(1);
 
         this.run(this.console, "staffrollback Mod 1h");
         Assertions.assertThat(this.console.last()).contains("issued nothing");

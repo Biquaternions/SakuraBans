@@ -10,7 +10,7 @@ import net.serlith.sakurabans.api.punish.RollbackRequest;
  *
  * <p>Runs on a SakuraBans worker thread.
  */
-public interface PunishmentsRolledBackEvent extends SyncedEvent {
+public interface PunishmentsRolledBackEvent extends SakuraEvent {
 
     /**
      * The rollback.

@@ -70,6 +70,7 @@ import net.serlith.sakurabans.core.punish.ExpirySweeper;
 import net.serlith.sakurabans.core.punish.MuteCache;
 import net.serlith.sakurabans.core.punish.PunishmentFactory;
 import net.serlith.sakurabans.core.punish.SakuraPunishmentService;
+import net.serlith.sakurabans.core.punish.TemplateActions;
 import net.serlith.sakurabans.core.punish.WarningActions;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
 import net.serlith.sakurabans.core.storage.DisplayIdCodec;
@@ -93,7 +94,6 @@ import net.serlith.sakurabans.core.sync.SqlPollingTransport;
 import net.serlith.sakurabans.core.sync.SyncService;
 import net.serlith.sakurabans.core.sync.SyncTransport;
 import net.serlith.sakurabans.core.template.SakuraTemplateService;
-import net.serlith.sakurabans.core.template.TemplateActions;
 
 final class CoreComponents {
 
@@ -251,7 +251,7 @@ final class CoreComponents {
                 this.allowList, mutes, this.names, authorization, this.sync,
                 this.events, clock);
         this.syncReceiver = new SyncReceiver(this.punishments, this.enforcer, mutes,
-                this.scopeService, this.platform, this.events, this.config, clock,
+                this.scopeService, this.platform, this.notifications, this.config, clock,
                 this.allowList, this.templates, this.lockdowns,
                 this.settingsService, this.messageTemplates,
                 this.playerData, this.ranges, this.displayIds, environment.logger());

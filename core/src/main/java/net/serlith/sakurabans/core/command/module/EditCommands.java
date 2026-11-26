@@ -328,7 +328,6 @@ public final class EditCommands implements CommandModule {
             case "ALREADY_PUNISHED" -> MessageKey.EDIT_FAILURE_ALREADY_PUNISHED;
             case "EXEMPT" -> MessageKey.EDIT_FAILURE_EXEMPT;
             case "CANCELLED" -> MessageKey.EDIT_FAILURE_CANCELLED;
-            case "CONFLICT" -> MessageKey.EDIT_FAILURE_CONFLICT;
             case "EVIDENCE_ALREADY_ATTACHED" -> MessageKey.EDIT_FAILURE_EVIDENCE_ALREADY_ATTACHED;
             case "EVIDENCE_NOT_ATTACHED" -> MessageKey.EDIT_FAILURE_EVIDENCE_NOT_ATTACHED;
             default -> MessageKey.EDIT_FAILURE_FORBIDDEN;

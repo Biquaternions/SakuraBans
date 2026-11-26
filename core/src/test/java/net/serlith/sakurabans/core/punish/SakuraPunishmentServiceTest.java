@@ -87,10 +87,8 @@ class SakuraPunishmentServiceTest extends ServiceTest {
         Assertions.assertThat(this.events).hasSize(2);
         Assertions.assertThat(this.events.get(0)).isInstanceOf(PunishmentCreateEvent.class);
         Assertions.assertThat(this.events.get(1)).isInstanceOfSatisfying(
-                PunishmentCreatedEvent.class, event -> {
-                    Assertions.assertThat(event.punishment()).isEqualTo(ban);
-                    Assertions.assertThat(event.remote()).isFalse();
-                });
+                PunishmentCreatedEvent.class,
+                event -> Assertions.assertThat(event.punishment()).isEqualTo(ban));
     }
 
     @Test

@@ -73,7 +73,7 @@ class MessageServiceTest {
                 victim, PlayerOperator.of(UUID.randomUUID(), "Moderator"),
                 "in-game", ServerScope.of("lobby"), reason, CREATED, expiresAt,
                 "lobby", Visibility.NORMAL, null, null,
-                null, List.of(), 1);
+                null, List.of());
     }
 
     @Test
@@ -105,7 +105,7 @@ class MessageServiceTest {
                 Visibility.NORMAL, null, new SakuraPunishmentEnd(
                         EndKind.REVOKED, CREATED.plusSeconds(60),
                         Actor.of(PlayerOperator.of(STEVE, "Admin"), "web"),
-                        "appeal"), null, List.of(), 2);
+                        "appeal"), null, List.of());
         final String template = "<victim>|<operator>|<reason>|<duration>|<remaining>|<expires>|"
                 + "<id>|<display_id>|<scope>|<type>|<server>|<revoker>|<revoke_reason>";
 

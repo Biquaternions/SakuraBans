@@ -336,7 +336,6 @@ public record MessageKey(String key) {
     public static final MessageKey EDIT_FAILURE_EXEMPT = new MessageKey("edit.failure.exempt");
     public static final MessageKey EDIT_FAILURE_CANCELLED =
             new MessageKey("edit.failure.cancelled");
-    public static final MessageKey EDIT_FAILURE_CONFLICT = new MessageKey("edit.failure.conflict");
     public static final MessageKey EDIT_FAILURE_EVIDENCE_ALREADY_ATTACHED =
             new MessageKey("edit.failure.evidence_already_attached");
     public static final MessageKey EDIT_FAILURE_EVIDENCE_NOT_ATTACHED =

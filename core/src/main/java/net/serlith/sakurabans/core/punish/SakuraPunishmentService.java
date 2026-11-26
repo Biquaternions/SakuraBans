@@ -12,6 +12,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import net.serlith.sakurabans.api.model.Actor;
+import net.serlith.sakurabans.api.model.AddressRangeVictim;
 import net.serlith.sakurabans.api.model.CompositeVictim;
 import net.serlith.sakurabans.api.model.EndKind;
 import net.serlith.sakurabans.api.model.Evidence;
@@ -206,7 +207,7 @@ public final class SakuraPunishmentService implements PunishmentService {
             local = CompletableFuture.completedFuture(null);
         }
         return local.thenApplyAsync(ignored -> {
-            this.events.post(new SakuraPunishmentCreatedEvent(punishment, superseded, false));
+            this.events.post(new SakuraPunishmentCreatedEvent(punishment, superseded));
             return new SakuraPunishResult.Success(punishment, superseded);
         }, this.worker);
     }
@@ -302,7 +303,7 @@ public final class SakuraPunishmentService implements PunishmentService {
                     .thenApplyAsync(ignored -> {
                         for (final Punishment punishment : revoked) {
                             this.events.post(new SakuraPunishmentRevokedEvent(punishment,
-                                    request.visibility(), false));
+                                    request.visibility()));
                         }
                         return new SakuraRevokeResult.Success(revoked);
                     }, this.worker);
@@ -318,8 +319,6 @@ public final class SakuraPunishmentService implements PunishmentService {
             return CompletableFuture.failedFuture(e);
         }
         final PunishmentEdit edit = this.normalized(checked.edit());
-        final Long expectedVersion = checked.expectedVersion().isPresent()
-                ? checked.expectedVersion().getAsLong() : null;
         return this.changeable(checked.id(), checked.actor(),
                 Action.ChangePunishment.Operation.EDIT).thenComposeAsync(found -> {
                     if (found instanceof Changeable.Refused(String reason)) {
@@ -332,7 +331,7 @@ public final class SakuraPunishmentService implements PunishmentService {
                                 editFailure(EditResult.Failure.Reason.CANCELLED));
                     }
                     return this.punishments.edit(checked.id(), edit, checked.actor(),
-                                    expectedVersion, this.clock.instant())
+                                    this.clock.instant())
                             .thenCompose(outcome -> this.edited(outcome, edit));
                 }, this.worker);
     }
@@ -342,23 +341,13 @@ public final class SakuraPunishmentService implements PunishmentService {
         if (!(outcome instanceof ChangeOutcome.Changed(Punishment previous, Punishment current))) {
             return CompletableFuture.completedFuture(editFailure(outcome));
         }
-        this.sync.publish(new SyncPacket.PunishmentEditedPacket(current.id(),
-                previousValue(previous, edit), edit));
-        return this.enforcer.changed(previous, current).thenApplyAsync(ignored -> {
+        final boolean rescoped = !previous.scope().equals(current.scope());
+        this.sync.publish(new SyncPacket.PunishmentEditedPacket(current.id(), rescoped));
+        return this.enforcer.changed(current, rescoped).thenApplyAsync(ignored -> {
             this.events.post(new SakuraPunishmentChangeEvents.Edited(previous,
-                    current, edit, false));
+                    current, edit));
             return new SakuraChangeResults.EditSuccess(current);
         }, this.worker);
-    }
-
-    public static PunishmentEdit previousValue(final Punishment previous,
-            final PunishmentEdit edit) {
-        return switch (edit) {
-            case PunishmentEdit.NewReason reason -> PunishmentEdit.NewReason.of(previous.reason());
-            case PunishmentEdit.NewExpiry expiry ->
-                    PunishmentEdit.NewExpiry.of(previous.expiresAt().orElse(null));
-            case PunishmentEdit.NewScope scope -> PunishmentEdit.NewScope.of(previous.scope());
-        };
     }
 
     private PunishmentEdit normalized(final PunishmentEdit edit) {
@@ -377,17 +366,6 @@ public final class SakuraPunishmentService implements PunishmentService {
     @Override
     public CompletableFuture<VoidResult> voidPunishment(final long id, final Actor actor,
             final @Nullable String reason) {
-        return this.voidPunishment(id, actor, reason, null);
-    }
-
-    @Override
-    public CompletableFuture<VoidResult> voidPunishment(final long id, final Actor actor,
-            final @Nullable String reason, final long expectedVersion) {
-        return this.voidPunishment(id, actor, reason, (Long) expectedVersion);
-    }
-
-    private CompletableFuture<VoidResult> voidPunishment(final long id, final Actor actor,
-            final @Nullable String reason, final @Nullable Long expectedVersion) {
         final Actor checked;
         try {
             checked = ApiValues.actor(actor);
@@ -406,9 +384,9 @@ public final class SakuraPunishmentService implements PunishmentService {
                     if (this.events.post(new SakuraPunishmentChangeEvents.Voiding(punishment,
                             checked, text)).cancelled()) {
                         return CompletableFuture.completedFuture(new SakuraChangeResults
-                                .VoidFailure(VoidResult.Failure.Reason.CANCELLED, null));
+                                .VoidFailure(VoidResult.Failure.Reason.CANCELLED));
                     }
-                    return this.punishments.voidPunishment(id, checked, text, expectedVersion,
+                    return this.punishments.voidPunishment(id, checked, text,
                             this.clock.instant()).thenCompose(this::voided);
                 }, this.worker);
     }
@@ -417,29 +395,18 @@ public final class SakuraPunishmentService implements PunishmentService {
         if (!(outcome instanceof ChangeOutcome.Changed(Punishment previous, Punishment current))) {
             return CompletableFuture.completedFuture(voidFailure(outcome));
         }
-        this.sync.publish(new SyncPacket.PunishmentVoidedPacket(current.id()));
+        this.sync.publish(new SyncPacket.PunishmentsEndedPacket(List.of(current.id())));
         final CompletableFuture<Void> local = previous.end().isEmpty()
                 ? this.enforcer.ended(current)
                 : CompletableFuture.completedFuture(null);
         return local.thenApplyAsync(ignored -> {
-            this.events.post(new SakuraPunishmentChangeEvents.Voided(current, false));
+            this.events.post(new SakuraPunishmentChangeEvents.Voided(current));
             return new SakuraChangeResults.VoidSuccess(current);
         }, this.worker);
     }
 
     @Override
     public CompletableFuture<ExpungeResult> expunge(final long id, final Actor actor) {
-        return this.expunge(id, actor, null);
-    }
-
-    @Override
-    public CompletableFuture<ExpungeResult> expunge(final long id, final Actor actor,
-            final long expectedVersion) {
-        return this.expunge(id, actor, (Long) expectedVersion);
-    }
-
-    private CompletableFuture<ExpungeResult> expunge(final long id, final Actor actor,
-            final @Nullable Long expectedVersion) {
         final Actor checked;
         try {
             checked = ApiValues.actor(actor);
@@ -456,9 +423,9 @@ public final class SakuraPunishmentService implements PunishmentService {
                     if (this.events.post(new SakuraPunishmentChangeEvents.Expunge(punishment,
                             checked)).cancelled()) {
                         return CompletableFuture.completedFuture(new SakuraChangeResults
-                                .ExpungeFailure(ExpungeResult.Failure.Reason.CANCELLED, null));
+                                .ExpungeFailure(ExpungeResult.Failure.Reason.CANCELLED));
                     }
-                    return this.punishments.expunge(id, checked, expectedVersion,
+                    return this.punishments.expunge(id, checked,
                             this.clock.instant()).thenCompose(this::expunged);
                 }, this.worker);
     }
@@ -468,12 +435,13 @@ public final class SakuraPunishmentService implements PunishmentService {
             return CompletableFuture.completedFuture(expungeFailure(outcome));
         }
         final Punishment gone = changed.previous();
-        this.sync.publish(new SyncPacket.PunishmentExpungedPacket(gone));
+        this.sync.publish(new SyncPacket.PunishmentExpungedPacket(gone.id(),
+                gone.victim() instanceof AddressRangeVictim));
         final CompletableFuture<Void> local = gone.end().isEmpty()
                 ? this.enforcer.ended(gone)
                 : CompletableFuture.completedFuture(null);
         return local.thenApplyAsync(ignored -> {
-            this.events.post(new SakuraPunishmentChangeEvents.Expunged(gone, false));
+            this.events.post(new SakuraPunishmentChangeEvents.Expunged(gone));
             return new SakuraChangeResults.ExpungeSuccess(gone);
         }, this.worker);
     }
@@ -514,13 +482,11 @@ public final class SakuraPunishmentService implements PunishmentService {
                                     final Evidence item = source.evidence().stream()
                                             .filter(e -> e.ref().equals(ref))
                                             .findFirst().orElseThrow();
-                                    this.sync.publish(new SyncPacket.EvidenceChangedPacket(
-                                            id, attach, item));
                                     this.events.post(attach
                                             ? new SakuraPunishmentChangeEvents.EvidenceAttached(
-                                                    current, item, false)
+                                                    current, item)
                                             : new SakuraPunishmentChangeEvents.EvidenceDetached(
-                                                    current, item, false));
+                                                    current, item));
                                     return new SakuraChangeResults.EditSuccess(
                                             current);
                                 }, this.worker), this.worker);
@@ -557,19 +523,16 @@ public final class SakuraPunishmentService implements PunishmentService {
     }
 
     private static EditResult editFailure(final String reason) {
-        return new SakuraChangeResults.EditFailure(EditResult.Failure.Reason.valueOf(reason),
-                null);
+        return new SakuraChangeResults.EditFailure(EditResult.Failure.Reason.valueOf(reason));
     }
 
     private static EditResult editFailure(final EditResult.Failure.Reason reason) {
-        return new SakuraChangeResults.EditFailure(reason, null);
+        return new SakuraChangeResults.EditFailure(reason);
     }
 
     private static EditResult editFailure(final ChangeOutcome outcome) {
         return switch (outcome) {
             case ChangeOutcome.NotFound notFound -> editFailure("NOT_FOUND");
-            case ChangeOutcome.Conflict conflict -> new SakuraChangeResults.EditFailure(
-                    EditResult.Failure.Reason.CONFLICT, conflict.currentVersion());
             case ChangeOutcome.Refused refused -> new SakuraChangeResults.EditFailure(
                     switch (refused.problem()) {
                         case NOT_ACTIVE -> EditResult.Failure.Reason.NOT_ACTIVE;
@@ -580,37 +543,32 @@ public final class SakuraPunishmentService implements PunishmentService {
                         case EVIDENCE_NOT_ATTACHED ->
                                 EditResult.Failure.Reason.EVIDENCE_NOT_ATTACHED;
                         case ALREADY_VOIDED -> throw new IllegalStateException("not an edit");
-                    }, refused.currentVersion());
+                    });
             case ChangeOutcome.Changed changed -> throw new IllegalStateException("changed");
         };
     }
 
     private static VoidResult voidFailure(final String reason) {
-        return new SakuraChangeResults.VoidFailure(VoidResult.Failure.Reason.valueOf(reason),
-                null);
+        return new SakuraChangeResults.VoidFailure(VoidResult.Failure.Reason.valueOf(reason));
     }
 
     private static VoidResult voidFailure(final ChangeOutcome outcome) {
         return switch (outcome) {
             case ChangeOutcome.NotFound notFound -> voidFailure("NOT_FOUND");
-            case ChangeOutcome.Conflict conflict -> new SakuraChangeResults.VoidFailure(
-                    VoidResult.Failure.Reason.CONFLICT, conflict.currentVersion());
             case ChangeOutcome.Refused refused -> new SakuraChangeResults.VoidFailure(
-                    VoidResult.Failure.Reason.ALREADY_VOIDED, refused.currentVersion());
+                    VoidResult.Failure.Reason.ALREADY_VOIDED);
             case ChangeOutcome.Changed changed -> throw new IllegalStateException("changed");
         };
     }
 
     private static ExpungeResult expungeFailure(final String reason) {
         return new SakuraChangeResults.ExpungeFailure(
-                ExpungeResult.Failure.Reason.valueOf(reason), null);
+                ExpungeResult.Failure.Reason.valueOf(reason));
     }
 
     private static ExpungeResult expungeFailure(final ChangeOutcome outcome) {
         return switch (outcome) {
             case ChangeOutcome.NotFound notFound -> expungeFailure("NOT_FOUND");
-            case ChangeOutcome.Conflict conflict -> new SakuraChangeResults.ExpungeFailure(
-                    ExpungeResult.Failure.Reason.CONFLICT, conflict.currentVersion());
             case ChangeOutcome.Refused refused -> throw new IllegalStateException("refused");
             case ChangeOutcome.Changed changed -> throw new IllegalStateException("changed");
         };
@@ -657,17 +615,14 @@ public final class SakuraPunishmentService implements PunishmentService {
         return Futures.allOf(ends).thenComposeAsync(results -> {
             final List<Punishment> ended = results.stream().flatMap(Optional::stream).toList();
             if (!ended.isEmpty()) {
-                this.sync.publish(new SyncPacket.PunishmentsRolledBackPacket(
-                        ended.stream().map(Punishment::id).toList(), request.target(),
-                        request.since(), request.actor(), request.reason().orElse(null),
-                        request.visibility()));
+                this.sync.publish(new SyncPacket.PunishmentsEndedPacket(
+                        ended.stream().map(Punishment::id).toList()));
             }
             final CompletableFuture<?>[] local = ended.stream().map(this.enforcer::ended)
                     .toArray(CompletableFuture[]::new);
             return CompletableFuture.allOf(local).thenApplyAsync(ignored -> {
                 if (!ended.isEmpty()) {
-                    this.events.post(new SakuraPunishmentsRolledBackEvent(request, ended,
-                            false));
+                    this.events.post(new SakuraPunishmentsRolledBackEvent(request, ended));
                 }
                 return new SakuraRollbackResult.Success(ended);
             }, this.worker);

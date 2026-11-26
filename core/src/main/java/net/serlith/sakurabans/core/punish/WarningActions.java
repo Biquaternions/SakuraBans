@@ -62,7 +62,7 @@ public final class WarningActions {
 
     private void created(final PunishmentCreatedEvent event) {
         final Punishment punishment = event.punishment();
-        if (event.remote() || punishment.type() != PunishmentType.WARN) {
+        if (punishment.type() != PunishmentType.WARN) {
             return;
         }
         final Map<Integer, List<String>> actions = this.config.settings().warnings().actions();

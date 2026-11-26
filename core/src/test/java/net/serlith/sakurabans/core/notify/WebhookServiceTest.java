@@ -33,8 +33,8 @@ import net.serlith.sakurabans.api.punish.RevocationTarget;
 import net.serlith.sakurabans.core.RecordingLogger;
 import net.serlith.sakurabans.core.ServiceTest;
 import net.serlith.sakurabans.core.configuration.ReloadResult;
-import net.serlith.sakurabans.core.event.SakuraPunishmentCreatedEvent;
 import net.serlith.sakurabans.core.message.Formats;
+import net.serlith.sakurabans.core.sync.SyncPacket;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -124,7 +124,7 @@ class WebhookServiceTest extends ServiceTest {
                 "{\"name\":\"Scope\",\"value\":\"global\",\"inline\":true}");
 
         // Another instance's ban, a disabled route, silent and hidden ones: nothing.
-        this.bus.post(new SakuraPunishmentCreatedEvent(ban, null, true));
+        this.syncReceiver().handle(SyncPacket.PunishmentEnforcePacket.of(ban.id())).join();
         this.punish(PunishmentType.MUTE, Visibility.NORMAL);
         this.service.revoke(RevocationRequest.builder(RevocationTarget.ById.of(ban.id()),
                 MODERATOR).visibility(Visibility.SILENT).build()).join();

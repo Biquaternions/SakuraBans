@@ -9,7 +9,7 @@ import net.serlith.sakurabans.api.model.Punishment;
  * event fires when the expiry sweeper (or a lookup) notices it, which can be later; after a
  * crash it may fire twice. Runs on a SakuraBans worker thread.
  */
-public interface PunishmentExpiredEvent extends SyncedEvent {
+public interface PunishmentExpiredEvent extends SakuraEvent {
 
     /**
      * The punishment, now ended.

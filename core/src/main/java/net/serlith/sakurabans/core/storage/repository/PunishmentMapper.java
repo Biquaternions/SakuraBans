@@ -98,8 +98,7 @@ public final class PunishmentMapper {
                                 revoker(p).orElse(null), p.revokeReason()),
                 p.voidedAt() == null ? null
                         : new SakuraPunishmentVoid(p.voidedAt(), voider(p), p.voidReason()),
-                evidence,
-                p.version());
+                evidence);
     }
 
     private static Optional<Actor> revoker(final SbPunishmentsRecord p) {

@@ -134,14 +134,6 @@ public interface Punishment {
     List<Evidence> evidence();
 
     /**
-     * The version, which goes up by one with every change (edit, end, void, evidence). Send it
-     * back as the expected version to make sure you change what you saw.
-     *
-     * @return the version, at least 1
-     */
-    long version();
-
-    /**
      * Whether it never expires on its own. A kick counts as permanent.
      *
      * @return {@code true} if {@link #expiresAt()} is empty

@@ -221,7 +221,6 @@ public final class ImportRepository {
                 .set(p.VOIDER_NAME, voider == null ? null : voider.name())
                 .set(p.VOIDER_SOURCE, voider == null ? null : source)
                 .set(p.VOID_REASON, voided ? endReason : null)
-                .set(p.VERSION, 1L)
                 .set(p.EXTERNAL_ID, punishment.externalId())
                 // Old warnings must not greet their players as new ones.
                 .set(p.ACKNOWLEDGED, true)

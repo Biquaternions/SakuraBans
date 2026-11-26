@@ -39,7 +39,7 @@ class SakuraPunishmentTest {
         return new SakuraPunishment(id, displayId, type, false,
                 VICTIM, CONSOLE, "console", GlobalScope.INSTANCE, reason, CREATED, expiresAt,
                 null, Visibility.NORMAL, null, end, null,
-                List.of(), 1);
+                List.of());
     }
 
     private static PunishmentEnd revokedAt(final Instant at) {
@@ -132,7 +132,7 @@ class SakuraPunishmentTest {
         assertThatThrownBy(() -> new SakuraPunishment(1, "X", PunishmentType.BAN, true,
                 VICTIM, CONSOLE, "console", GlobalScope.INSTANCE, "", CREATED,
                 null, null, Visibility.NORMAL, null,
-                null, null, List.of(), 1))
+                null, null, List.of()))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

@@ -117,9 +117,6 @@ public final class SbPunishments extends SbTable<SbPunishmentsRecord> {
     public final TableField<SbPunishmentsRecord, String> VOID_REASON = createField(
             DSL.name("void_reason"), SQLDataType.VARCHAR(1024).nullable(true), this, "");
 
-    public final TableField<SbPunishmentsRecord, Long> VERSION = createField(
-            DSL.name("version"), SQLDataType.BIGINT.nullable(false), this, "");
-
     public final TableField<SbPunishmentsRecord, String> EXTERNAL_ID = createField(
             DSL.name("external_id"), SQLDataType.VARCHAR(128).nullable(true), this, "");
 
@@ -183,9 +180,7 @@ public final class SbPunishments extends SbTable<SbPunishmentsRecord> {
                                 .or(this.ENDED_AT.isNotNull().and(this.END_KIND.isNotNull()))),
                 this.check("void_ck",
                         this.VOIDED_AT.isNull().and(this.VOIDER_KIND.isNull())
-                                .or(this.VOIDED_AT.isNotNull().and(this.VOIDER_KIND.isNotNull()))),
-                this.check("version_ck",
-                        this.VERSION.ge(1L)));
+                                .or(this.VOIDED_AT.isNotNull().and(this.VOIDER_KIND.isNotNull()))));
     }
 
     @Override

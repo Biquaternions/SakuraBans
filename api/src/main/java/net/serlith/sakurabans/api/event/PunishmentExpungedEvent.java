@@ -7,7 +7,7 @@ import net.serlith.sakurabans.api.model.Punishment;
  *
  * <p>Runs on a SakuraBans worker thread.
  */
-public interface PunishmentExpungedEvent extends SyncedEvent {
+public interface PunishmentExpungedEvent extends SakuraEvent {
 
     /**
      * The punishment as it was before it was deleted.

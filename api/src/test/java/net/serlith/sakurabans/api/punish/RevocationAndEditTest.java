@@ -69,15 +69,13 @@ class RevocationAndEditTest {
     }
 
     @Test
-    void editRequestsCarryAnExpectedVersion() {
+    void editRequestsNeedAnId() {
         final EditRequest request = EditRequest.builder(5, PunishmentEdit.NewReason.of("x"),
-                CONSOLE).expectedVersion(3).build();
+                CONSOLE).build();
 
-        assertThat(request.expectedVersion()).hasValue(3);
-        assertThat(request.toBuilder().build()).isEqualTo(request);
+        assertThat(request.id()).isEqualTo(5);
         assertThat(EditRequest.builder(0, PunishmentEdit.NewReason.of("x"), CONSOLE)
-                .expectedVersion(0).validate()).extracting(FieldError::path)
-                .containsExactlyInAnyOrder("id", "expectedVersion");
+                .validate()).extracting(FieldError::path).containsExactly("id");
     }
 
     @Test

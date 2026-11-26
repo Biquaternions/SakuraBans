@@ -26,13 +26,13 @@ import net.serlith.sakurabans.core.platform.Platform;
 import net.serlith.sakurabans.core.punish.ActiveRangeCache;
 import net.serlith.sakurabans.core.punish.ExpirySweeper;
 import net.serlith.sakurabans.core.punish.SakuraPunishmentService;
+import net.serlith.sakurabans.core.punish.TemplateActions;
 import net.serlith.sakurabans.core.punish.WarningActions;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
 import net.serlith.sakurabans.core.storage.DisplayIdCodec;
 import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.sync.SyncService;
 import net.serlith.sakurabans.core.template.SakuraTemplateService;
-import net.serlith.sakurabans.core.template.TemplateActions;
 import net.serlith.sakurabans.core.util.BuildConstants;
 
 public final class SakuraBansCore {

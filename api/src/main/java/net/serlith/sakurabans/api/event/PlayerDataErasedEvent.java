@@ -12,7 +12,7 @@ import net.serlith.sakurabans.api.model.Actor;
  *
  * <p>Runs on a SakuraBans worker thread.
  */
-public interface PlayerDataErasedEvent extends SyncedEvent {
+public interface PlayerDataErasedEvent extends SakuraEvent {
 
     /**
      * What was erased.

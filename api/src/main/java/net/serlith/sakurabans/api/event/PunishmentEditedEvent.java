@@ -8,7 +8,7 @@ import net.serlith.sakurabans.api.punish.PunishmentEdit;
  *
  * <p>Runs on a SakuraBans worker thread.
  */
-public interface PunishmentEditedEvent extends SyncedEvent {
+public interface PunishmentEditedEvent extends SakuraEvent {
 
     /**
      * The punishment before the edit.

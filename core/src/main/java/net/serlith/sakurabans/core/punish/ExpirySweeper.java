@@ -112,7 +112,7 @@ public final class ExpirySweeper {
                 ended++;
                 Futures.logged(this.enforcer.ended(result.get()), this.logger,
                         "apply an expiry");
-                this.events.post(new SakuraPunishmentExpiredEvent(result.get(), false));
+                this.events.post(new SakuraPunishmentExpiredEvent(result.get()));
             }
             return ended;
         });
