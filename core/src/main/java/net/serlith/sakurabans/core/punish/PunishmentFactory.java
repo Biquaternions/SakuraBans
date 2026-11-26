@@ -70,7 +70,7 @@ public final class PunishmentFactory {
     public Optional<Scope> requestedScope(final DraftPunishment draft) {
         return draft.scope().or(() -> draft.template()
                 .flatMap(this.templates::template)
-                .filter(template -> template.type() == draft.type())
+                .filter(template -> SakuraTemplateService.usableFor(template, draft.type()))
                 .flatMap(TemplateInfo::scope));
     }
 
@@ -90,7 +90,8 @@ public final class PunishmentFactory {
             return this.prepare(draft, options, null);
         }
         return this.templates.resolve(name, draft.victim()).thenCompose(found -> {
-            if (found.isEmpty() || found.get().template().type() != draft.type()) {
+            if (found.isEmpty()
+                    || !SakuraTemplateService.usableFor(found.get().template(), draft.type())) {
                 return refused(Reason.UNKNOWN_TEMPLATE);
             }
             return this.prepare(draft, options, found.get());
@@ -101,9 +102,12 @@ public final class PunishmentFactory {
             final PunishOptions options,
             final SakuraTemplateService.@Nullable Resolution resolution) {
         final TemplateInfo template = resolution == null ? null : resolution.template();
+        // A template's step decides the type: a /ban with a mixed ladder may kick.
+        final PunishmentType type = resolution == null ? draft.type()
+                : resolution.template().type(resolution.step());
         final Settings settings = this.config.settings();
         final Duration duration = resolution != null ? resolution.duration()
-                : draft.duration().orElse(draft.type() == PunishmentType.WARN
+                : draft.duration().orElse(type == PunishmentType.WARN
                         ? settings.warnings().expireAfter() : null);
         final Map<String, EvidenceRef> evidence = new LinkedHashMap<>();
         draft.evidence().forEach(ref -> evidence.put(ref.uri(), ref));
@@ -111,7 +115,7 @@ public final class PunishmentFactory {
                 .filter(text -> !text.isEmpty())
                 .or(() -> Optional.ofNullable(template).map(TemplateInfo::reason)
                         .filter(text -> !text.isBlank()));
-        if (reason.isEmpty() && settings.reasons().requiredFor().contains(draft.type())) {
+        if (reason.isEmpty() && settings.reasons().requiredFor().contains(type)) {
             return refused(Reason.REASON_REQUIRED);
         }
         final String text = reason
@@ -125,12 +129,13 @@ public final class PunishmentFactory {
                         draft.actor().operator() instanceof PlayerOperator player
                                 ? player.uuid()
                                 : null));
-        final boolean shadow = draft.shadow() || template != null && template.shadow();
+        final boolean shadow = type == PunishmentType.MUTE
+                && (draft.shadow() || template != null && template.shadow());
         final Instant now = this.clock.instant();
         final CompletableFuture<Victim> victim = template != null && template.ip()
                 ? this.address(draft.victim())
                 : CompletableFuture.completedFuture(draft.victim());
-        return victim.thenApply(found -> new Prepared.Ready(new NewPunishment(draft.type(),
+        return victim.thenApply(found -> new Prepared.Ready(new NewPunishment(type,
                 shadow, found, scope, text, draft.actor(), now,
                 duration == null ? null : now.plus(duration),
                 this.scopes.originServer().orElse(null), options.visibility(),

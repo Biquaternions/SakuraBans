@@ -1,0 +1,9 @@
+# Used by BuildKit for web/Dockerfile (the build context is the repository root).
+*
+!protocol/**
+!web/**
+web/node_modules
+web/.nuxt
+web/.output
+web/.data
+web/.env

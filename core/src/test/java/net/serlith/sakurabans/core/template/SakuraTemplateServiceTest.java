@@ -190,7 +190,7 @@ class SakuraTemplateServiceTest extends ServiceTest {
         final TemplateDefinition loud = template("loud", PunishmentType.MUTE).shadow(true).build();
         Assertions.assertThat(this.templates.create(new TemplateDefinition(loud.name(),
                 PunishmentType.BAN, false, true, null, loud.reason(), loud.ladder(), null, false,
-                false, List.of(), Map.of()), CONSOLE).join())
+                false, List.of(), Map.of(), null), CONSOLE).join())
                 .isInstanceOf(AdminResult.ValidationFailed.class);
         Assertions.assertThatThrownBy(() -> template("k", PunishmentType.KICK)
                         .ladder(ladder(Duration.ofDays(1))).build())

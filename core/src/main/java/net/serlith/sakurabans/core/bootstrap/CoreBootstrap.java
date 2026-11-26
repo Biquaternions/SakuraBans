@@ -49,6 +49,8 @@ public final class CoreBootstrap {
                         components.templateActions(), components.warningActions(),
                         components.displayIds(), components.lockdowns(), components.webhooks(),
                         components.settingsService(), components.messageTemplates(),
+                        components.editorClient(), components.editorWatcher(),
+                        components.registry(),
                         new SakuraApi(components.punishmentService(),
                                 new SakuraPlayerService(components.players(),
                                         components.clock(), components.altService()),

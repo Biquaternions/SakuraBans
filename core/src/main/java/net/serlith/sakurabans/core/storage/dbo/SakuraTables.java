@@ -6,6 +6,8 @@ import net.serlith.sakurabans.core.storage.dbo.tables.SbActivePunishments;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbAllowedAddresses;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbAllowedPlayers;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbAuditLog;
+import net.serlith.sakurabans.core.storage.dbo.tables.SbEditorSessions;
+import net.serlith.sakurabans.core.storage.dbo.tables.SbInstances;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbLockdowns;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbMessageOverrides;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbMeta;
@@ -49,6 +51,8 @@ public final class SakuraTables {
     public static SbSyncMessages SYNC_MESSAGES;
     public static SbSettingOverrides SETTING_OVERRIDES;
     public static SbMessageOverrides MESSAGE_OVERRIDES;
+    public static SbEditorSessions EDITOR_SESSIONS;
+    public static SbInstances INSTANCES;
 
     private static @Nullable String prefix;
     private static @Nullable SakuraDatabase database;
@@ -92,6 +96,8 @@ public final class SakuraTables {
         SYNC_MESSAGES = new SbSyncMessages(tablePrefix);
         SETTING_OVERRIDES = new SbSettingOverrides(tablePrefix);
         MESSAGE_OVERRIDES = new SbMessageOverrides(tablePrefix);
+        EDITOR_SESSIONS = new SbEditorSessions(tablePrefix);
+        INSTANCES = new SbInstances(tablePrefix);
         SakuraTables.database = new SakuraDatabase(schemaName, new SakuraCatalog(), all());
         SakuraTables.prefix = tablePrefix;
     }
@@ -133,6 +139,8 @@ public final class SakuraTables {
                 LOCKDOWNS,
                 SYNC_MESSAGES,
                 SETTING_OVERRIDES,
-                MESSAGE_OVERRIDES);
+                MESSAGE_OVERRIDES,
+                EDITOR_SESSIONS,
+                INSTANCES);
     }
 }

@@ -328,7 +328,9 @@ public final class ImportRepository {
 
     public static List<SbTable<?>> copiedTables() {
         return SakuraTables.all().stream()
-                .filter(table -> table != SakuraTables.META && table != SakuraTables.SYNC_MESSAGES)
+                .filter(table -> table != SakuraTables.META && table != SakuraTables.SYNC_MESSAGES
+                        && table != SakuraTables.EDITOR_SESSIONS
+                        && table != SakuraTables.INSTANCES)
                 .toList();
     }
 

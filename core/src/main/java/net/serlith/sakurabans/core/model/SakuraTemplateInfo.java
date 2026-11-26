@@ -27,19 +27,21 @@ public record SakuraTemplateInfo(
         boolean permissionRequired,
         List<String> actions,
         Map<String, Integer> groups,
+        @Nullable String messageOrNull,
         long version) implements TemplateInfo {
 
     public SakuraTemplateInfo {
         name = ModelChecks.identifier(name, "name");
         Preconditions.checkNotNull(type, "type");
-        Preconditions.checkArgument(!shadow || type == PunishmentType.MUTE,
-                "only a mute template can make shadow mutes");
         Preconditions.checkNotNull(reason, "reason");
         ladder = List.copyOf(ladder);
         Preconditions.checkArgument(!ladder.isEmpty(), "a ladder has at least one step");
-        Preconditions.checkArgument(!type.instant()
-                        || ladder.stream().allMatch(step -> step.duration().isEmpty()),
-                "a kick template has no durations");
+        Preconditions.checkArgument(!shadow || ladder.stream().anyMatch(step ->
+                step.type().orElse(type) == PunishmentType.MUTE),
+                "shadow needs a mute step");
+        Preconditions.checkArgument(ladder.stream().noneMatch(step ->
+                step.type().orElse(type).instant() && step.duration().isPresent()),
+                "a kick step has no duration");
         actions = List.copyOf(actions);
         groups = Map.copyOf(groups);
         Preconditions.checkArgument(version >= 1, "version must be positive: %s", version);
@@ -51,7 +53,12 @@ public record SakuraTemplateInfo(
                 definition.reason(), definition.ladder(),
                 definition.ladderExpiry(), definition.addressShared(),
                 definition.permissionRequired(), definition.actions(), definition.groups(),
-                version);
+                definition.message(), version);
+    }
+
+    @Override
+    public Optional<String> message() {
+        return Optional.ofNullable(this.messageOrNull);
     }
 
     @Override
@@ -75,15 +82,16 @@ public record SakuraTemplateInfo(
                 + " scope=" + this.scope().map(Scopes::format).orElse("default")
                 + " reason=" + this.reason
                 + " ladder=" + this.ladder.stream()
-                        .map(step -> step.duration().map(Durations::formatCompact)
-                                .orElse("permanent")
-                                + (step.actions().isEmpty() ? "" : step.actions().toString()))
+                        .map(step -> TemplateSteps.format(step, this.type)
+                                + (step.actions().isEmpty() ? "" : step.actions().toString())
+                                + step.message().map(text -> " message=" + text).orElse(""))
                         .toList()
                 + " ladder-expiry=" + this.ladderExpiry().map(Durations::formatCompact)
                         .orElse("none")
                 + " address-shared=" + this.addressShared
                 + " permission-required=" + this.permissionRequired
                 + " actions=" + this.actions
-                + " groups=" + new TreeMap<>(this.groups);
+                + " groups=" + new TreeMap<>(this.groups)
+                + this.message().map(text -> " message=" + text).orElse("");
     }
 }

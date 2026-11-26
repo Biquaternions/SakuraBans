@@ -4,6 +4,8 @@ import net.serlith.sakurabans.core.storage.dbo.records.SbActivePunishmentsRecord
 import net.serlith.sakurabans.core.storage.dbo.records.SbAllowedAddressesRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbAllowedPlayersRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbAuditLogRecord;
+import net.serlith.sakurabans.core.storage.dbo.records.SbEditorSessionsRecord;
+import net.serlith.sakurabans.core.storage.dbo.records.SbInstancesRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbLockdownsRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbMessageOverridesRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbMetaRecord;
@@ -150,17 +152,27 @@ public final class Keys {
             Internal.createUniqueKey(SakuraTables.LOCKDOWNS, name("lockdowns_pk"),
                     new TableField[] {SakuraTables.LOCKDOWNS.SCOPE_ID}, true);
 
+    public static final UniqueKey<SbEditorSessionsRecord> EDITOR_SESSIONS_PK =
+            Internal.createUniqueKey(SakuraTables.EDITOR_SESSIONS, name("editor_sessions_pk"),
+                    new TableField[] {SakuraTables.EDITOR_SESSIONS.ID}, true);
+
+    public static final UniqueKey<SbInstancesRecord> INSTANCES_PK =
+            Internal.createUniqueKey(SakuraTables.INSTANCES, name("instances_pk"),
+                    new TableField[] {SakuraTables.INSTANCES.ID}, true);
+
     public static final UniqueKey<SbSyncMessagesRecord> SYNC_MESSAGES_PK =
             Internal.createUniqueKey(SakuraTables.SYNC_MESSAGES, name("sync_messages_pk"),
                     new TableField[] {SakuraTables.SYNC_MESSAGES.ID}, true);
 
     public static final UniqueKey<SbSettingOverridesRecord> SETTING_OVERRIDES_PK =
             Internal.createUniqueKey(SakuraTables.SETTING_OVERRIDES, name("setting_overrides_pk"),
-                    new TableField[] {SakuraTables.SETTING_OVERRIDES.K}, true);
+                    new TableField[] {SakuraTables.SETTING_OVERRIDES.SCOPE_ID,
+                            SakuraTables.SETTING_OVERRIDES.K}, true);
 
     public static final UniqueKey<SbMessageOverridesRecord> MESSAGE_OVERRIDES_PK =
             Internal.createUniqueKey(SakuraTables.MESSAGE_OVERRIDES, name("message_overrides_pk"),
                     new TableField[] {
+                            SakuraTables.MESSAGE_OVERRIDES.SCOPE_ID,
                             SakuraTables.MESSAGE_OVERRIDES.LOCALE,
                             SakuraTables.MESSAGE_OVERRIDES.K
                     }, true);
@@ -259,6 +271,22 @@ public final class Keys {
                     new TableField[] {SakuraTables.PUNISHMENT_EVIDENCE.PUNISHMENT_ID},
                     PUNISHMENTS_PK,
                     new TableField[] {SakuraTables.PUNISHMENTS.ID},
+                    true, QOM.ForeignKeyRule.CASCADE, QOM.ForeignKeyRule.NO_ACTION);
+
+    public static final ForeignKey<SbSettingOverridesRecord, SbScopesRecord>
+            SETTING_OVERRIDES_SCOPE_FK = Internal.createForeignKey(
+                    SakuraTables.SETTING_OVERRIDES, name("setting_overrides_scope_fk"),
+                    new TableField[] {SakuraTables.SETTING_OVERRIDES.SCOPE_ID},
+                    SCOPES_PK,
+                    new TableField[] {SakuraTables.SCOPES.ID},
+                    true, QOM.ForeignKeyRule.CASCADE, QOM.ForeignKeyRule.NO_ACTION);
+
+    public static final ForeignKey<SbMessageOverridesRecord, SbScopesRecord>
+            MESSAGE_OVERRIDES_SCOPE_FK = Internal.createForeignKey(
+                    SakuraTables.MESSAGE_OVERRIDES, name("message_overrides_scope_fk"),
+                    new TableField[] {SakuraTables.MESSAGE_OVERRIDES.SCOPE_ID},
+                    SCOPES_PK,
+                    new TableField[] {SakuraTables.SCOPES.ID},
                     true, QOM.ForeignKeyRule.CASCADE, QOM.ForeignKeyRule.NO_ACTION);
 
     public static final ForeignKey<SbLockdownsRecord, SbScopesRecord>

@@ -1,0 +1,1 @@
+export default editorApi.createSession

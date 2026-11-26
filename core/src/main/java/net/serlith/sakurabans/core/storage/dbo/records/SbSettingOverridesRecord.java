@@ -14,6 +14,10 @@ public final class SbSettingOverridesRecord extends UpdatableRecordImpl<SbSettin
         super(SakuraTables.SETTING_OVERRIDES);
     }
 
+    public Integer scopeId() {
+        return this.get(SakuraTables.SETTING_OVERRIDES.SCOPE_ID);
+    }
+
     public String name() {
         return this.get(SakuraTables.SETTING_OVERRIDES.K);
     }

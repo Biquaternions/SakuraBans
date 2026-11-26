@@ -1,0 +1,106 @@
+{
+  "format": 1,
+  "sequence": 1795651260000,
+  "outcome": "applied",
+  "by": "live",
+  "changes": [
+    {
+      "section": "settings",
+      "scope": "global",
+      "target": "scopes.categories",
+      "action": "set",
+      "detail": "{minigames: [bedwars-1, skywars]} → {minigames: [bedwars-1, bedwars-2, skywars]}"
+    },
+    {
+      "section": "settings",
+      "scope": "global",
+      "target": "enforcement.address-strictness",
+      "action": "reset",
+      "detail": "NORMAL"
+    },
+    {
+      "section": "settings",
+      "scope": "global",
+      "target": "alts.join-notification.threshold",
+      "action": "published",
+      "detail": "2 → 3"
+    },
+    {
+      "section": "settings",
+      "scope": "server:skywars",
+      "target": "reasons.default",
+      "action": "set",
+      "detail": "Breaking the minigame rules → Breaking the Skywars rules"
+    },
+    {
+      "section": "settings",
+      "scope": "server:skywars",
+      "target": "webhooks:url",
+      "action": "set",
+      "detail": ""
+    },
+    {
+      "section": "settings",
+      "scope": "server:skywars",
+      "target": "webhooks:routes.ban.title",
+      "action": "reset",
+      "detail": "Ban"
+    },
+    {
+      "section": "settings",
+      "scope": "server:bedwars-1",
+      "target": "limits:groups",
+      "action": "set",
+      "detail": "{} → {helper: {permission: sakurabans.group.helper, max-duration: {ban: 3d}}}"
+    },
+    {
+      "section": "messages",
+      "scope": "global",
+      "target": "en_US:chat.muted",
+      "action": "set",
+      "detail": "<red>Muted: <reason></red>"
+    },
+    {
+      "section": "messages",
+      "scope": "global",
+      "target": "en_US:screen.ban",
+      "action": "reset",
+      "detail": ""
+    },
+    {
+      "section": "messages",
+      "scope": "server:skywars",
+      "target": "en_US:screen.ban",
+      "action": "set",
+      "detail": "<red>Banned from Skywars.</red>"
+    },
+    {
+      "section": "templates",
+      "scope": "",
+      "target": "advertising",
+      "action": "created",
+      "detail": ""
+    },
+    {
+      "section": "templates",
+      "scope": "",
+      "target": "hacking",
+      "action": "updated",
+      "detail": "reason, ladder, ladder-expiry, message, step-messages"
+    },
+    {
+      "section": "templates",
+      "scope": "",
+      "target": "lifesteal",
+      "action": "conflict",
+      "detail": ""
+    }
+  ],
+  "errors": [],
+  "summary": {
+    "applied": 12,
+    "unchanged": 0,
+    "conflicts": 1
+  },
+  "payloadRevision": 2
+}

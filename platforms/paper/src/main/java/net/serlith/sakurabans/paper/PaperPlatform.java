@@ -77,6 +77,11 @@ final class PaperPlatform implements Platform {
     }
 
     @Override
+    public String platformName() {
+        return "paper";
+    }
+
+    @Override
     public String platformVersion() {
         return this.server.getName() + " " + this.server.getVersion();
     }

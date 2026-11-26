@@ -28,7 +28,8 @@ public record TemplateDefinition(
         boolean addressShared,
         boolean permissionRequired,
         List<String> actions,
-        Map<String, Integer> groups) {
+        Map<String, Integer> groups,
+        @Nullable String message) {
 
     public static final int MAX_STEPS = 64;
     public static final int MAX_GROUPS = 16;
@@ -55,7 +56,8 @@ public record TemplateDefinition(
                 .addressShared(template.addressShared())
                 .permissionRequired(template.permissionRequired())
                 .actions(template.actions())
-                .groups(template.groups());
+                .groups(template.groups())
+                .message(template.message().orElse(null));
     }
 
     public Builder toBuilder() {
@@ -69,7 +71,8 @@ public record TemplateDefinition(
                 .addressShared(this.addressShared)
                 .permissionRequired(this.permissionRequired)
                 .actions(this.actions)
-                .groups(this.groups);
+                .groups(this.groups)
+                .message(this.message);
     }
 
     public static final class Builder {
@@ -86,6 +89,7 @@ public record TemplateDefinition(
         private boolean permissionRequired;
         private List<String> actions = List.of();
         private Map<String, Integer> groups = Map.of();
+        private @Nullable String message;
 
         private Builder(final String name, final PunishmentType type) {
             this.name = Preconditions.checkNotNull(name, "name");
@@ -142,22 +146,29 @@ public record TemplateDefinition(
             return this;
         }
 
+        public Builder message(final @Nullable String message) {
+            this.message = message;
+            return this;
+        }
+
         public List<FieldError> validate() {
             final Validator errors = Validator.create()
                     .identifier("name", this.name)
-                    .check(!this.shadow || this.type == PunishmentType.MUTE, "shadow",
-                            Code.NOT_ALLOWED, "only mutes can be shadow mutes")
+                    .check(!this.shadow || this.ladder.stream().anyMatch(step ->
+                            step.type().orElse(this.type) == PunishmentType.MUTE), "shadow",
+                            Code.NOT_ALLOWED, "needs a mute step")
                     .name("reason", this.reason, Lengths.MAX_REASON)
                     .check(!this.ladder.isEmpty() && this.ladder.size() <= MAX_STEPS, "ladder",
                             Code.OUT_OF_RANGE, "must have 1-" + MAX_STEPS + " steps")
-                    .check(!this.type.instant() || this.ladder.stream()
-                                    .allMatch(step -> step.duration().isEmpty()), "ladder",
-                            Code.NOT_ALLOWED, "a kick template has only permanent steps")
+                    .check(this.ladder.stream().noneMatch(step -> step.type().orElse(this.type)
+                                    .instant() && step.duration().isPresent()), "ladder",
+                            Code.NOT_ALLOWED, "a kick step has no duration")
                     .check(this.ladderExpiry == null || this.ladderExpiry.isPositive(),
                             "ladderExpiry", Code.NOT_POSITIVE, "must be positive")
                     .check(this.groups.size() <= MAX_GROUPS, "groups", Code.OUT_OF_RANGE,
                             "has more than " + MAX_GROUPS + " groups");
             TemplateStep.validateActions(errors, "actions", this.actions);
+            TemplateStep.validateMessage(errors, "message", this.message);
             this.groups.forEach((group, weight) -> errors
                     .identifier("groups", group)
                     .check(weight >= 1 && weight <= MAX_WEIGHT, "groups." + group,
@@ -170,12 +181,19 @@ public record TemplateDefinition(
             final Map<String, Integer> normalizedGroups = new LinkedHashMap<>();
             this.groups.forEach((group, weight) -> normalizedGroups.merge(
                     Validator.normalizeIdentifier(group).orElseThrow(), weight, Math::max));
+            // A step of the template's own type is stored without one, as the file writes it.
+            final List<TemplateStep> ladder = this.ladder.stream()
+                    .map(step -> step.type().filter(own -> own == this.type).isPresent()
+                            ? TemplateStep.of(null, step.duration().orElse(null), step.actions(),
+                                    step.message().orElse(null))
+                            : step)
+                    .toList();
             return new TemplateDefinition(Validator.normalizeIdentifier(this.name).orElseThrow(),
                     this.type, this.ip, this.shadow,
                     this.scope == null ? null : ApiValues.scope(this.scope), this.reason.strip(),
-                    this.ladder, this.ladderExpiry,
+                    ladder, this.ladderExpiry,
                     this.addressShared, this.permissionRequired,
-                    TemplateStep.normalizeActions(this.actions), normalizedGroups);
+                    TemplateStep.normalizeActions(this.actions), normalizedGroups, this.message);
         }
     }
 }

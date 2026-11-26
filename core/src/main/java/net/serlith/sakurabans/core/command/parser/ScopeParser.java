@@ -4,10 +4,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import net.serlith.sakurabans.api.model.GlobalScope;
 import net.serlith.sakurabans.api.model.Scope;
 import net.serlith.sakurabans.core.command.CommandActor;
 import net.serlith.sakurabans.core.command.SakuraCaptions;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
+import net.serlith.sakurabans.core.util.Scopes;
 import org.incendo.cloud.caption.CaptionVariable;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.context.CommandInput;
@@ -31,6 +33,14 @@ public final class ScopeParser implements ArgumentParser<CommandActor, Scope>,
 
     public ParserDescriptor<CommandActor, Scope> descriptor() {
         return ParserDescriptor.of(this, Scope.class);
+    }
+
+    /**
+     * For configuration overrides: a scope as {@link #descriptor()} reads it, without
+     * {@code local} (a configuration scope names its server).
+     */
+    public ParserDescriptor<CommandActor, Scope> configDescriptor() {
+        return ParserDescriptor.of(new ConfigParser(), Scope.class);
     }
 
     /** For revocations: a scope, or {@code all}. */
@@ -71,6 +81,35 @@ public final class ScopeParser implements ArgumentParser<CommandActor, Scope>,
     public SuggestionProvider<CommandActor> categories() {
         return SuggestionProvider.blockingStrings(
                 (context, input) -> List.copyOf(this.scopes.knownCategories()));
+    }
+
+    private final class ConfigParser implements ArgumentParser<CommandActor, Scope>,
+            BlockingSuggestionProvider.Strings<CommandActor> {
+
+        @Override
+        public ArgumentParseResult<Scope> parse(final CommandContext<CommandActor> context,
+                final CommandInput input) {
+            final String token = input.peekString();
+            if (token.startsWith("-")) {
+                // A flag: the scope was left out, which means global.
+                return ArgumentParseResult.success(GlobalScope.INSTANCE);
+            }
+            final Optional<Scope> scope = Scopes.parse(token);
+            if (scope.isEmpty()) {
+                return ArgumentParseResult.failure(new ScopeException(context, token));
+            }
+            input.readString();
+            return ArgumentParseResult.success(scope.get());
+        }
+
+        @Override
+        public Iterable<String> stringSuggestions(final CommandContext<CommandActor> context,
+                final CommandInput input) {
+            final List<String> suggestions = new ArrayList<>();
+            ScopeParser.this.stringSuggestions(context, input).forEach(suggestions::add);
+            suggestions.remove("local");
+            return suggestions;
+        }
     }
 
     private final class FilterParser implements ArgumentParser<CommandActor, ScopeFilter>,

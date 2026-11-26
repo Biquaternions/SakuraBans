@@ -79,6 +79,11 @@ final class VelocityPlatform implements Platform {
     }
 
     @Override
+    public String platformName() {
+        return "velocity";
+    }
+
+    @Override
     public String platformVersion() {
         return this.proxy.getVersion().getName() + " " + this.proxy.getVersion().getVersion();
     }

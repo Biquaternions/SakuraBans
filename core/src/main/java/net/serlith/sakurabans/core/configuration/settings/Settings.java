@@ -1,5 +1,6 @@
 package net.serlith.sakurabans.core.configuration.settings;
 
+import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -25,6 +26,7 @@ public record Settings(
         Lockdown lockdown,
         Notifications notifications,
         Players players,
+        Web web,
         Commands commands) {
 
     public record Server(@Nullable String name, List<String> categories) {
@@ -91,6 +93,19 @@ public record Settings(
     }
 
     public record Players(boolean remoteLookup) {
+    }
+
+    /**
+     * {@code url} without a trailing slash, or null while the editor is off. {@code token} is
+     * secret: never log or show it.
+     */
+    public record Web(@Nullable URI url, @Nullable String token, boolean liveApply) {
+
+        @Override
+        public String toString() {
+            return "Web[url=" + this.url + ", token=" + (this.token == null ? "none" : "set")
+                    + ", liveApply=" + this.liveApply + "]";
+        }
     }
 
     public record Commands(Map<String, List<String>> labels) {

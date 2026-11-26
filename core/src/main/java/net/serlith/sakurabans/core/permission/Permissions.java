@@ -42,6 +42,7 @@ public final class Permissions {
     public static final String ADMIN_MESSAGES = ROOT + "admin.messages";
     public static final String ADMIN_IMPORT = ROOT + "admin.import";
     public static final String ADMIN_AUDIT = ROOT + "admin.audit";
+    public static final String EDITOR = ROOT + "editor";
     public static final String COOLDOWN_BYPASS = ROOT + "cooldown.bypass";
 
     private Permissions() {

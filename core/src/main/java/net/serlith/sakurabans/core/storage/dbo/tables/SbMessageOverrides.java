@@ -2,10 +2,12 @@ package net.serlith.sakurabans.core.storage.dbo.tables;
 
 import java.io.Serial;
 import java.time.Instant;
+import java.util.List;
 import net.serlith.sakurabans.core.storage.dbo.Keys;
 import net.serlith.sakurabans.core.storage.dbo.SbTable;
 import net.serlith.sakurabans.core.storage.dbo.SbTypes;
 import net.serlith.sakurabans.core.storage.dbo.records.SbMessageOverridesRecord;
+import org.jooq.ForeignKey;
 import org.jooq.Name;
 import org.jooq.Table;
 import org.jooq.TableField;
@@ -18,6 +20,9 @@ public final class SbMessageOverrides extends SbTable<SbMessageOverridesRecord> 
 
     @Serial
     private static final long serialVersionUID = 1L;
+
+    public final TableField<SbMessageOverridesRecord, Integer> SCOPE_ID = createField(
+            DSL.name("scope_id"), SQLDataType.INTEGER.nullable(false), this, "");
 
     public final TableField<SbMessageOverridesRecord, String> LOCALE = createField(
             DSL.name("locale"), SQLDataType.VARCHAR(16).nullable(false), this, "");
@@ -48,6 +53,11 @@ public final class SbMessageOverrides extends SbTable<SbMessageOverridesRecord> 
     @Override
     public UniqueKey<SbMessageOverridesRecord> getPrimaryKey() {
         return Keys.MESSAGE_OVERRIDES_PK;
+    }
+
+    @Override
+    public List<ForeignKey<SbMessageOverridesRecord, ?>> getReferences() {
+        return List.of(Keys.MESSAGE_OVERRIDES_SCOPE_FK);
     }
 
     @Override

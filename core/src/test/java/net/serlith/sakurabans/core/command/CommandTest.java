@@ -1,14 +1,25 @@
 package net.serlith.sakurabans.core.command;
 
 import java.net.InetAddress;
+import java.security.SecureRandom;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import net.serlith.sakurabans.core.ServiceTest;
+import net.serlith.sakurabans.core.admin.EditorClient;
+import net.serlith.sakurabans.core.admin.EditorLines;
+import net.serlith.sakurabans.core.admin.EditorSeal;
+import net.serlith.sakurabans.core.admin.EditorService;
+import net.serlith.sakurabans.core.admin.EditorSocket;
+import net.serlith.sakurabans.core.admin.EditorWatcher;
+import net.serlith.sakurabans.core.admin.FakeEditorSockets;
+import net.serlith.sakurabans.core.admin.InstanceRegistry;
 import net.serlith.sakurabans.core.command.module.AdminCommands;
 import net.serlith.sakurabans.core.command.module.AllowCommands;
 import net.serlith.sakurabans.core.command.module.AltCommands;
 import net.serlith.sakurabans.core.command.module.CheckCommands;
 import net.serlith.sakurabans.core.command.module.EditCommands;
+import net.serlith.sakurabans.core.command.module.EditorCommands;
 import net.serlith.sakurabans.core.command.module.GdprCommands;
 import net.serlith.sakurabans.core.command.module.HistoryCommands;
 import net.serlith.sakurabans.core.command.module.ImportCommands;
@@ -25,7 +36,10 @@ import net.serlith.sakurabans.core.player.SakuraIntegrationRegistry;
 import net.serlith.sakurabans.core.player.TargetResolver;
 import net.serlith.sakurabans.core.player.UuidResolver;
 import net.serlith.sakurabans.core.storage.repository.AuditRepository;
+import net.serlith.sakurabans.core.storage.repository.EditorSessionRepository;
+import net.serlith.sakurabans.core.storage.repository.InstanceRepository;
 import net.serlith.sakurabans.core.util.InetAddresses;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 
 /** The command layer of {@code CoreComponents}, installed on a {@link TestCommandManager}. */
@@ -36,9 +50,35 @@ public abstract class CommandTest extends ServiceTest {
 
     protected final TestCommandManager manager = new TestCommandManager();
     protected final FakeCommandActor console = FakeCommandActor.theConsole();
+    protected InstanceRegistry registry;
+    protected EditorClient editorClient;
+    protected EditorService editor;
+    protected final FakeEditorSockets editorSockets = new FakeEditorSockets();
+    protected EditorLines editorLines;
+    protected EditorWatcher editorWatcher;
+
+    @AfterEach
+    final void stopEditorClient() {
+        this.editorWatcher.stop();
+        this.registry.stop();
+        this.editorClient.stop();
+    }
 
     @BeforeEach
     final void installCommands() {
+        this.registry = new InstanceRegistry(this.dir, this.config, this.platform,
+                new InstanceRepository(this.storage), this.executors, this.clock,
+                this.log.logger());
+        this.editorClient = new EditorClient(this.config, this.executors.worker(),
+                this.log.logger());
+        this.editor = new EditorService(this.config, this.settingsService, this.messageTemplates,
+                this.templates, new EditorSessionRepository(this.storage), this.editorClient,
+                new EditorSeal(new SecureRandom()), this.platform, this.registry, this.clock,
+                this.log.logger());
+        this.editorLines = new EditorLines(this.messages, this.platform);
+        this.editorWatcher = new EditorWatcher(this.config, this.editor, this.editorConnector(),
+                this.editorLines, this.platform, this.executors, this.editorTiming(), this.clock,
+                this.log.logger());
         final CommandRegistrar registrar = new CommandRegistrar(this.config, this.messages);
         final CommandRunner runner =
                 new CommandRunner(this.lifecycle, this.messages, this.log.logger());
@@ -83,12 +123,27 @@ public abstract class CommandTest extends ServiceTest {
                         this.service, this.punishments, this.lockdowns, this.scopes,
                         this.config, this.messages, this.platform,
                         new ConfirmationTracker(this.clock), this.settingsService,
-                        this.messageTemplates, Runnable::run, this.clock, this.log.logger()),
+                        this.messageTemplates, this.registry, Runnable::run, this.clock,
+                        this.log.logger()),
                 new OverrideCommands(registrar, runner, this.settingsService,
-                        this.messageTemplates, new ConfirmationTracker(this.clock)),
+                        this.messageTemplates, new ConfirmationTracker(this.clock),
+                        new ScopeParser(this.scopes), this.registry),
+                new EditorCommands(registrar, runner, this.editor, this.editorWatcher,
+                        this.editorLines, new Formats(this.messages, this.config)),
                 new ImportCommands(registrar, runner, this.importJobs(this.importSources()),
                         new ConfirmationTracker(this.clock), this.platform)),
                 registrar, runner, this.messages).install(this.manager);
+    }
+
+    /** The watcher's network: the in-memory sockets unless a test talks to a real site. */
+    protected EditorSocket.Connector editorConnector() {
+        return this.editorSockets;
+    }
+
+    /** Quick retries; pings and checks only when a test asks. */
+    protected EditorWatcher.Timing editorTiming() {
+        return new EditorWatcher.Timing(Duration.ofHours(1), Duration.ofHours(1),
+                Duration.ofMinutes(2), List.of(Duration.ofMillis(10), Duration.ofMillis(20)));
     }
 
     protected ImportSources importSources() {

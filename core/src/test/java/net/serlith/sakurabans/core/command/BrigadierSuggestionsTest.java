@@ -2,9 +2,11 @@ package net.serlith.sakurabans.core.command;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.suggestion.Suggestion;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import net.serlith.sakurabans.api.model.PunishmentType;
+import net.serlith.sakurabans.api.template.TemplateStep;
 import net.serlith.sakurabans.core.model.TemplateDefinition;
 import net.serlith.sakurabans.core.permission.Permissions;
 import org.assertj.core.api.Assertions;
@@ -75,6 +77,29 @@ class BrigadierSuggestionsTest extends CommandTest {
                 .grant(Permissions.punish(PunishmentType.BAN));
         Assertions.assertThat(this.suggest(mod, "ban Steve --template "))
                 .containsExactlyInAnyOrder("hacking", "griefing");
+    }
+
+    @Test
+    void mixedLaddersAreOfferedOnEveryPunishCommandAndSayWhatHappened() {
+        this.templates.create(TemplateDefinition.builder("toxicity", PunishmentType.BAN)
+                .reason("Toxic")
+                .ladder(List.of(TemplateStep.of(PunishmentType.KICK, null, List.of(), null),
+                        TemplateStep.of(Duration.ofDays(1))))
+                .build(), CONSOLE).join();
+        for (final String command : List.of("ban", "mute", "warn", "kick")) {
+            Assertions.assertThat(this.suggest(this.console, command + " Steve -t "))
+                    .as(command).contains("toxicity");
+        }
+        this.known(STEVE, "Steve");
+
+        this.run(this.console, "ban Steve -t toxicity");
+        Assertions.assertThat(this.console.last()).contains("Kicked Steve", "Toxic")
+                .doesNotContain("Banned");
+        this.run(this.console, "warn Steve -t toxicity");
+        Assertions.assertThat(this.console.last()).contains("Banned Steve");
+        this.run(this.console, "mute Steve -t toxicity -d 1h");
+        Assertions.assertThat(this.console.last()).as("the template decides the duration")
+                .doesNotContain("Muted");
     }
 
     @Test

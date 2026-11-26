@@ -206,8 +206,9 @@ class SyncReceiverTest extends ServiceTest {
         new AllowListRepository(this.storage).add(ALEX, MODERATOR, this.now.get(), null).join();
         new LockdownRepository(this.storage).start(new Lockdown(GlobalScope.INSTANCE, "raid",
                 MODERATOR, this.now.get(), null)).join();
-        new OverrideRepository(this.storage).changeSettings(Map.of("display.id-style",
-                this.config.encode("BOTH")), 1, MODERATOR, this.now.get()).join();
+        new OverrideRepository(this.storage).changeSettings(GlobalScope.INSTANCE,
+                Map.of("display.id-style", this.config.encode("BOTH")), 1, MODERATOR,
+                this.now.get()).join();
         Assertions.assertThat(this.allowList.isAllowed(ALEX)).isFalse();
         Assertions.assertThat(this.lockdowns.lockdowns()).isEmpty();
 

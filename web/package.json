@@ -1,0 +1,36 @@
+{
+  "name": "sakurabans-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev --host 127.0.0.1",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "lint": "eslint .",
+    "typecheck": "nuxt typecheck",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@iconify-json/lucide": "^1.2.158",
+    "@nuxt/content": "^3.17.0",
+    "@nuxt/ui": "^4.13.0",
+    "h3": "^1.15.11",
+    "ioredis": "^5.11.1",
+    "nuxt": "^4.7.0",
+    "tailwindcss": "^4.3.5",
+    "unstorage": "^1.17.6",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@nuxt/eslint": "^1.17.0",
+    "@types/node": "^24.19.4",
+    "eslint": "^10.15.0",
+    "eslint-plugin-better-tailwindcss": "^4.11.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.0.0",
+    "vue-tsc": "^3.3.14"
+  },
+  "packageManager": "pnpm@12.22.0"
+}

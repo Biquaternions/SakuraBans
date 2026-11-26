@@ -133,6 +133,8 @@ public final class PlayerDataRepository {
             final long addressRows = dsl.deleteFrom(known).where(known.UUID.eq(uuid)).execute();
             dsl.deleteFrom(SakuraTables.PLAYERS).where(SakuraTables.PLAYERS.UUID.eq(uuid))
                     .execute();
+            dsl.deleteFrom(SakuraTables.EDITOR_SESSIONS)
+                    .where(SakuraTables.EDITOR_SESSIONS.CREATOR_UUID.eq(uuid)).execute();
 
             final long redacted = redactNames(dsl, uuid);
             final SakuraPlayerData.Erase erased = new SakuraPlayerData.Erase(uuid, names,

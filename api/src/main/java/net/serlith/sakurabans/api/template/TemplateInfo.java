@@ -21,11 +21,23 @@ public interface TemplateInfo {
     String name();
 
     /**
-     * The type of the punishments it creates.
+     * The type of its punishments: of every step that names none, and what lists show first.
      *
      * @return the type
      */
     PunishmentType type();
+
+    /**
+     * The type of the punishment at a step: the step's own, or the template's.
+     *
+     * @param step the step, counted from 0; past the end, the last step
+     * @return the type
+     */
+    default PunishmentType type(final int step) {
+        final List<TemplateStep> ladder = this.ladder();
+        return ladder.get(Math.min(Math.max(step, 0), ladder.size() - 1)).type()
+                .orElse(this.type());
+    }
 
     /**
      * Whether its punishments target the player's current address instead of the player, as an
@@ -39,9 +51,18 @@ public interface TemplateInfo {
      * Whether its mutes are shadow mutes: the muted player's messages are shown to themselves
      * only.
      *
-     * @return {@code true} for shadow mutes; always {@code false} unless the type is a mute
+     * @return {@code true} for shadow mutes; only when a step is a mute
      */
     boolean shadow();
+
+    /**
+     * What a player punished from this template is shown instead of the network's message for
+     * the type (the ban and kick screens, the mute notice, the warning): MiniMessage, with the
+     * placeholders of the network's message. A step's {@link TemplateStep#message()} wins.
+     *
+     * @return the message, or empty for the network's
+     */
+    Optional<String> message();
 
     /**
      * The scope its punishments get when the punishment names none.

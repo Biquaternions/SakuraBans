@@ -23,6 +23,7 @@ import net.serlith.sakurabans.api.template.TemplateStep;
 import net.serlith.sakurabans.api.validation.FieldError;
 import net.serlith.sakurabans.api.validation.ValidationException;
 import net.serlith.sakurabans.core.model.TemplateDefinition;
+import net.serlith.sakurabans.core.model.TemplateSteps;
 import net.serlith.sakurabans.core.util.Durations;
 import net.serlith.sakurabans.core.util.Scopes;
 import org.jspecify.annotations.Nullable;
@@ -38,7 +39,7 @@ public final class TemplateFiles {
             DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(ZoneOffset.UTC);
     private static final Set<String> KEYS = Set.of("type", "ip", "shadow", "scope", "reason",
             "ladder", "ladder-expiry", "address-shared", "permission-required", "actions",
-            "step-actions", "groups");
+            "step-actions", "groups", "message", "step-messages");
 
     private final Path dataDirectory;
 
@@ -78,6 +79,23 @@ public final class TemplateFiles {
         return new Read(List.copyOf(templates), List.copyOf(errors));
     }
 
+    /**
+     * Reads one definition from a tree of maps, lists and scalars (what JSON or YAML gives), with
+     * the same rules as the file. Errors have {@code path} in front.
+     */
+    public static Read definition(final String name, final @Nullable Object tree,
+            final String path) {
+        final List<ConfigIssue> errors = new ArrayList<>();
+        final ConfigurationNode node = ConfigFiles.builder().build().createNode();
+        try {
+            node.set(tree);
+        } catch (final SerializationException e) {
+            return new Read(List.of(), List.of(ConfigIssue.error(FILE, path, describe(e))));
+        }
+        final Optional<TemplateDefinition> parsed = template(name, node, path, errors);
+        return new Read(parsed.stream().toList(), List.copyOf(errors));
+    }
+
     private static Optional<TemplateDefinition> template(final String name,
             final ConfigurationNode node, final String path, final List<ConfigIssue> errors) {
         if (!node.isMap()) {
@@ -109,31 +127,54 @@ public final class TemplateFiles {
                 }
             });
         }
-        final List<TemplateStep> ladder = new ArrayList<>();
-        final List<String> durations = strings(node.node("ladder"), path + ".ladder", errors);
-        for (int i = 0; i < durations.size(); i++) {
-            final String text = durations.get(i);
-            final Duration duration;
-            if (Durations.isPermanentToken(text)) {
-                duration = null;
-            } else {
-                duration = Durations.parse(text).orElse(null);
-                if (duration == null) {
-                    errors.add(ConfigIssue.error(FILE, path + ".ladder[" + i + "]",
-                            "\"" + text + "\" is not a duration or 'permanent'"));
-                    continue;
+        final Map<Integer, String> stepMessages = new TreeMap<>();
+        final ConfigurationNode stepMessagesNode = node.node("step-messages");
+        if (!stepMessagesNode.virtual() && !stepMessagesNode.isMap()) {
+            errors.add(ConfigIssue.error(FILE, path + ".step-messages", "must be a section"));
+        }
+        stepMessagesNode.childrenMap().forEach((key, value) -> {
+            final String keyPath = path + ".step-messages." + key;
+            try {
+                final int step = Integer.parseInt(String.valueOf(key));
+                if (value.isMap() || value.isList() || value.raw() == null) {
+                    errors.add(ConfigIssue.error(FILE, keyPath, "must be a text"));
+                } else {
+                    stepMessages.put(step, String.valueOf(value.raw()));
                 }
+            } catch (final NumberFormatException e) {
+                errors.add(ConfigIssue.error(FILE, keyPath, "must be a step number from 1"));
+            }
+        });
+        final List<TemplateStep> ladder = new ArrayList<>();
+        final List<String> steps = strings(node.node("ladder"), path + ".ladder", errors);
+        for (int i = 0; i < steps.size(); i++) {
+            final TemplateSteps.Parsed step = TemplateSteps.parse(steps.get(i));
+            if (step.error() != null) {
+                errors.add(ConfigIssue.error(FILE, path + ".ladder[" + i + "]", step.error()));
+                continue;
             }
             try {
-                ladder.add(TemplateStep.of(duration, stepActions.getOrDefault(i + 1, List.of())));
+                ladder.add(TemplateStep.of(step.type(), step.duration(),
+                        stepActions.getOrDefault(i + 1, List.of()), stepMessages.get(i + 1)));
             } catch (final ValidationException e) {
-                report(errors, path + ".step-actions." + (i + 1), e.errors());
+                report(errors, path + ".ladder[" + i + "]", e.errors());
             }
         }
-        stepActions.keySet().stream()
-                .filter(step -> step < 1 || step > durations.size())
-                .forEach(step -> errors.add(ConfigIssue.error(FILE, path + ".step-actions."
-                        + step, "the ladder has no step " + step)));
+        for (final String key : List.of("step-actions", "step-messages")) {
+            (key.equals("step-actions") ? stepActions.keySet() : stepMessages.keySet()).stream()
+                    .filter(step -> step < 1 || step > steps.size())
+                    .forEach(step -> errors.add(ConfigIssue.error(FILE, path + "." + key + "."
+                            + step, "the ladder has no step " + step)));
+        }
+        final ConfigurationNode messageNode = node.node("message");
+        String message = null;
+        if (!messageNode.virtual()) {
+            if (messageNode.isMap() || messageNode.isList() || messageNode.raw() == null) {
+                errors.add(ConfigIssue.error(FILE, path + ".message", "must be a text"));
+            } else {
+                message = String.valueOf(messageNode.raw());
+            }
+        }
         final Duration expiry = expiry(node.node("ladder-expiry"), path, errors);
         final Map<String, Integer> groups = new LinkedHashMap<>();
         final ConfigurationNode groupsNode = node.node("groups");
@@ -167,7 +208,8 @@ public final class TemplateFiles {
                 .addressShared(Boolean.TRUE.equals(addressShared))
                 .permissionRequired(Boolean.TRUE.equals(permissionRequired))
                 .actions(actions)
-                .groups(groups);
+                .groups(groups)
+                .message(message);
         final List<FieldError> problems = builder.validate();
         if (!problems.isEmpty()) {
             report(errors, path, problems);
@@ -267,52 +309,65 @@ public final class TemplateFiles {
         final YamlConfigurationLoader loader = ConfigFiles.loader(file);
         final ConfigurationNode root = loader.createNode();
         for (final TemplateInfo template : templates) {
-            write(root.node("templates", template.name()), template);
+            root.node("templates", template.name()).set(tree(template));
         }
         loader.save(root);
         return file;
     }
 
-    private static void write(final ConfigurationNode node, final TemplateInfo template)
-            throws SerializationException {
-        node.node("type").set(template.type().name().toLowerCase(Locale.ROOT));
+    /**
+     * A template as {@code templates.yml} writes it, keys in file order. Optional keys at their
+     * default are left out; the editor's JSON uses the same tree.
+     */
+    public static Map<String, Object> tree(final TemplateInfo template) {
+        final Map<String, Object> tree = new LinkedHashMap<>();
+        tree.put("type", template.type().name().toLowerCase(Locale.ROOT));
         if (template.ip()) {
-            node.node("ip").set(true);
+            tree.put("ip", true);
         }
         if (template.shadow()) {
-            node.node("shadow").set(true);
+            tree.put("shadow", true);
         }
-        if (template.scope().isPresent()) {
-            node.node("scope").set(Scopes.format(template.scope().get()));
-        }
-        node.node("reason").set(template.reason());
+        template.scope().ifPresent(scope -> tree.put("scope", Scopes.format(scope)));
+        tree.put("reason", template.reason());
         final List<String> ladder = new ArrayList<>();
-        final Map<Integer, List<String>> stepActions = new TreeMap<>();
+        final Map<String, Object> stepActions = new LinkedHashMap<>();
+        final Map<String, Object> stepMessages = new LinkedHashMap<>();
         for (int i = 0; i < template.ladder().size(); i++) {
             final TemplateStep step = template.ladder().get(i);
-            ladder.add(step.duration().map(duration -> Durations.formatCompact(duration)
-                    .replace(" ", "")).orElse("permanent"));
+            ladder.add(TemplateSteps.format(step, template.type()));
             if (!step.actions().isEmpty()) {
-                stepActions.put(i + 1, step.actions());
+                stepActions.put(Integer.toString(i + 1), List.copyOf(step.actions()));
             }
+            final int number = i + 1;
+            step.message().ifPresent(text -> stepMessages.put(Integer.toString(number), text));
         }
-        node.node("ladder").setList(String.class, ladder);
-        node.node("ladder-expiry").set(template.ladderExpiry()
-                .map(duration -> Durations.formatCompact(duration).replace(" ", ""))
-                .orElse("none"));
-        node.node("address-shared").set(template.addressShared());
-        node.node("permission-required").set(template.permissionRequired());
-        node.node("actions").setList(String.class, template.actions());
-        for (final Map.Entry<Integer, List<String>> entry : stepActions.entrySet()) {
-            node.node("step-actions", entry.getKey()).setList(String.class, entry.getValue());
+        tree.put("ladder", ladder);
+        template.ladderExpiry().ifPresent(expiry -> tree.put("ladder-expiry", duration(expiry)));
+        if (template.addressShared()) {
+            tree.put("address-shared", true);
         }
-        new TreeMap<>(template.groups()).forEach((group, weight) -> {
-            try {
-                node.node("groups", group).set(weight);
-            } catch (final SerializationException e) {
-                throw new IllegalStateException(e);
-            }
-        });
+        if (template.permissionRequired()) {
+            tree.put("permission-required", true);
+        }
+        if (!template.actions().isEmpty()) {
+            tree.put("actions", List.copyOf(template.actions()));
+        }
+        if (!stepActions.isEmpty()) {
+            tree.put("step-actions", stepActions);
+        }
+        if (!template.groups().isEmpty()) {
+            tree.put("groups", new TreeMap<>(template.groups()));
+        }
+        template.message().ifPresent(text -> tree.put("message", text));
+        if (!stepMessages.isEmpty()) {
+            tree.put("step-messages", stepMessages);
+        }
+        return tree;
+    }
+
+    private static String duration(final Duration duration) {
+        return Durations.formatCompact(duration).replace(" ", "");
     }
 
     private static String describe(final Exception e) {

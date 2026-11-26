@@ -393,6 +393,8 @@ public record MessageKey(String key) {
     public static final MessageKey RELOAD_RESTART = new MessageKey("reload.restart");
     public static final MessageKey RELOAD_ERROR = new MessageKey("reload.error");
     public static final MessageKey RELOAD_FAILED = new MessageKey("reload.failed");
+    public static final MessageKey STATUS_INSTANCES = new MessageKey("status.instances");
+    public static final MessageKey STATUS_INSTANCE = new MessageKey("status.instance");
     public static final MessageKey RELOAD_OVERRIDES = new MessageKey("reload.overrides");
 
     public static final MessageKey COMMAND_DESCRIPTION_SETTINGS =
@@ -407,6 +409,23 @@ public record MessageKey(String key) {
             new MessageKey("settings.reset.all_done");
     public static final MessageKey SETTINGS_RESET_CONFIRM =
             new MessageKey("settings.reset.confirm");
+    public static final MessageKey SETTINGS_EFFECTIVE_HEADER =
+            new MessageKey("settings.effective.header");
+    public static final MessageKey SETTINGS_EFFECTIVE_ENTRY =
+            new MessageKey("settings.effective.entry");
+    public static final MessageKey SETTINGS_PUBLISH_UNNAMED =
+            new MessageKey("settings.publish.unnamed");
+    public static final MessageKey SETTINGS_PUBLISH_NONE = new MessageKey("settings.publish.none");
+    public static final MessageKey SETTINGS_PUBLISH_HEADER =
+            new MessageKey("settings.publish.header");
+    public static final MessageKey SETTINGS_PUBLISH_ENTRY =
+            new MessageKey("settings.publish.entry");
+    public static final MessageKey SETTINGS_PUBLISH_CONFIRM =
+            new MessageKey("settings.publish.confirm");
+    public static final MessageKey SETTINGS_PUBLISH_DONE = new MessageKey("settings.publish.done");
+    public static final MessageKey SETTINGS_SECRET_SET = new MessageKey("settings.secret.set");
+    public static final MessageKey SETTINGS_SECRET_EMPTY =
+            new MessageKey("settings.secret.empty");
     public static final MessageKey SETTINGS_NOT_OVERRIDDEN =
             new MessageKey("settings.not_overridden");
     public static final MessageKey MESSAGES_LIST_EMPTY = new MessageKey("messages.list.empty");
@@ -422,6 +441,82 @@ public record MessageKey(String key) {
     public static final MessageKey OVERRIDES_INVALID = new MessageKey("overrides.invalid");
     public static final MessageKey OVERRIDES_FORBIDDEN = new MessageKey("overrides.forbidden");
     public static final MessageKey OVERRIDES_CONFLICT = new MessageKey("overrides.conflict");
+
+    public static final MessageKey COMMAND_DESCRIPTION_EDITOR =
+            new MessageKey("command.description.editor");
+    public static final MessageKey COMMAND_DESCRIPTION_APPLYEDITS =
+            new MessageKey("command.description.applyedits");
+    public static final MessageKey EDITOR_NOT_SET_UP = new MessageKey("editor.not_set_up");
+    public static final MessageKey EDITOR_NO_SECTIONS = new MessageKey("editor.no_sections");
+    public static final MessageKey EDITOR_UNKNOWN_SECTION =
+            new MessageKey("editor.unknown_section");
+    public static final MessageKey EDITOR_OPENING = new MessageKey("editor.opening");
+    public static final MessageKey EDITOR_READY = new MessageKey("editor.ready");
+    public static final MessageKey EDITOR_FAILED_UNREACHABLE =
+            new MessageKey("editor.failed.unreachable");
+    public static final MessageKey EDITOR_FAILED_UNAUTHORIZED =
+            new MessageKey("editor.failed.unauthorized");
+    public static final MessageKey EDITOR_FAILED_TOO_LARGE =
+            new MessageKey("editor.failed.too_large");
+    public static final MessageKey EDITOR_FAILED_RATE_LIMITED =
+            new MessageKey("editor.failed.rate_limited");
+    public static final MessageKey EDITOR_FAILED_UNEXPECTED =
+            new MessageKey("editor.failed.unexpected");
+    public static final MessageKey EDITOR_APPLY_CODE_UNKNOWN =
+            new MessageKey("editor.apply.code_unknown");
+    public static final MessageKey EDITOR_APPLY_SESSION_UNKNOWN =
+            new MessageKey("editor.apply.session_unknown");
+    public static final MessageKey EDITOR_APPLY_UNREADABLE =
+            new MessageKey("editor.apply.unreadable");
+    public static final MessageKey EDITOR_APPLY_OTHER_FORMAT =
+            new MessageKey("editor.apply.other_format");
+    public static final MessageKey EDITOR_APPLY_INVALID = new MessageKey("editor.apply.invalid");
+    public static final MessageKey EDITOR_APPLY_INVALID_ENTRY =
+            new MessageKey("editor.apply.invalid_entry");
+    public static final MessageKey EDITOR_APPLY_FORBIDDEN =
+            new MessageKey("editor.apply.forbidden");
+    public static final MessageKey EDITOR_APPLY_SETTING_SET =
+            new MessageKey("editor.apply.setting_set");
+    public static final MessageKey EDITOR_APPLY_SETTING_RESET =
+            new MessageKey("editor.apply.setting_reset");
+    public static final MessageKey EDITOR_APPLY_IN_SCOPE =
+            new MessageKey("editor.apply.in_scope");
+    public static final MessageKey EDITOR_APPLY_SETTING_PUBLISHED =
+            new MessageKey("editor.apply.setting_published");
+    public static final MessageKey EDITOR_APPLY_SETTING_PUBLISHED_SECRET =
+            new MessageKey("editor.apply.setting_published_secret");
+    public static final MessageKey EDITOR_APPLY_SETTING_SET_SECRET =
+            new MessageKey("editor.apply.setting_set_secret");
+    public static final MessageKey EDITOR_APPLY_SETTING_RESET_SECRET =
+            new MessageKey("editor.apply.setting_reset_secret");
+    public static final MessageKey EDITOR_APPLY_MESSAGE_SET =
+            new MessageKey("editor.apply.message_set");
+    public static final MessageKey EDITOR_APPLY_MESSAGE_RESET =
+            new MessageKey("editor.apply.message_reset");
+    public static final MessageKey EDITOR_APPLY_TEMPLATE_CREATED =
+            new MessageKey("editor.apply.template_created");
+    public static final MessageKey EDITOR_APPLY_TEMPLATE_UPDATED =
+            new MessageKey("editor.apply.template_updated");
+    public static final MessageKey EDITOR_APPLY_TEMPLATE_FIELD =
+            new MessageKey("editor.apply.template_field");
+    public static final MessageKey EDITOR_APPLY_TEMPLATE_FIELD_VALUES =
+            new MessageKey("editor.apply.template_field_values");
+    public static final MessageKey EDITOR_APPLY_TEMPLATE_DELETED =
+            new MessageKey("editor.apply.template_deleted");
+    public static final MessageKey EDITOR_APPLY_CONFLICT = new MessageKey("editor.apply.conflict");
+    public static final MessageKey EDITOR_APPLY_FAILED = new MessageKey("editor.apply.failed");
+    public static final MessageKey EDITOR_APPLY_FAILED_FORBIDDEN =
+            new MessageKey("editor.apply.failed_forbidden");
+    public static final MessageKey EDITOR_APPLY_SUMMARY = new MessageKey("editor.apply.summary");
+    public static final MessageKey EDITOR_APPLY_UNCHANGED =
+            new MessageKey("editor.apply.unchanged");
+    public static final MessageKey EDITOR_APPLY_REPLAYED =
+            new MessageKey("editor.apply.replayed");
+    public static final MessageKey EDITOR_APPLIED_BY = new MessageKey("editor.applied_by");
+    public static final MessageKey EDITOR_APPLIED_LIVE = new MessageKey("editor.applied_live");
+    public static final MessageKey EDITOR_LIVE = new MessageKey("editor.live");
+    public static final MessageKey EDITOR_APPLY_CONFLICT_HINT =
+            new MessageKey("editor.apply.conflict_hint");
 
     public static final MessageKey COMMAND_DESCRIPTION_GDPR =
             new MessageKey("command.description.gdpr");

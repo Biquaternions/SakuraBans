@@ -1,0 +1,19 @@
+# Run from the repository root: docker compose -f web/docker-compose.yml up -d
+services:
+  editor:
+    build:
+      context: ..
+      dockerfile: web/Dockerfile
+    image: sakurabans-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # See web/.env.example for every setting.
+      NUXT_EDITOR_UPLOAD_TOKEN: ""
+      NUXT_EDITOR_TRUST_PROXY: "false"
+    volumes:
+      - editor-data:/data
+
+volumes:
+  editor-data:

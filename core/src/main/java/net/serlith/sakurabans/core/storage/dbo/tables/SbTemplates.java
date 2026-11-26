@@ -58,6 +58,9 @@ public final class SbTemplates extends SbTable<SbTemplatesRecord> {
     public final TableField<SbTemplatesRecord, String> ACTIONS = createField(
             DSL.name("actions"), SQLDataType.VARCHAR(4096).nullable(false), this, "");
 
+    public final TableField<SbTemplatesRecord, String> MESSAGE = createField(
+            DSL.name("message"), SQLDataType.VARCHAR(4096).nullable(true), this, "");
+
     public final TableField<SbTemplatesRecord, Long> VERSION = createField(
             DSL.name("version"), SQLDataType.BIGINT.nullable(false), this, "");
 

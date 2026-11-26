@@ -1,0 +1,438 @@
+{
+  "format": 1,
+  "meta": {
+    "pluginVersion": "1.0.0",
+    "platform": "paper",
+    "server": "lobby",
+    "uploader": {
+      "name": "Alex",
+      "uuid": "ec561538-f3fd-461d-aff5-086b22154bce"
+    },
+    "createdAt": 1795651200000,
+    "sections": [
+      "settings",
+      "messages",
+      "templates"
+    ]
+  },
+  "settings": {
+    "fields": [
+      {
+        "key": "enforcement.address-strictness",
+        "group": "config",
+        "type": "ENUM",
+        "description": "How far address bans reach",
+        "options": [
+          "LENIENT",
+          "NORMAL",
+          "STERN",
+          "STRICT"
+        ],
+        "min": null,
+        "max": null,
+        "default": "NORMAL",
+        "level": "GLOBAL",
+        "secret": false
+      },
+      {
+        "key": "scopes.categories",
+        "group": "config",
+        "type": "MAP",
+        "description": "Categories and their servers",
+        "options": [],
+        "min": null,
+        "max": null,
+        "default": {},
+        "level": "GLOBAL",
+        "secret": false
+      },
+      {
+        "key": "reasons.default",
+        "group": "config",
+        "type": "STRING",
+        "description": "The reason used when none is given",
+        "options": [],
+        "min": null,
+        "max": null,
+        "default": "No reason specified",
+        "level": "SCOPED",
+        "secret": false
+      },
+      {
+        "key": "alts.join-notification.threshold",
+        "group": "config",
+        "type": "INTEGER",
+        "description": "The fewest alts that trigger a notice",
+        "options": [],
+        "min": 1,
+        "max": null,
+        "default": 2,
+        "level": "SCOPED",
+        "secret": false
+      },
+      {
+        "key": "reasons.allow-newlines",
+        "group": "config",
+        "type": "BOOLEAN",
+        "description": "Whether reasons may contain line breaks",
+        "options": [],
+        "min": null,
+        "max": null,
+        "default": false,
+        "level": "SCOPED",
+        "secret": false
+      },
+      {
+        "key": "notifications.attempt-throttle",
+        "group": "config",
+        "type": "DURATION",
+        "description": "The shortest time between attempt notices",
+        "options": [],
+        "min": null,
+        "max": null,
+        "default": "30s",
+        "level": "SCOPED",
+        "secret": false
+      },
+      {
+        "key": "enforcement.mute-command-blacklist",
+        "group": "config",
+        "type": "STRING_LIST",
+        "description": "Commands muted players can't use",
+        "options": [],
+        "min": null,
+        "max": null,
+        "default": [
+          "me",
+          "say",
+          "tell"
+        ],
+        "level": "SCOPED",
+        "secret": false
+      },
+      {
+        "key": "limits:reduce-to-limit",
+        "group": "limits",
+        "type": "BOOLEAN",
+        "description": "Whether a punishment over the limit is shortened instead of refused",
+        "options": [],
+        "min": null,
+        "max": null,
+        "default": true,
+        "level": "SCOPED",
+        "secret": false
+      },
+      {
+        "key": "limits:groups",
+        "group": "limits",
+        "type": "MAP",
+        "description": "Staff groups and their limits",
+        "options": [],
+        "min": null,
+        "max": null,
+        "default": {},
+        "level": "SCOPED",
+        "secret": false
+      },
+      {
+        "key": "webhooks:enabled",
+        "group": "webhooks",
+        "type": "BOOLEAN",
+        "description": "Whether webhooks are sent",
+        "options": [],
+        "min": null,
+        "max": null,
+        "default": false,
+        "level": "SCOPED",
+        "secret": false
+      },
+      {
+        "key": "webhooks:url",
+        "group": "webhooks",
+        "type": "STRING",
+        "description": "The webhook URL routes use unless they name their own",
+        "options": [],
+        "min": null,
+        "max": null,
+        "default": "",
+        "level": "SCOPED",
+        "secret": true
+      },
+      {
+        "key": "webhooks:routes.ban.enabled",
+        "group": "webhooks",
+        "type": "BOOLEAN",
+        "description": "Whether bans are posted",
+        "options": [],
+        "min": null,
+        "max": null,
+        "default": true,
+        "level": "SCOPED",
+        "secret": false
+      },
+      {
+        "key": "webhooks:routes.ban.title",
+        "group": "webhooks",
+        "type": "STRING",
+        "description": "The embed title for bans",
+        "options": [],
+        "min": null,
+        "max": null,
+        "default": "Ban",
+        "level": "SCOPED",
+        "secret": false
+      }
+    ],
+    "scopes": [
+      {
+        "scope": "global",
+        "version": 3,
+        "overrides": {
+          "enforcement.address-strictness": "STRICT",
+          "scopes.categories": {
+            "minigames": [
+              "bedwars-1",
+              "skywars"
+            ]
+          },
+          "webhooks:enabled": true,
+          "webhooks:url": true
+        }
+      },
+      {
+        "scope": "category:minigames",
+        "version": 1,
+        "overrides": {
+          "reasons.default": "Breaking the minigame rules"
+        }
+      },
+      {
+        "scope": "server:skywars",
+        "version": 2,
+        "overrides": {
+          "enforcement.mute-command-blacklist": [
+            "me",
+            "say",
+            "tell",
+            "shout"
+          ],
+          "webhooks:routes.ban.title": "Skywars ban"
+        }
+      }
+    ],
+    "servers": [
+      {
+        "id": "7c0f6a1e",
+        "name": "lobby",
+        "categories": [],
+        "platform": "paper",
+        "pluginVersion": "1.0.0",
+        "lastSeenAt": 1795651190000,
+        "fileValues": {
+          "enforcement.address-strictness": "NORMAL",
+          "scopes.categories": {},
+          "reasons.default": "No reason specified",
+          "alts.join-notification.threshold": 3,
+          "reasons.allow-newlines": false,
+          "notifications.attempt-throttle": "30s",
+          "enforcement.mute-command-blacklist": [
+            "me",
+            "say",
+            "tell"
+          ],
+          "limits:reduce-to-limit": true,
+          "limits:groups": {},
+          "webhooks:enabled": false,
+          "webhooks:url": false,
+          "webhooks:routes.ban.enabled": true,
+          "webhooks:routes.ban.title": "Ban"
+        }
+      },
+      {
+        "id": "b21d9e44",
+        "name": "bedwars-1",
+        "categories": [
+          "pvp"
+        ],
+        "platform": "paper",
+        "pluginVersion": "1.0.0",
+        "lastSeenAt": 1795651185000,
+        "fileValues": {
+          "enforcement.address-strictness": "NORMAL",
+          "scopes.categories": {},
+          "reasons.default": "No reason specified",
+          "alts.join-notification.threshold": 2,
+          "reasons.allow-newlines": false,
+          "notifications.attempt-throttle": "30s",
+          "enforcement.mute-command-blacklist": [
+            "me",
+            "say",
+            "tell"
+          ],
+          "limits:reduce-to-limit": true,
+          "limits:groups": {},
+          "webhooks:enabled": false,
+          "webhooks:url": false,
+          "webhooks:routes.ban.enabled": true,
+          "webhooks:routes.ban.title": "Ban"
+        }
+      },
+      {
+        "id": "e5a07c93",
+        "name": "skywars",
+        "categories": [],
+        "platform": "paper",
+        "pluginVersion": "1.0.0",
+        "lastSeenAt": 1795651170000,
+        "fileValues": {
+          "enforcement.address-strictness": "NORMAL",
+          "scopes.categories": {},
+          "reasons.default": "Rule break",
+          "alts.join-notification.threshold": 2,
+          "reasons.allow-newlines": false,
+          "notifications.attempt-throttle": "30s",
+          "enforcement.mute-command-blacklist": [
+            "me",
+            "say",
+            "tell"
+          ],
+          "limits:reduce-to-limit": true,
+          "limits:groups": {},
+          "webhooks:enabled": false,
+          "webhooks:url": true,
+          "webhooks:routes.ban.enabled": true,
+          "webhooks:routes.ban.title": "Ban"
+        }
+      }
+    ]
+  },
+  "messages": {
+    "fields": [
+      {
+        "key": "screen.ban",
+        "description": "The screen a banned player sees",
+        "placeholders": [
+          "reason",
+          "operator",
+          "expires",
+          "id"
+        ],
+        "default": "<red>You are banned.</red>\n<gray>Reason:</gray> <reason>"
+      },
+      {
+        "key": "chat.muted",
+        "description": "Shown to a muted player who chats",
+        "placeholders": [
+          "reason",
+          "expires"
+        ],
+        "default": "<red>You are muted: <reason></red>"
+      }
+    ],
+    "locales": [
+      {
+        "locale": "en_US",
+        "fileTexts": {
+          "screen.ban": "<red>You are banned.</red>\n<gray>Reason:</gray> <reason>",
+          "chat.muted": "<red>You are muted: <reason></red>"
+        }
+      }
+    ],
+    "scopes": [
+      {
+        "scope": "global",
+        "locale": "en_US",
+        "version": 2,
+        "overrides": {
+          "screen.ban": "<red>Banned from Example Network.</red>\n<gray>Reason:</gray> <reason>"
+        }
+      },
+      {
+        "scope": "category:minigames",
+        "locale": "en_US",
+        "version": 1,
+        "overrides": {
+          "screen.ban": "<red>Banned from the minigames.</red>\n<gray>Reason:</gray> <reason>"
+        }
+      }
+    ]
+  },
+  "templates": {
+    "items": [
+      {
+        "name": "hacking",
+        "version": 4,
+        "definition": {
+          "type": "ban",
+          "reason": "Unfair advantage (hacked client)",
+          "ladder": [
+            "7d",
+            "30d",
+            "permanent"
+          ],
+          "ladder-expiry": "1y",
+          "address-shared": true,
+          "groups": {
+            "cheating": 2
+          },
+          "message": "<red>Banned for cheating.</red>\n<gray>Appeal at example.org/appeal</gray>",
+          "step-messages": {
+            "3": "<red>Permanently banned for cheating.</red>"
+          }
+        }
+      },
+      {
+        "name": "lifesteal",
+        "version": 1,
+        "definition": {
+          "type": "ban",
+          "reason": "Out of hearts",
+          "ladder": [
+            "3d"
+          ],
+          "scope": "category:lifesteal"
+        }
+      },
+      {
+        "name": "toxicity",
+        "version": 2,
+        "definition": {
+          "type": "mute",
+          "shadow": true,
+          "reason": "Toxic behaviour",
+          "ladder": [
+            "kick",
+            "1h",
+            "1d",
+            "ban 7d",
+            "ban permanent"
+          ],
+          "ladder-expiry": "30d",
+          "permission-required": true,
+          "actions": [
+            "say {victim} was punished for {duration}"
+          ],
+          "step-actions": {
+            "4": [
+              "kick {victim} Last warning"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "lookups": {
+    "servers": [
+      "bedwars-1",
+      "lobby",
+      "skywars"
+    ],
+    "categories": [
+      "minigames",
+      "pvp"
+    ],
+    "locales": [
+      "en_US"
+    ]
+  }
+}

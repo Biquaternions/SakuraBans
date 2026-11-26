@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.jspecify.annotations.Nullable;
 
 public final class Durations {
 
@@ -36,6 +37,7 @@ public final class Durations {
     private static final Pattern PART = Pattern.compile("(\\d{1,12}(?:\\.\\d{1,6})?)([a-z]+)");
     private static final Pattern ZERO = Pattern.compile("0+(?:\\.0+)?([a-z]*)");
     private static final Set<String> PERMANENT = Set.of("perm", "permanent", "forever");
+    private static final BigDecimal MILLISECOND = new BigDecimal("0.001");
     private static final BigDecimal MAX_SECONDS = BigDecimal.valueOf(Long.MAX_VALUE / 1000);
     private static final List<Map.Entry<String, Long>> COMPACT_PARTS = List.of(
             Map.entry("y", YEAR), Map.entry("d", DAY), Map.entry("h", HOUR),
@@ -45,9 +47,9 @@ public final class Durations {
     }
 
     /**
-     * Parses {@code 90m}, {@code 1.5h}, {@code 1d12h}, {@code 2w}, {@code 1mo}, {@code 1y} and the
-     * long unit names, in any case. Millisecond precision; zero, unknown units, a missing unit and
-     * values too large for a millisecond count are rejected.
+     * Parses {@code 90m}, {@code 1.5h}, {@code 1d12h}, {@code 2w}, {@code 1mo}, {@code 1y},
+     * {@code 500ms} and the long unit names, in any case. Millisecond precision; zero, unknown
+     * units, a missing unit and values too large for a millisecond count are rejected.
      */
     public static Optional<Duration> parse(final String text) {
         final String input = text.strip().toLowerCase(Locale.ROOT);
@@ -58,12 +60,12 @@ public final class Durations {
         BigDecimal seconds = BigDecimal.ZERO;
         int end = 0;
         while (matcher.lookingAt()) {
-            final Long unit = UNITS.get(matcher.group(2));
+            final BigDecimal unit = unit(matcher.group(2));
             if (unit == null) {
                 return Optional.empty();
             }
             final BigDecimal amount = new BigDecimal(matcher.group(1));
-            seconds = seconds.add(amount.multiply(BigDecimal.valueOf(unit)));
+            seconds = seconds.add(amount.multiply(unit));
             if (seconds.compareTo(MAX_SECONDS) > 0) {
                 return Optional.empty();
             }
@@ -81,7 +83,16 @@ public final class Durations {
     public static boolean isZero(final String text) {
         final Matcher matcher = ZERO.matcher(text.strip().toLowerCase(Locale.ROOT));
         return matcher.matches() && (matcher.group(1).isEmpty()
-                || UNITS.containsKey(matcher.group(1)));
+                || unit(matcher.group(1)) != null);
+    }
+
+    // Milliseconds only for settings like sync.poll-interval (250ms); "ms" isn't "m" + "s".
+    private static @Nullable BigDecimal unit(final String name) {
+        if (name.equals("ms")) {
+            return MILLISECOND;
+        }
+        final Long seconds = UNITS.get(name);
+        return seconds == null ? null : BigDecimal.valueOf(seconds);
     }
 
     public static boolean isPermanentToken(final String text) {

@@ -6,6 +6,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import net.serlith.sakurabans.api.model.AddressStrictness;
+import net.serlith.sakurabans.api.model.GlobalScope;
 import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentType;
@@ -139,8 +140,8 @@ class OverridesTest extends ServiceTest {
     @Test
     void otherInstancesChangesArriveThroughTheSync() {
         final OverrideRepository repository = new OverrideRepository(this.storage);
-        repository.changeSettings(Map.of("display.id-style", this.config.encode("BOTH")), 1,
-                MODERATOR, this.clock.instant()).join();
+        repository.changeSettings(GlobalScope.INSTANCE, Map.of("display.id-style",
+                this.config.encode("BOTH")), 1, MODERATOR, this.clock.instant()).join();
 
         this.syncReceiver().handle(new SyncPacket.EntityChangedPacket(SubjectType.SETTINGS))
                 .join();
@@ -157,8 +158,10 @@ class OverridesTest extends ServiceTest {
                 Assertions.assertThat(field.placeholders()).contains("victim", "duration",
                         "scope", "reason", "display_id").doesNotContain("green", "prefix"));
 
+        // Each locale counts its own versions, from 0 while it has no overrides.
+        Assertions.assertThat(this.messageTemplates.messages(Locale.FRANCE).version()).isZero();
         final MessageSnapshot texts = ok(this.messageTemplates.update(Locale.US,
-                Map.of("victim.warned", "<prefix><gold>Warned: <reason>"), 1, MODERATOR)
+                Map.of("victim.warned", "<prefix><gold>Warned: <reason>"), 0, MODERATOR)
                 .join());
         Assertions.assertThat(texts.texts()).containsEntry("victim.warned",
                 "<prefix><gold>Warned: <reason>");
@@ -171,12 +174,14 @@ class OverridesTest extends ServiceTest {
 
         // Tags are not checked: a typo is stored and renders as text.
         Assertions.assertThat(invalid(this.messageTemplates.update(Locale.US, Map.of(
-                "victim.muted", "<red>Muted: <reasn>", "no.such.key", "x"), 2, MODERATOR)
+                "victim.muted", "<red>Muted: <reasn>", "no.such.key", "x"), 1, MODERATOR)
                 .join())).extracting(FieldError::path).containsExactly("no.such.key");
         ok(this.messageTemplates.update(Locale.US, Map.of("victim.muted", "<red>Muted: <reasn>"),
-                2, MODERATOR).join());
-        ok(this.messageTemplates.reset(Locale.US, Set.of("victim.warned"), 3, MODERATOR)
+                1, MODERATOR).join());
+        ok(this.messageTemplates.reset(Locale.US, Set.of("victim.warned"), 2, MODERATOR)
                 .join());
+        Assertions.assertThat(this.messageTemplates.messages(Locale.US).version()).isEqualTo(3);
+        Assertions.assertThat(this.messageTemplates.messages(Locale.FRANCE).version()).isZero();
         Assertions.assertThat(plain(this.messages.render(MessageKey.VICTIM_WARNED, Locale.US)))
                 .contains("You were warned");
         Assertions.assertThat(plain(this.messageTemplates.preview("<prefix><b>Hi <name>",

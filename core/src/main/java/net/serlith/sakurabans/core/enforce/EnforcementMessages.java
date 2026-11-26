@@ -2,9 +2,12 @@ package net.serlith.sakurabans.core.enforce;
 
 import java.time.InstantSource;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.function.Function;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.serlith.sakurabans.api.model.Punishment;
+import net.serlith.sakurabans.api.template.TemplateInfo;
 import net.serlith.sakurabans.core.message.MessageKey;
 import net.serlith.sakurabans.core.message.MessageService;
 import net.serlith.sakurabans.core.message.Placeholders;
@@ -17,32 +20,36 @@ public final class EnforcementMessages {
     private final MessageService messages;
     private final Placeholders placeholders;
     private final NameCache names;
+    private final Function<String, Optional<TemplateInfo>> templates;
     private final InstantSource clock;
 
+    /** {@code templates}: the templates in memory by name (no database access). */
     public EnforcementMessages(final MessageService messages, final Placeholders placeholders,
-            final NameCache names, final InstantSource clock) {
+            final NameCache names, final Function<String, Optional<TemplateInfo>> templates,
+            final InstantSource clock) {
         this.messages = messages;
         this.placeholders = placeholders;
         this.names = names;
+        this.templates = templates;
         this.clock = clock;
     }
 
     public Component banScreen(final Punishment ban, final Locale locale) {
-        return this.render(ban.permanent() ? MessageKey.SCREEN_BAN
+        return this.victim(ban.permanent() ? MessageKey.SCREEN_BAN
                 : MessageKey.SCREEN_BAN_TEMPORARY, ban, locale);
     }
 
     public Component kickScreen(final Punishment kick, final Locale locale) {
-        return this.render(MessageKey.SCREEN_KICK, kick, locale);
+        return this.victim(MessageKey.SCREEN_KICK, kick, locale);
     }
 
     public Component muted(final Punishment mute, final Locale locale) {
-        return this.render(mute.permanent() ? MessageKey.VICTIM_MUTED
+        return this.victim(mute.permanent() ? MessageKey.VICTIM_MUTED
                 : MessageKey.VICTIM_MUTED_TEMPORARY, mute, locale);
     }
 
     public Component warned(final Punishment warn, final Locale locale) {
-        return this.render(MessageKey.VICTIM_WARNED, warn, locale);
+        return this.victim(MessageKey.VICTIM_WARNED, warn, locale);
     }
 
     public Component summary(final Punishment punishment, final Locale locale) {
@@ -50,11 +57,11 @@ public final class EnforcementMessages {
     }
 
     public Component warnedAway(final Punishment warn, final Locale locale) {
-        return this.render(MessageKey.VICTIM_WARNED_AWAY, warn, locale);
+        return this.victim(MessageKey.VICTIM_WARNED_AWAY, warn, locale);
     }
 
     public Component chatMuted(final Punishment mute, final Locale locale) {
-        return this.render(mute.permanent() ? MessageKey.CHAT_MUTED
+        return this.victim(mute.permanent() ? MessageKey.CHAT_MUTED
                 : MessageKey.CHAT_MUTED_TEMPORARY, mute, locale);
     }
 
@@ -86,6 +93,24 @@ public final class EnforcementMessages {
 
     public Locale defaultLocale() {
         return this.messages.defaultLocale();
+    }
+
+    /**
+     * What the punished player is shown: the template step's message, else the template's,
+     * else the network's message for the key. A deleted template falls back to the network's.
+     */
+    private Component victim(final MessageKey key, final Punishment punishment,
+            final Locale locale) {
+        final String text = punishment.template().flatMap(ref -> this.templates.apply(ref.name())
+                .flatMap(template -> template.ladder().get(Math.min(ref.step(),
+                                template.ladder().size() - 1)).message()
+                        .or(template::message)))
+                .orElse(null);
+        if (text == null) {
+            return this.render(key, punishment, locale);
+        }
+        return this.messages.renderText(text, locale, this.placeholders.punishment(punishment,
+                locale, this.clock.instant(), this.names::name, false));
     }
 
     private Component render(final MessageKey key, final Punishment punishment,

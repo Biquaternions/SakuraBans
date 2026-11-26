@@ -21,9 +21,9 @@ import net.serlith.sakurabans.core.configuration.ConfigIssue;
 import net.serlith.sakurabans.core.configuration.TemplateFiles;
 import net.serlith.sakurabans.core.message.MessageKey;
 import net.serlith.sakurabans.core.message.Placeholders;
+import net.serlith.sakurabans.core.model.TemplateSteps;
 import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.template.SakuraTemplateService;
-import net.serlith.sakurabans.core.util.Durations;
 import net.serlith.sakurabans.core.util.Scopes;
 import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
@@ -106,9 +106,7 @@ public final class TemplateCommands implements CommandModule {
 
     static String ladder(final TemplateInfo template) {
         return template.ladder().stream()
-                .map(step -> step.duration()
-                        .map(duration -> Durations.formatCompact(duration).replace(" ", ""))
-                        .orElse("permanent"))
+                .map(step -> TemplateSteps.format(step, template.type()))
                 .collect(Collectors.joining(" → "));
     }
 

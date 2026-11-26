@@ -1,6 +1,8 @@
 package net.serlith.sakurabans.core.command.module;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import net.serlith.sakurabans.api.event.PlayerDenyEvent;
 import net.serlith.sakurabans.api.event.PunishmentsRolledBackEvent;
@@ -18,10 +20,12 @@ import net.serlith.sakurabans.api.punish.RevocationTarget;
 import net.serlith.sakurabans.core.command.CommandTest;
 import net.serlith.sakurabans.core.command.FakeCommandActor;
 import net.serlith.sakurabans.core.enforce.LoginDecision;
+import net.serlith.sakurabans.core.message.Formats;
 import net.serlith.sakurabans.core.model.Lockdown;
 import net.serlith.sakurabans.core.model.LoginAttempt;
 import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.sync.SyncPacket;
+import net.serlith.sakurabans.core.util.BuildConstants;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -135,9 +139,16 @@ class AdminCommandsTest extends CommandTest {
     @Test
     void statusAndReload() {
         this.punish(PunishmentType.BAN, STEVE);
+        this.registry.start().join();
         this.run(this.console, "sb status");
-        Assertions.assertThat(this.console.last()).contains("H2", "Active punishments: 1",
-                "lobby");
+        final List<String> texts = this.console.texts();
+        Assertions.assertThat(texts.get(texts.size() - 3)).contains("H2",
+                "Active punishments: 1", "lobby");
+        Assertions.assertThat(texts.subList(texts.size() - 2, texts.size())).containsExactly(
+                "SakuraBans » Servers on this database: 1",
+                "SakuraBans » - lobby (paper, " + BuildConstants.VERSION + "), last seen "
+                        + new Formats(this.messages, this.config).instant(this.now.get(),
+                                Locale.US));
 
         this.run(this.console, "sb reload");
         Assertions.assertThat(this.console.last()).contains("Reloaded");

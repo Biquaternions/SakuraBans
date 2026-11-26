@@ -4,6 +4,9 @@ import java.time.Duration;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.serlith.sakurabans.api.SakuraBans;
 import net.serlith.sakurabans.api.SakuraBansApi;
+import net.serlith.sakurabans.core.admin.EditorClient;
+import net.serlith.sakurabans.core.admin.EditorWatcher;
+import net.serlith.sakurabans.core.admin.InstanceRegistry;
 import net.serlith.sakurabans.core.admin.OverrideCount;
 import net.serlith.sakurabans.core.admin.SakuraMessageTemplateService;
 import net.serlith.sakurabans.core.admin.SakuraSettingsService;
@@ -57,6 +60,7 @@ public final class SakuraBansCore {
             TemplateActions templateActions, WarningActions warningActions,
             DisplayIdCodec displayIds, LockdownService lockdowns, WebhookService webhooks,
             SakuraSettingsService settings, SakuraMessageTemplateService messageTemplates,
+            EditorClient editorClient, EditorWatcher editorWatcher, InstanceRegistry registry,
             SakuraApi api) {
     }
 
@@ -94,6 +98,8 @@ public final class SakuraBansCore {
             this.services.notifications().start();
             this.services.webhooks().start();
             this.services.sweeper().start();
+            this.services.editorWatcher().start();
+            this.services.registry().start().join();
             SakuraBans.register(this.services.api());
             this.services.scopes().checkServerName();
         } catch (final RuntimeException | Error e) {
@@ -127,6 +133,9 @@ public final class SakuraBansCore {
         this.services.sweeper().stop();
         this.services.notifications().stop();
         this.services.webhooks().stop();
+        this.services.editorWatcher().stop();
+        this.services.registry().stop();
+        this.services.editorClient().stop();
         this.services.templateActions().stop();
         this.services.warningActions().stop();
         if (!this.executors.shutdown(SHUTDOWN_TIMEOUT)) {

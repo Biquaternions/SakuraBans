@@ -140,6 +140,11 @@ public final class FakePlatform implements Platform {
     }
 
     @Override
+    public String platformName() {
+        return "paper";
+    }
+
+    @Override
     public String platformVersion() {
         return "Fake";
     }

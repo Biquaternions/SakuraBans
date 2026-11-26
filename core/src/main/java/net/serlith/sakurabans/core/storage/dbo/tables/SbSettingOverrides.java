@@ -2,10 +2,12 @@ package net.serlith.sakurabans.core.storage.dbo.tables;
 
 import java.io.Serial;
 import java.time.Instant;
+import java.util.List;
 import net.serlith.sakurabans.core.storage.dbo.Keys;
 import net.serlith.sakurabans.core.storage.dbo.SbTable;
 import net.serlith.sakurabans.core.storage.dbo.SbTypes;
 import net.serlith.sakurabans.core.storage.dbo.records.SbSettingOverridesRecord;
+import org.jooq.ForeignKey;
 import org.jooq.Name;
 import org.jooq.Table;
 import org.jooq.TableField;
@@ -18,6 +20,9 @@ public final class SbSettingOverrides extends SbTable<SbSettingOverridesRecord> 
 
     @Serial
     private static final long serialVersionUID = 1L;
+
+    public final TableField<SbSettingOverridesRecord, Integer> SCOPE_ID = createField(
+            DSL.name("scope_id"), SQLDataType.INTEGER.nullable(false), this, "");
 
     public final TableField<SbSettingOverridesRecord, String> K = createField(
             DSL.name("k"), SQLDataType.VARCHAR(255).nullable(false), this, "");
@@ -45,6 +50,11 @@ public final class SbSettingOverrides extends SbTable<SbSettingOverridesRecord> 
     @Override
     public UniqueKey<SbSettingOverridesRecord> getPrimaryKey() {
         return Keys.SETTING_OVERRIDES_PK;
+    }
+
+    @Override
+    public List<ForeignKey<SbSettingOverridesRecord, ?>> getReferences() {
+        return List.of(Keys.SETTING_OVERRIDES_SCOPE_FK);
     }
 
     @Override

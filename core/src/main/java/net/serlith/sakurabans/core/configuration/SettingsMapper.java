@@ -1,5 +1,6 @@
 package net.serlith.sakurabans.core.configuration;
 
+import java.net.Inet6Address;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.InvalidPathException;
@@ -45,6 +46,7 @@ import net.serlith.sakurabans.core.configuration.settings.StorageType;
 import net.serlith.sakurabans.core.configuration.settings.SyncMode;
 import net.serlith.sakurabans.core.configuration.settings.WebhookSettings;
 import net.serlith.sakurabans.core.util.Durations;
+import net.serlith.sakurabans.core.util.InetAddresses;
 import org.jspecify.annotations.Nullable;
 
 final class SettingsMapper {
@@ -284,7 +286,47 @@ final class SettingsMapper {
                 warnings, display, new Settings.Lockdown(config.lockdown().persist()),
                 new Settings.Notifications(attemptThrottle),
                 new Settings.Players(config.players().remoteLookup()),
+                this.web(config.web().url(), config.web().token(), config.web().liveApply()),
                 this.commands(config.commands()));
+    }
+
+    private Settings.Web web(final String url, final String token, final boolean live) {
+        final String text = url.strip().replaceAll("/+$", "");
+        final String secret = token.strip().isEmpty() ? null : token.strip();
+        if (text.isEmpty()) {
+            return new Settings.Web(null, secret, live);
+        }
+        try {
+            final URI uri = new URI(text);
+            final String host = uri.getHost();
+            if (host == null || !uri.isAbsolute() || uri.getRawQuery() != null
+                    || uri.getRawFragment() != null || uri.getRawUserInfo() != null) {
+                this.error("web.url", "must be an address like https://editor.example.org");
+            } else if ("https".equals(uri.getScheme())
+                    || "http".equals(uri.getScheme()) && local(host)) {
+                return new Settings.Web(uri, secret, live);
+            } else {
+                this.error("web.url", "must start with https:// (http:// only for a loopback or"
+                        + " private address)");
+            }
+        } catch (final URISyntaxException e) {
+            this.error("web.url", "is not an address: " + e.getReason());
+        }
+        return new Settings.Web(null, secret, live);
+    }
+
+    // Only literal addresses and localhost: deciding by a DNS lookup would make the check slow
+    // and change with the network.
+    private static boolean local(final String host) {
+        if (host.equalsIgnoreCase("localhost")) {
+            return true;
+        }
+        final String literal = host.startsWith("[") && host.endsWith("]")
+                ? host.substring(1, host.length() - 1) : host;
+        return InetAddresses.parseLiteral(literal).map(address -> address.isLoopbackAddress()
+                || address.isSiteLocalAddress() || address.isLinkLocalAddress()
+                || address instanceof Inet6Address && (address.getAddress()[0] & 0xfe) == 0xfc)
+                .orElse(false);
     }
 
     private Settings.Alts alts(final AltsSection alts) {

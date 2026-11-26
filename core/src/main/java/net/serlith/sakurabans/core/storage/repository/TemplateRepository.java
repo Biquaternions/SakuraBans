@@ -245,7 +245,8 @@ public final class TemplateRepository {
                 .orderBy(s.POSITION)
                 .fetch()
                 .stream()
-                .map(step -> TemplateStep.of(step.durationMs(), split(step.actions())))
+                .map(step -> TemplateStep.of(step.type(), step.durationMs(),
+                        split(step.actions()), step.message()))
                 .toList();
         final SbTemplateGroupMembers m = SakuraTables.TEMPLATE_GROUP_MEMBERS;
         final SbTemplateGroups g = SakuraTables.TEMPLATE_GROUPS;
@@ -264,7 +265,7 @@ public final class TemplateRepository {
                 scope, row.reason(), ladder,
                 row.ladderExpiryMs(),
                 row.addressShared(), row.permissionRequired(), split(row.actions()), groups,
-                row.version());
+                row.message(), row.version());
     }
 
     private static Map<Field<?>, @Nullable Object> values(final DSLContext dsl,
@@ -280,6 +281,7 @@ public final class TemplateRepository {
         values.put(t.ADDRESS_SHARED, template.addressShared());
         values.put(t.PERMISSION_REQUIRED, template.permissionRequired());
         values.put(t.ACTIONS, join(template.actions()));
+        values.put(t.MESSAGE, template.messageOrNull());
         values.put(t.UPDATED_AT, at);
         values.put(t.LADDER_EXPIRY_MS, template.ladderExpiryOrNull());
         return values;
@@ -293,6 +295,8 @@ public final class TemplateRepository {
             dsl.insertInto(s)
                     .set(s.TEMPLATE_ID, id)
                     .set(s.POSITION, (short) i)
+                    .set(s.TYPE, step.type().orElse(null))
+                    .set(s.MESSAGE, step.message().orElse(null))
                     .set(s.DURATION_MS, step.duration().orElse(null))
                     .set(s.ACTIONS, join(step.actions()))
                     .execute();

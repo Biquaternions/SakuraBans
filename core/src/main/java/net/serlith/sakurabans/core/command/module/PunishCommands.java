@@ -245,7 +245,7 @@ public final class PunishCommands implements CommandModule {
                 return CompletableFuture.completedFuture(null);
             }
             return this.punishments.punish(draft, this.options(flags))
-                    .thenAccept(result -> this.reply(actor, type, result))
+                    .thenAccept(result -> this.reply(actor, result))
                     .exceptionally(failure -> {
                         if (Futures.unwrap(failure) instanceof ValidationException e) {
                             this.invalid(actor, e);
@@ -267,7 +267,7 @@ public final class PunishCommands implements CommandModule {
         final String name = given.strip().toLowerCase(Locale.ROOT);
         final TemplateInfo template = this.templates.template(name).orElse(null);
         if (template != null) {
-            if (template.type() != type) {
+            if (!SakuraTemplateService.usableFor(template, type)) {
                 this.runner.send(actor, MessageKey.PUNISH_FAILURE_TEMPLATE_TYPE,
                         Placeholder.unparsed("name", template.name()),
                         Placeholder.component("type", this.runner.render(actor,
@@ -296,7 +296,8 @@ public final class PunishCommands implements CommandModule {
             final CommandActor actor = context.sender();
             final List<String> names = new ArrayList<>();
             for (final TemplateInfo template : this.templates.templates()) {
-                if (template.type() == type && (!template.permissionRequired()
+                if (SakuraTemplateService.usableFor(template, type)
+                        && (!template.permissionRequired()
                         || actor.hasPermission(Permissions.template(template.name())))) {
                     names.add(template.name());
                 }
@@ -399,10 +400,11 @@ public final class PunishCommands implements CommandModule {
                 .build();
     }
 
-    private void reply(final CommandActor actor, final PunishmentType type,
-            final PunishResult result) {
+    private void reply(final CommandActor actor, final PunishResult result) {
         switch (result) {
-            case PunishResult.Success success -> this.runner.send(actor, switch (type) {
+            // The punishment's own type: a template's step may make a /ban a kick.
+            case PunishResult.Success success -> this.runner.send(actor, switch (
+                    success.punishment().type()) {
                 case BAN -> MessageKey.PUNISH_BAN;
                 case MUTE -> MessageKey.PUNISH_MUTE;
                 case WARN -> MessageKey.PUNISH_WARN;

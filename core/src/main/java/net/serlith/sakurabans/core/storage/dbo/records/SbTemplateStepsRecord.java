@@ -2,6 +2,7 @@ package net.serlith.sakurabans.core.storage.dbo.records;
 
 import java.io.Serial;
 import java.time.Duration;
+import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import org.jooq.impl.UpdatableRecordImpl;
 import org.jspecify.annotations.Nullable;
@@ -40,6 +41,14 @@ public final class SbTemplateStepsRecord extends UpdatableRecordImpl<SbTemplateS
     public SbTemplateStepsRecord durationMs(final @Nullable Duration value) {
         this.set(SakuraTables.TEMPLATE_STEPS.DURATION_MS, value);
         return this;
+    }
+
+    public @Nullable PunishmentType type() {
+        return this.get(SakuraTables.TEMPLATE_STEPS.TYPE);
+    }
+
+    public @Nullable String message() {
+        return this.get(SakuraTables.TEMPLATE_STEPS.MESSAGE);
     }
 
     public String actions() {

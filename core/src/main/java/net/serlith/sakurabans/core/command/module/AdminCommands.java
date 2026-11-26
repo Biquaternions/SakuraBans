@@ -26,6 +26,7 @@ import net.serlith.sakurabans.api.punish.ExpungeResult;
 import net.serlith.sakurabans.api.punish.PunishmentQuery;
 import net.serlith.sakurabans.api.punish.RollbackRequest;
 import net.serlith.sakurabans.api.punish.RollbackResult;
+import net.serlith.sakurabans.core.admin.InstanceRegistry;
 import net.serlith.sakurabans.core.admin.OverrideCount;
 import net.serlith.sakurabans.core.admin.SakuraMessageTemplateService;
 import net.serlith.sakurabans.core.admin.SakuraSettingsService;
@@ -55,8 +56,10 @@ import net.serlith.sakurabans.core.platform.Platform;
 import net.serlith.sakurabans.core.player.TargetResolver;
 import net.serlith.sakurabans.core.punish.SakuraPunishmentService;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
+import net.serlith.sakurabans.core.storage.repository.InstanceRepository;
 import net.serlith.sakurabans.core.storage.repository.PunishmentRepository;
 import net.serlith.sakurabans.core.util.BuildConstants;
+import net.serlith.sakurabans.core.util.Futures;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
@@ -88,6 +91,7 @@ public final class AdminCommands implements CommandModule {
     private final ConfirmationTracker confirmations;
     private final SakuraSettingsService settingsService;
     private final SakuraMessageTemplateService messageTemplates;
+    private final InstanceRegistry registry;
     private final Executor worker;
     private final InstantSource clock;
     private final ComponentLogger logger;
@@ -100,8 +104,8 @@ public final class AdminCommands implements CommandModule {
             final SakuraScopeService scopes, final ConfigService config,
             final MessageService messages, final Platform platform,
             final ConfirmationTracker confirmations, final SakuraSettingsService settingsService,
-            final SakuraMessageTemplateService messageTemplates, final Executor worker,
-            final InstantSource clock, final ComponentLogger logger) {
+            final SakuraMessageTemplateService messageTemplates, final InstanceRegistry registry,
+            final Executor worker, final InstantSource clock, final ComponentLogger logger) {
         this.registrar = registrar;
         this.runner = runner;
         this.replies = replies;
@@ -119,6 +123,7 @@ public final class AdminCommands implements CommandModule {
         this.platform = platform;
         this.confirmations = confirmations;
         this.settingsService = settingsService;
+        this.registry = registry;
         this.messageTemplates = messageTemplates;
         this.worker = worker;
         this.clock = clock;
@@ -363,7 +368,25 @@ public final class AdminCommands implements CommandModule {
                         Placeholder.unparsed("sync", this.config.storage().sync().mode().name()),
                         Placeholder.unparsed("active", Long.toString(active)),
                         Placeholder.unparsed("lockdowns",
-                                Integer.toString(this.lockdowns.lockdowns().size()))));
+                                Integer.toString(this.lockdowns.lockdowns().size()))))
+                .thenCompose(ignored -> this.registry.refresh())
+                .thenRun(() -> this.instances(actor));
+    }
+
+    private void instances(final CommandActor actor) {
+        final List<InstanceRepository.Instance> known = this.registry.instances();
+        this.runner.send(actor, MessageKey.STATUS_INSTANCES,
+                Placeholder.unparsed("count", Integer.toString(known.size())));
+        final Locale locale = this.runner.locale(actor);
+        for (final InstanceRepository.Instance instance : known) {
+            this.runner.send(actor, MessageKey.STATUS_INSTANCE,
+                    Placeholder.unparsed("name", instance.serverName().isEmpty()
+                            ? "-" : instance.serverName()),
+                    Placeholder.unparsed("platform", instance.platform()),
+                    Placeholder.unparsed("version", instance.pluginVersion()),
+                    Placeholder.unparsed("seen", this.formats.instant(instance.lastSeenAt(),
+                            locale)));
+        }
     }
 
     private void reload(final CommandActor actor) {
@@ -372,6 +395,8 @@ public final class AdminCommands implements CommandModule {
             case ReloadResult.Reloaded reloaded -> {
                 this.messages.load();
                 this.scopes.checkServerName();
+                Futures.logged(this.registry.refresh(), this.logger,
+                        "refresh this server in the instance registry");
                 this.runner.send(actor, MessageKey.RELOAD_DONE);
                 if (!reloaded.restartRequired().isEmpty()) {
                     this.runner.send(actor, MessageKey.RELOAD_RESTART, Placeholder.unparsed(
@@ -383,9 +408,11 @@ public final class AdminCommands implements CommandModule {
                 if (overrides.any()) {
                     this.runner.send(actor, MessageKey.RELOAD_OVERRIDES,
                             Placeholder.unparsed("settings",
-                                    Integer.toString(overrides.settings().size())),
+                                    Integer.toString(overrides.settingCount())),
+                            Placeholder.unparsed("scopes", overrides.settingScopes()),
                             Placeholder.unparsed("messages",
-                                    Integer.toString(overrides.messageCount())));
+                                    Integer.toString(overrides.messageCount())),
+                            Placeholder.unparsed("message_scopes", overrides.messageScopes()));
                 }
             }
             case ReloadResult.Failed failed -> {

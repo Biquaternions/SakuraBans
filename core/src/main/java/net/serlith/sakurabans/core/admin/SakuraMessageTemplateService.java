@@ -9,13 +9,13 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -24,6 +24,8 @@ import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.serlith.sakurabans.api.model.Actor;
+import net.serlith.sakurabans.api.model.GlobalScope;
+import net.serlith.sakurabans.api.model.Scope;
 import net.serlith.sakurabans.api.validation.FieldError;
 import net.serlith.sakurabans.core.message.MessageKey;
 import net.serlith.sakurabans.core.message.MessageService;
@@ -47,7 +49,8 @@ public final class SakuraMessageTemplateService {
     private final AuthorizationService authorization;
     private final SyncService sync;
     private final InstantSource clock;
-    private final AtomicLong version = new AtomicLong(1);
+    private final AtomicReference<Map<Scope, Map<Locale, Long>>> versions =
+            new AtomicReference<>(Map.of());
     private final AtomicReference<@Nullable List<MessageField>> schema = new AtomicReference<>();
 
     public SakuraMessageTemplateService(final MessageService messages,
@@ -62,8 +65,16 @@ public final class SakuraMessageTemplateService {
 
     public CompletableFuture<Void> reload() {
         return this.repository.messages().thenAccept(stored -> {
-            this.version.set(stored.version());
-            this.messages.overrides(stored.texts());
+            final Map<Scope, Map<Locale, Long>> versions = new HashMap<>();
+            final Map<Scope, Map<Locale, Map<String, String>>> texts = new HashMap<>();
+            stored.scopes().forEach((scope, locales) -> locales.forEach((locale, messages) -> {
+                versions.computeIfAbsent(scope, ignored -> new HashMap<>())
+                        .put(locale, messages.version());
+                texts.computeIfAbsent(scope, ignored -> new HashMap<>())
+                        .put(locale, messages.texts());
+            }));
+            this.versions.set(Map.copyOf(versions));
+            this.messages.overrides(texts);
         });
     }
 
@@ -96,15 +107,32 @@ public final class SakuraMessageTemplateService {
         return List.copyOf(names);
     }
 
-    public SortedMap<Locale, SortedSet<String>> overrides() {
+    /** A scope's overridden keys by locale. */
+    public SortedMap<Locale, SortedSet<String>> overrides(final Scope scope) {
         final SortedMap<Locale, SortedSet<String>> overrides =
                 new TreeMap<>(Comparator.comparing(Locale::toLanguageTag));
-        this.messages.overrides().forEach((locale, texts) -> {
+        this.messages.scopedOverrides().getOrDefault(scope, Map.of()).forEach((locale, texts) -> {
             if (!texts.isEmpty()) {
                 overrides.put(locale, new TreeSet<>(texts.keySet()));
             }
         });
         return overrides;
+    }
+
+    /** A scope's override texts in a locale. */
+    public Map<String, String> texts(final Scope scope, final Locale locale) {
+        return this.messages.scopedOverrides().getOrDefault(scope, Map.of())
+                .getOrDefault(locale, Map.of());
+    }
+
+    /** Every scope and locale that has overrides, with their texts. */
+    public Map<Scope, Map<Locale, Map<String, String>>> allOverrides() {
+        return this.messages.scopedOverrides();
+    }
+
+    /** The scope whose override gives a key its text here, if one does. */
+    public Optional<Scope> source(final String key, final Locale locale) {
+        return this.messages.source(key, locale);
     }
 
     public MessageSnapshot messages(final Locale locale) {
@@ -118,14 +146,84 @@ public final class SakuraMessageTemplateService {
                     : this.messages.fileText(key.key(), locale).isPresent()
                             ? ValueOrigin.FILE : ValueOrigin.DEFAULT);
         }
-        return new MessageSnapshot(this.version.get(), locale, texts, origins);
+        return new MessageSnapshot(this.version(locale), locale, texts, origins);
+    }
+
+    /** The version of the global overrides of a locale: 0 while it never had any. */
+    public long version(final Locale locale) {
+        return this.version(GlobalScope.INSTANCE, locale);
+    }
+
+    /** The version of a scope's overrides in a locale: 0 while it never had any. */
+    public long version(final Scope scope, final Locale locale) {
+        return this.versions.get().getOrDefault(scope, Map.of()).getOrDefault(locale, 0L);
+    }
+
+    /** The locales that have a language file or overrides. */
+    public SortedSet<Locale> locales() {
+        final SortedSet<Locale> locales = new TreeSet<>(Comparator.comparing(Locale::toString));
+        locales.addAll(this.messages.fileLocales());
+        this.messages.scopedOverrides().values().forEach(byLocale ->
+                byLocale.forEach((locale, texts) -> {
+                    if (!texts.isEmpty()) {
+                        locales.add(locale);
+                    }
+                }));
+        return locales;
+    }
+
+    /** The language file's text, or the shipped en_US one. */
+    public String fileText(final String key, final Locale locale) {
+        return this.messages.fileText(key, locale)
+                .orElseGet(() -> MessageService.builtInTexts().getOrDefault(key, ""));
     }
 
     public CompletableFuture<AdminResult<MessageSnapshot>> update(final Locale locale,
             final Map<String, String> patch, final long expectedVersion, final Actor actor) {
+        return this.change(locale, patch, Set.of(), expectedVersion, actor);
+    }
+
+    public CompletableFuture<AdminResult<MessageSnapshot>> reset(final Locale locale,
+            final Set<String> keys, final long expectedVersion, final Actor actor) {
+        return this.change(locale, Map.of(), keys, expectedVersion, actor);
+    }
+
+    public CompletableFuture<AdminResult<MessageSnapshot>> change(final Locale locale,
+            final Map<String, String> set, final Set<String> reset, final long expectedVersion,
+            final Actor actor) {
+        return this.change(GlobalScope.INSTANCE, locale, set, reset, expectedVersion, actor);
+    }
+
+    /** Sets and resets for one scope and locale in one write, with their version. */
+    public CompletableFuture<AdminResult<MessageSnapshot>> change(final Scope scope,
+            final Locale locale, final Map<String, String> set, final Set<String> reset,
+            final long expectedVersion, final Actor actor) {
         final Map<String, @Nullable String> changes = new HashMap<>();
+        final List<FieldError> errors = this.prepare(set, reset, changes);
+        return this.write(scope, locale, changes, errors, expectedVersion, actor);
+    }
+
+    /** Unknown keys and texts that are empty or too long; paths are the message keys. */
+    public List<FieldError> validate(final Map<String, String> set, final Set<String> reset) {
+        return this.prepare(set, reset, new HashMap<>());
+    }
+
+    /** The overrides the change really alters (a text equal to the override's doesn't). */
+    public Map<String, @Nullable String> effective(final Scope scope, final Locale locale,
+            final Map<String, String> set, final Set<String> reset) {
+        final Map<String, @Nullable String> changes = new HashMap<>();
+        this.prepare(set, reset, changes);
+        final Map<String, String> current = this.texts(scope, locale);
+        changes.entrySet().removeIf(change -> change.getValue() == null
+                ? !current.containsKey(change.getKey())
+                : change.getValue().equals(current.get(change.getKey())));
+        return changes;
+    }
+
+    private List<FieldError> prepare(final Map<String, String> set, final Set<String> reset,
+            final Map<String, @Nullable String> changes) {
         final List<FieldError> errors = new ArrayList<>();
-        patch.forEach((key, text) -> {
+        set.forEach((key, text) -> {
             if (!this.known(key, errors)) {
                 return;
             }
@@ -136,19 +234,12 @@ public final class SakuraMessageTemplateService {
             }
             changes.put(key, text);
         });
-        return this.change(locale, changes, errors, expectedVersion, actor);
-    }
-
-    public CompletableFuture<AdminResult<MessageSnapshot>> reset(final Locale locale,
-            final Set<String> keys, final long expectedVersion, final Actor actor) {
-        final Map<String, @Nullable String> changes = new HashMap<>();
-        final List<FieldError> errors = new ArrayList<>();
-        for (final String key : keys) {
+        for (final String key : reset) {
             if (this.known(key, errors)) {
                 changes.put(key, null);
             }
         }
-        return this.change(locale, changes, errors, expectedVersion, actor);
+        return errors;
     }
 
     public Component preview(final String text, final Map<String, String> sample) {
@@ -168,7 +259,8 @@ public final class SakuraMessageTemplateService {
         return true;
     }
 
-    private CompletableFuture<AdminResult<MessageSnapshot>> change(final Locale locale,
+    private CompletableFuture<AdminResult<MessageSnapshot>> write(final Scope scope,
+            final Locale locale,
             final Map<String, @Nullable String> changes, final List<FieldError> errors,
             final long expectedVersion, final Actor actor) {
         final Actor checked;
@@ -187,7 +279,8 @@ public final class SakuraMessageTemplateService {
                         return CompletableFuture.completedFuture(
                                 new AdminResult.ValidationFailed<>(errors));
                     }
-                    return this.repository.changeMessages(locale, changes, expectedVersion,
+                    return this.repository.changeMessages(scope, locale, changes,
+                            expectedVersion,
                             checked, this.clock.instant()).thenCompose(written -> {
                                 if (written.conflict()) {
                                     return CompletableFuture.completedFuture(

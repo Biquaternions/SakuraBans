@@ -70,6 +70,11 @@ public final class LatePlatform implements Platform {
     }
 
     @Override
+    public String platformName() {
+        return this.platform().platformName();
+    }
+
+    @Override
     public String platformVersion() {
         return this.platform().platformVersion();
     }

@@ -196,7 +196,8 @@ public abstract class ServiceTest extends DatabaseTest {
         this.mutes = new MuteCache(this.punishments, this.scopes, this.config, this.clock,
                 this.ranges);
         this.enforcementMessages =
-                new EnforcementMessages(this.messages, this.placeholders, this.names, this.clock);
+                new EnforcementMessages(this.messages, this.placeholders, this.names,
+                        name -> this.templates.template(name), this.clock);
         this.notifications = new NotificationService(this.platform, this.messages,
                 this.placeholders, this.names, this.config, this.bus, new Throttle(this.clock),
                 Runnable::run, this.clock);

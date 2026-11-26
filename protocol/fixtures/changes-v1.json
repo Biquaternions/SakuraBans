@@ -1,0 +1,114 @@
+{
+  "format": 1,
+  "sequence": 1795651260000,
+  "settings": [
+    {
+      "scope": "global",
+      "expectedVersion": 3,
+      "set": {
+        "scopes.categories": {
+          "minigames": [
+            "bedwars-1",
+            "bedwars-2",
+            "skywars"
+          ]
+        }
+      },
+      "reset": [
+        "enforcement.address-strictness"
+      ],
+      "publish": {
+        "server": "lobby",
+        "keys": [
+          "alts.join-notification.threshold"
+        ]
+      }
+    },
+    {
+      "scope": "server:skywars",
+      "expectedVersion": 2,
+      "set": {
+        "reasons.default": "Breaking the Skywars rules",
+        "webhooks:url": "https://discord.example/api/webhooks/1/abc"
+      },
+      "reset": [
+        "webhooks:routes.ban.title"
+      ]
+    },
+    {
+      "scope": "server:bedwars-1",
+      "expectedVersion": 0,
+      "set": {
+        "limits:groups": {
+          "helper": {
+            "permission": "sakurabans.group.helper",
+            "max-duration": {
+              "ban": "3d"
+            }
+          }
+        }
+      },
+      "reset": []
+    }
+  ],
+  "messages": [
+    {
+      "scope": "global",
+      "locale": "en_US",
+      "expectedVersion": 2,
+      "set": {
+        "chat.muted": "<red>Muted: <reason></red>"
+      },
+      "reset": [
+        "screen.ban"
+      ]
+    },
+    {
+      "scope": "server:skywars",
+      "locale": "en_US",
+      "expectedVersion": 0,
+      "set": {
+        "screen.ban": "<red>Banned from Skywars.</red>"
+      },
+      "reset": []
+    }
+  ],
+  "templates": [
+    {
+      "op": "create",
+      "name": "advertising",
+      "definition": {
+        "type": "mute",
+        "reason": "Advertising",
+        "ladder": [
+          "kick",
+          "1d",
+          "permanent"
+        ],
+        "message": "<red>No advertising.</red>"
+      }
+    },
+    {
+      "op": "update",
+      "name": "hacking",
+      "expectedVersion": 4,
+      "definition": {
+        "type": "ban",
+        "reason": "Cheating",
+        "ladder": [
+          "14d",
+          "permanent"
+        ],
+        "address-shared": true,
+        "groups": {
+          "cheating": 2
+        }
+      }
+    },
+    {
+      "op": "delete",
+      "name": "lifesteal",
+      "expectedVersion": 1
+    }
+  ]
+}

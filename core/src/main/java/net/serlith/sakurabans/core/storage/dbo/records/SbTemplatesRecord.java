@@ -107,6 +107,10 @@ public final class SbTemplatesRecord extends UpdatableRecordImpl<SbTemplatesReco
         return this;
     }
 
+    public @Nullable String message() {
+        return this.get(SakuraTables.TEMPLATES.MESSAGE);
+    }
+
     public String actions() {
         return this.get(SakuraTables.TEMPLATES.ACTIONS);
     }

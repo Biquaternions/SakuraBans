@@ -77,6 +77,18 @@ val integrationTestTask = tasks.register<Test>("integrationTest") {
     shouldRunAfter(tasks.test)
 }
 
+// The editor protocol's shared fixtures (protocol/fixtures), read in place by the tests.
+val protocolFixtures = rootProject.layout.projectDirectory.dir("protocol/fixtures")
+tasks.withType<Test>().configureEach {
+    inputs.dir(protocolFixtures).withPathSensitivity(PathSensitivity.RELATIVE)
+    systemProperty("sakurabans.protocolFixtures", protocolFixtures.asFile.absolutePath)
+    // Opt-in tests against a running editor site (EditorSiteInteropTest): the site's URL, and
+    // a second one started with an upload token.
+    listOf("editorSite", "editorSiteSecured", "editorSiteUploadToken").forEach { name ->
+        providers.gradleProperty(name).orNull?.let { systemProperty("sakurabans.$name", it) }
+    }
+}
+
 val gitCommit = providers.exec {
     commandLine("git", "rev-parse", "--short=12", "HEAD")
     isIgnoreExitValue = true

@@ -120,10 +120,13 @@ public final class SakuraPunishmentService implements PunishmentService {
         } catch (final RuntimeException e) {
             return CompletableFuture.failedFuture(e);
         }
+        // With a template the step decides the type, so it's checked once it is known.
         return this.whenRunning()
-                .thenCompose(ignored -> this.authorize(checkedDraft.actor(), new Action.Punish(
-                        checkedDraft.type(),
-                        this.factory.requestedScope(checkedDraft).orElse(null))))
+                .thenCompose(ignored -> checkedDraft.template().isPresent()
+                        ? CompletableFuture.completedFuture(true)
+                        : this.authorize(checkedDraft.actor(), new Action.Punish(
+                                checkedDraft.type(),
+                                this.factory.requestedScope(checkedDraft).orElse(null))))
                 .thenCompose(allowed -> allowed
                         ? this.prepareAndStore(checkedDraft, checkedOptions)
                         : CompletableFuture.completedFuture(new SakuraPunishResult.Failure(
@@ -151,11 +154,24 @@ public final class SakuraPunishmentService implements PunishmentService {
 
     private CompletableFuture<PunishmentFactory.Prepared> prepare(
             final DraftPunishment draft, final PunishOptions options) {
-        return this.factory.prepare(draft, options).thenApply(prepared ->
-                prepared instanceof PunishmentFactory.Prepared.Ready ready
+        return this.factory.prepare(draft, options)
+                .thenCompose(prepared -> this.authorizedType(draft, prepared))
+                .thenApply(prepared -> prepared instanceof PunishmentFactory.Prepared.Ready ready
                         ? this.limits.apply(ready, options)
                         : prepared)
                 .thenCompose(this::unlessExempt);
+    }
+
+    private CompletableFuture<PunishmentFactory.Prepared> authorizedType(
+            final DraftPunishment draft, final PunishmentFactory.Prepared prepared) {
+        if (draft.template().isEmpty()
+                || !(prepared instanceof PunishmentFactory.Prepared.Ready ready)) {
+            return CompletableFuture.completedFuture(prepared);
+        }
+        return this.authorize(draft.actor(), new Action.Punish(ready.punishment().type(),
+                        this.factory.requestedScope(draft).orElse(null)))
+                .thenApply(allowed -> allowed ? prepared : new PunishmentFactory.Prepared.Refused(
+                        PunishResult.Failure.Reason.FORBIDDEN));
     }
 
     private CompletableFuture<PunishmentFactory.Prepared> unlessExempt(

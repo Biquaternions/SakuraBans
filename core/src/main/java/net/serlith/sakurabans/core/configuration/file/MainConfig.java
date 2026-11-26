@@ -18,5 +18,6 @@ public final class MainConfig {
     private LockdownSection lockdown = new LockdownSection();
     private NotificationsSection notifications = new NotificationsSection();
     private PlayersSection players = new PlayersSection();
+    private WebSection web = new WebSection();
     private CommandsSection commands = new CommandsSection();
 }

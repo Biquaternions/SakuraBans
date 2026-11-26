@@ -18,6 +18,7 @@ import java.util.function.Supplier;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
+import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.api.template.TemplateInfo;
 import net.serlith.sakurabans.api.template.TemplateService;
@@ -235,8 +236,9 @@ public final class SakuraTemplateService implements TemplateService {
         try {
             definition = given.toBuilder()
                     .ladder(given.ladder().stream()
-                            .map(step -> TemplateStep.of(step.duration().orElse(null),
-                                    step.actions()))
+                            .map(step -> TemplateStep.of(step.type().orElse(null),
+                                    step.duration().orElse(null), step.actions(),
+                                    step.message().orElse(null)))
                             .toList())
                     .build();
         } catch (final ValidationException e) {
@@ -295,6 +297,17 @@ public final class SakuraTemplateService implements TemplateService {
             all.add(i);
         }
         return all;
+    }
+
+    /** Whether the ladder's steps result in more than one type. */
+    public static boolean mixed(final TemplateInfo template) {
+        return template.ladder().stream().map(step -> step.type().orElse(template.type()))
+                .distinct().count() > 1;
+    }
+
+    /** Whether a punish command of this type may use the template. */
+    public static boolean usableFor(final TemplateInfo template, final PunishmentType type) {
+        return template.type() == type || mixed(template);
     }
 
     public record Resolution(TemplateInfo template, @Nullable Duration duration, int step) {

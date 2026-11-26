@@ -14,6 +14,10 @@ public final class SbMessageOverridesRecord extends UpdatableRecordImpl<SbMessag
         super(SakuraTables.MESSAGE_OVERRIDES);
     }
 
+    public int scopeId() {
+        return this.get(SakuraTables.MESSAGE_OVERRIDES.SCOPE_ID);
+    }
+
     public String locale() {
         return this.get(SakuraTables.MESSAGE_OVERRIDES.LOCALE);
     }

@@ -26,7 +26,11 @@ class DurationsTest {
                         .plusHours(5).plusMinutes(6).plusSeconds(7)),
                 Arguments.of("30s", Duration.ofSeconds(30)),
                 Arguments.of(" 10m ", Duration.ofMinutes(10)),
-                Arguments.of("0.0005s", Duration.ofMillis(1)));
+                Arguments.of("0.0005s", Duration.ofMillis(1)),
+                // The sync poll interval's documented example and minimum (S46).
+                Arguments.of("500ms", Duration.ofMillis(500)),
+                Arguments.of("250MS", Duration.ofMillis(250)),
+                Arguments.of("1s500ms", Duration.ofMillis(1500)));
     }
 
     @ParameterizedTest
@@ -37,7 +41,7 @@ class DurationsTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"", "90", "1x", "1d 2h", "d", "-1d", "0s", "0.0004s", "1.d",
-        "999999999999y", "perm"})
+        "999999999999y", "perm", "0.4ms"})
     void rejectsEverythingElse(final String text) {
         assertThat(Durations.parse(text)).isEmpty();
     }

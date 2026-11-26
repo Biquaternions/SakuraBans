@@ -111,6 +111,32 @@ class ConfigServiceTest {
     }
 
     @Test
+    void theEditorAddressIsHttpsOrLocalAndTheTokenStaysSecret() throws Exception {
+        for (final String url : List.of("https://editor.example.org/", "http://127.0.0.1:3000",
+                "http://192.168.1.5", "http://[::1]:8080", "http://localhost", "")) {
+            this.write(ConfigFiles.CONFIG, "web:\n  url: '" + url + "'\n  token: hunter2\n");
+            final ConfigService service = this.service();
+            service.load();
+            assertThat(service.settings().web().url()).as(url).satisfies(parsed -> {
+                if (url.isEmpty()) {
+                    assertThat(parsed).isNull();
+                } else {
+                    assertThat(parsed).isNotNull();
+                    assertThat(parsed.toString()).doesNotEndWith("/");
+                }
+            });
+            assertThat(service.settings().toString()).doesNotContain("hunter2");
+        }
+        for (final String url : List.of("http://editor.example.org", "ftp://example.org",
+                "editor.example.org", "https://example.org/?x=1")) {
+            this.write(ConfigFiles.CONFIG, "web:\n  url: '" + url + "'\n");
+            assertThatThrownBy(this.service()::load).as(url)
+                    .isInstanceOfSatisfying(ConfigException.class, e -> assertThat(e.errors())
+                            .extracting(issue -> issue.path()).containsExactly("web.url"));
+        }
+    }
+
+    @Test
     void sqlSyncNeedsSharedDatabase() throws Exception {
         this.write(ConfigFiles.STORAGE, "sync:\n  mode: SQL\n  poll-interval: 1m\n");
 

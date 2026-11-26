@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import net.serlith.sakurabans.api.model.GlobalScope;
 import net.serlith.sakurabans.core.RecordingLogger;
 import net.serlith.sakurabans.core.command.CommandTest;
 import net.serlith.sakurabans.core.command.FakeCommandActor;
@@ -77,7 +78,7 @@ class OverrideCommandsTest extends CommandTest {
 
         this.run(this.console, "sakurabans settings reset reasons.default");
 
-        Assertions.assertThat(this.console.last()).contains("Removed the database override",
+        Assertions.assertThat(this.console.last()).contains("Removed the override of",
                 "reasons.default");
         Assertions.assertThat(this.settingsService.overrides())
                 .containsOnlyKeys("warnings.expire-after");
@@ -96,7 +97,8 @@ class OverrideCommandsTest extends CommandTest {
         Assertions.assertThat(this.settingsService.overrides()).hasSize(2);
 
         this.run(this.console, "sakurabans settings reset all --confirm");
-        Assertions.assertThat(this.console.last()).contains("Removed every setting override (2)");
+        Assertions.assertThat(this.console.last())
+                .contains("Removed every setting override of global (2)");
         Assertions.assertThat(this.settingsService.overrides()).isEmpty();
     }
 
@@ -113,11 +115,11 @@ class OverrideCommandsTest extends CommandTest {
                 .containsExactly("victim.muted", "victim.warned", "all");
 
         this.run(this.console, "sakurabans messages reset en-US victim.warned");
-        Assertions.assertThat(this.messageTemplates.overrides().get(Locale.US))
+        Assertions.assertThat(this.messageTemplates.overrides(GlobalScope.INSTANCE).get(Locale.US))
                 .containsExactly("victim.muted");
         this.run(this.console, "sakurabans messages reset en-US all");
         this.run(this.console, "sakurabans messages reset en-US all --confirm");
-        Assertions.assertThat(this.messageTemplates.overrides()).isEmpty();
+        Assertions.assertThat(this.messageTemplates.overrides(GlobalScope.INSTANCE)).isEmpty();
     }
 
     @Test
@@ -149,9 +151,9 @@ class OverrideCommandsTest extends CommandTest {
         this.run(this.console, "sakurabans reload");
 
         Assertions.assertThat(this.console.texts()).anySatisfy(line -> Assertions
-                .assertThat(line).contains("2 settings and 2 messages are overridden"));
+                .assertThat(line).contains("2 settings (global 2) and 2 messages (global 2) are"));
         Assertions.assertThat(this.overrideLogs()).singleElement().satisfies(entry ->
                 Assertions.assertThat(Arrays.deepToString(entry.arguments()))
-                        .contains("[reasons.default, warnings.expire-after]", "en-US: 2"));
+                        .contains("global 2"));
     }
 }

@@ -23,5 +23,8 @@ public interface Platform {
 
     boolean onlineMode();
 
+    /** The platform's family, as the editor payload names it: {@code paper} or {@code velocity}. */
+    String platformName();
+
     String platformVersion();
 }

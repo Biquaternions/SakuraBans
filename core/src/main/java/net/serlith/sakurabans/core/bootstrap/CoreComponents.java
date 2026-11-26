@@ -1,8 +1,15 @@
 package net.serlith.sakurabans.core.bootstrap;
 
+import java.security.SecureRandom;
 import java.time.InstantSource;
 import java.util.List;
 import java.util.UUID;
+import net.serlith.sakurabans.core.admin.EditorClient;
+import net.serlith.sakurabans.core.admin.EditorLines;
+import net.serlith.sakurabans.core.admin.EditorSeal;
+import net.serlith.sakurabans.core.admin.EditorService;
+import net.serlith.sakurabans.core.admin.EditorWatcher;
+import net.serlith.sakurabans.core.admin.InstanceRegistry;
 import net.serlith.sakurabans.core.admin.SakuraMessageTemplateService;
 import net.serlith.sakurabans.core.admin.SakuraSettingsService;
 import net.serlith.sakurabans.core.alts.AltService;
@@ -20,6 +27,7 @@ import net.serlith.sakurabans.core.command.module.AllowCommands;
 import net.serlith.sakurabans.core.command.module.AltCommands;
 import net.serlith.sakurabans.core.command.module.CheckCommands;
 import net.serlith.sakurabans.core.command.module.EditCommands;
+import net.serlith.sakurabans.core.command.module.EditorCommands;
 import net.serlith.sakurabans.core.command.module.GdprCommands;
 import net.serlith.sakurabans.core.command.module.HistoryCommands;
 import net.serlith.sakurabans.core.command.module.ImportCommands;
@@ -79,7 +87,9 @@ import net.serlith.sakurabans.core.storage.SchemaManager;
 import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.storage.repository.AllowListRepository;
 import net.serlith.sakurabans.core.storage.repository.AuditRepository;
+import net.serlith.sakurabans.core.storage.repository.EditorSessionRepository;
 import net.serlith.sakurabans.core.storage.repository.ImportRepository;
+import net.serlith.sakurabans.core.storage.repository.InstanceRepository;
 import net.serlith.sakurabans.core.storage.repository.LockdownRepository;
 import net.serlith.sakurabans.core.storage.repository.MetaRepository;
 import net.serlith.sakurabans.core.storage.repository.OverrideRepository;
@@ -141,6 +151,11 @@ final class CoreComponents {
     private final WebhookService webhooks;
     private final SakuraSettingsService settingsService;
     private final SakuraMessageTemplateService messageTemplates;
+    private final InstanceRegistry registry;
+    private final EditorClient editorClient;
+    private final EditorService editor;
+    private final EditorWatcher editorWatcher;
+    private final EditorLines editorLines;
     private final SakuraPlayerDataService playerData;
 
     // Layer 4, and the layer 3 services that take a layer 4 implementation of their interface
@@ -228,6 +243,19 @@ final class CoreComponents {
                 authorization, this.sync, clock, environment.logger());
         this.messageTemplates = new SakuraMessageTemplateService(this.messages, overrides,
                 authorization, this.sync, clock);
+        this.registry = new InstanceRegistry(environment.dataDirectory(), this.config,
+                this.platform, new InstanceRepository(this.storage), this.executors, clock,
+                environment.logger());
+        this.editorClient = new EditorClient(this.config, this.executors.worker(),
+                environment.logger());
+        this.editor = new EditorService(this.config, this.settingsService, this.messageTemplates,
+                this.templates, new EditorSessionRepository(this.storage), this.editorClient,
+                new EditorSeal(new SecureRandom()), this.platform, this.registry, clock,
+                environment.logger());
+        this.editorLines = new EditorLines(this.messages, this.platform);
+        this.editorWatcher = new EditorWatcher(this.config, this.editor,
+                this.editorClient::connect, this.editorLines, this.platform, this.executors,
+                EditorWatcher.Timing.DEFAULT, clock, environment.logger());
         this.lockdowns = new LockdownService(new LockdownRepository(this.storage),
                 this.permissions, this.allowList, this.sync, this.config, clock,
                 environment.logger());
@@ -236,7 +264,8 @@ final class CoreComponents {
                 this.executors.worker(), clock);
 
         this.enforcementMessages =
-                new EnforcementMessages(this.messages, this.placeholders, this.names, clock);
+                new EnforcementMessages(this.messages, this.placeholders, this.names,
+                        this.templates::template, clock);
         this.enforcer = new LocalEnforcer(this.platform, this.scopeService, this.punishments,
                 mutes, this.enforcementMessages, this.config, clock, this.ranges,
                 environment.logger());
@@ -312,10 +341,12 @@ final class CoreComponents {
                         flags, targetParser, targets, this.punishmentService,
                         this.punishments, this.lockdowns, this.scopeService, this.config,
                         this.messages, this.platform, confirmations, this.settingsService,
-                        this.messageTemplates, this.executors.worker(), clock,
+                        this.messageTemplates, this.registry, this.executors.worker(), clock,
                         environment.logger()),
                 new OverrideCommands(registrar, runner, this.settingsService,
-                        this.messageTemplates, confirmations),
+                        this.messageTemplates, confirmations, scopeParser, this.registry),
+                new EditorCommands(registrar, runner, this.editor, this.editorWatcher,
+                        this.editorLines, this.formats),
                 new ImportCommands(registrar, runner, this.imports, confirmations,
                         this.platform)),
                 registrar, runner, this.messages);
@@ -423,6 +454,22 @@ final class CoreComponents {
 
     SakuraSettingsService settingsService() {
         return this.settingsService;
+    }
+
+    InstanceRegistry registry() {
+        return this.registry;
+    }
+
+    EditorClient editorClient() {
+        return this.editorClient;
+    }
+
+    EditorService editor() {
+        return this.editor;
+    }
+
+    EditorWatcher editorWatcher() {
+        return this.editorWatcher;
     }
 
     SakuraMessageTemplateService messageTemplates() {
