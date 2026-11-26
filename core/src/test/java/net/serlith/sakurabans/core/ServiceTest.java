@@ -34,6 +34,10 @@ import net.serlith.sakurabans.core.enforce.LoginGate;
 import net.serlith.sakurabans.core.enforce.SyncReceiver;
 import net.serlith.sakurabans.core.event.SakuraEventBus;
 import net.serlith.sakurabans.core.fake.FakePlatform;
+import net.serlith.sakurabans.core.importer.ImportJobs;
+import net.serlith.sakurabans.core.importer.ImportRunner;
+import net.serlith.sakurabans.core.importer.ImportSources;
+import net.serlith.sakurabans.core.importer.SelfImport;
 import net.serlith.sakurabans.core.integration.SakuraIntegrationRegistry;
 import net.serlith.sakurabans.core.kind.SakuraKindService;
 import net.serlith.sakurabans.core.limit.CooldownTracker;
@@ -62,6 +66,7 @@ import net.serlith.sakurabans.core.storage.DisplayIdCodec;
 import net.serlith.sakurabans.core.storage.Lease;
 import net.serlith.sakurabans.core.storage.repository.AllowListRepository;
 import net.serlith.sakurabans.core.storage.repository.AuditRepository;
+import net.serlith.sakurabans.core.storage.repository.ImportRepository;
 import net.serlith.sakurabans.core.storage.repository.KindRepository;
 import net.serlith.sakurabans.core.storage.repository.LockdownRepository;
 import net.serlith.sakurabans.core.storage.repository.MetaRepository;
@@ -257,8 +262,18 @@ public abstract class ServiceTest extends DatabaseTest {
         return new SyncReceiver(this.punishments, this.enforcer, this.mutes, this.scopes,
                 this.platform, this.bus, this.config, this.clock, this.allowList,
                 this.templates, this.kinds, this.lockdowns, this.settingsService,
-                this.messageTemplates, this.playerData,
+                this.messageTemplates, this.playerData, this.ranges, this.displayIds,
                 this.log.logger());
+    }
+
+    /** The import framework (S38) wired like {@code CoreComponents} does, with these sources. */
+    protected final ImportJobs importJobs(final ImportSources sources) {
+        final ImportRepository repository = new ImportRepository(this.storage);
+        return new ImportJobs(sources,
+                new ImportRunner(repository, this.kinds, this.clock, this.log.logger()),
+                new SelfImport(repository, this.log.logger()), repository, this.lease,
+                this.config, this.syncService, this.syncReceiver(), this.executors.worker(),
+                this.clock, this.log.logger());
     }
 
     protected static String plain(final Component component) {

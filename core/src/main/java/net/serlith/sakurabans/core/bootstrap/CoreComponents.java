@@ -29,6 +29,7 @@ import net.serlith.sakurabans.core.command.module.CheckCommands;
 import net.serlith.sakurabans.core.command.module.EditCommands;
 import net.serlith.sakurabans.core.command.module.GdprCommands;
 import net.serlith.sakurabans.core.command.module.HistoryCommands;
+import net.serlith.sakurabans.core.command.module.ImportCommands;
 import net.serlith.sakurabans.core.command.module.KindCommands;
 import net.serlith.sakurabans.core.command.module.PunishCommands;
 import net.serlith.sakurabans.core.command.module.RevokeCommands;
@@ -51,6 +52,11 @@ import net.serlith.sakurabans.core.enforce.LoginGate;
 import net.serlith.sakurabans.core.enforce.SakuraMessageFormatter;
 import net.serlith.sakurabans.core.enforce.SyncReceiver;
 import net.serlith.sakurabans.core.event.SakuraEventBus;
+import net.serlith.sakurabans.core.importer.ImportJobs;
+import net.serlith.sakurabans.core.importer.ImportRunner;
+import net.serlith.sakurabans.core.importer.ImportSources;
+import net.serlith.sakurabans.core.importer.SakuraImportService;
+import net.serlith.sakurabans.core.importer.SelfImport;
 import net.serlith.sakurabans.core.integration.SakuraIntegrationRegistry;
 import net.serlith.sakurabans.core.kind.SakuraKindService;
 import net.serlith.sakurabans.core.limit.CooldownTracker;
@@ -83,6 +89,7 @@ import net.serlith.sakurabans.core.storage.SchemaManager;
 import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.storage.repository.AllowListRepository;
 import net.serlith.sakurabans.core.storage.repository.AuditRepository;
+import net.serlith.sakurabans.core.storage.repository.ImportRepository;
 import net.serlith.sakurabans.core.storage.repository.KindRepository;
 import net.serlith.sakurabans.core.storage.repository.LockdownRepository;
 import net.serlith.sakurabans.core.storage.repository.MetaRepository;
@@ -170,6 +177,8 @@ final class CoreComponents {
     private final ExpirySweeper sweeper;
     private final LoginGate loginGate;
     private final ChatGate chatGate;
+    private final ImportJobs imports;
+    private final SakuraImportService importService;
 
     // Layer 5
     private final SakuraCommands commands;
@@ -284,7 +293,7 @@ final class CoreComponents {
                 this.scopeService, this.platform, this.events, this.config, clock,
                 this.allowList, this.templates, this.kindService, this.lockdowns,
                 this.settingsService, this.messageTemplates,
-                this.playerData, environment.logger());
+                this.playerData, this.ranges, this.displayIds, environment.logger());
         this.sweeper = new ExpirySweeper(this.lease, this.punishments, this.mutes, this.enforcer,
                 this.sync, this.events, this.executors, this.platform, clock,
                 environment.logger());
@@ -294,6 +303,14 @@ final class CoreComponents {
                 this.enforcer, this.lockdowns, environment.logger());
         this.chatGate = new ChatGate(this.mutes, new CommandBlacklist(this.config),
                 this.enforcementMessages, this.notifications, this.events, environment.logger());
+
+        final ImportRepository importRepository = new ImportRepository(this.storage);
+        this.imports = new ImportJobs(ImportSources.standard(),
+                new ImportRunner(importRepository, this.kindService, clock, environment.logger()),
+                new SelfImport(importRepository, environment.logger()), importRepository,
+                this.lease, this.config, this.sync, this.syncReceiver, this.executors.worker(),
+                clock, environment.logger());
+        this.importService = new SakuraImportService(this.imports, this::authorize);
 
         final CommandRegistrar registrar = new CommandRegistrar(this.config, this.messages);
         final CommandRunner runner =
@@ -335,7 +352,9 @@ final class CoreComponents {
                         this.punishments, this.lockdowns, this.scopeService, this.config,
                         this.messages, this.platform, confirmations, this.executors.worker(),
                         clock),
-                new KindCommands(registrar, runner, this.kindService, this.scopeService)),
+                new KindCommands(registrar, runner, this.kindService, this.scopeService),
+                new ImportCommands(registrar, runner, this.imports, confirmations,
+                        this.platform)),
                 registrar, runner, this.messages);
     }
 
@@ -542,6 +561,10 @@ final class CoreComponents {
 
     ChatGate chatGate() {
         return this.chatGate;
+    }
+
+    SakuraImportService importService() {
+        return this.importService;
     }
 
     SakuraCommands commands() {

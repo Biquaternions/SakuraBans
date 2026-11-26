@@ -25,10 +25,12 @@ import net.serlith.sakurabans.core.kind.SakuraKindService;
 import net.serlith.sakurabans.core.model.SakuraPunishment;
 import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import net.serlith.sakurabans.core.platform.Platform;
+import net.serlith.sakurabans.core.punish.ActiveRangeCache;
 import net.serlith.sakurabans.core.punish.Applicabilities;
 import net.serlith.sakurabans.core.punish.Enforcer;
 import net.serlith.sakurabans.core.punish.MuteCache;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
+import net.serlith.sakurabans.core.storage.DisplayIdCodec;
 import net.serlith.sakurabans.core.storage.repository.PunishmentRepository;
 import net.serlith.sakurabans.core.sync.SyncPacket;
 import net.serlith.sakurabans.core.sync.SyncPacketHandler;
@@ -54,6 +56,8 @@ public final class SyncReceiver implements SyncPacketHandler {
     private final SakuraSettingsService settings;
     private final SakuraMessageTemplateService messageTemplates;
     private final SakuraPlayerDataService playerData;
+    private final ActiveRangeCache ranges;
+    private final DisplayIdCodec displayIds;
     private final ComponentLogger logger;
 
     public SyncReceiver(final PunishmentRepository punishments, final Enforcer enforcer,
@@ -63,7 +67,8 @@ public final class SyncReceiver implements SyncPacketHandler {
             final SakuraKindService kinds, final LockdownService lockdowns,
             final SakuraSettingsService settings,
             final SakuraMessageTemplateService messageTemplates,
-            final SakuraPlayerDataService playerData, final ComponentLogger logger) {
+            final SakuraPlayerDataService playerData, final ActiveRangeCache ranges,
+            final DisplayIdCodec displayIds, final ComponentLogger logger) {
         this.punishments = punishments;
         this.enforcer = enforcer;
         this.mutes = mutes;
@@ -79,6 +84,8 @@ public final class SyncReceiver implements SyncPacketHandler {
         this.settings = settings;
         this.messageTemplates = messageTemplates;
         this.playerData = playerData;
+        this.ranges = ranges;
+        this.displayIds = displayIds;
         this.logger = logger;
     }
 
@@ -95,6 +102,7 @@ public final class SyncReceiver implements SyncPacketHandler {
             case SyncPacket.LockdownChangedPacket _ -> this.lockdowns.reload();
             case SyncPacket.PunishmentsRolledBackPacket rolledBack -> this.rolledBack(rolledBack);
             case SyncPacket.PlayerDataErasedPacket erased -> this.playerData.erased(erased);
+            case SyncPacket.ImportedPacket imported -> this.imported(imported.enforce());
             case SyncPacket.EntityChangedPacket changed -> switch (changed.entity()) {
                 case TEMPLATE -> this.templates.changed(changed);
                 case KIND -> this.kinds.changed(changed);
@@ -203,8 +211,21 @@ public final class SyncReceiver implements SyncPacketHandler {
 
     @Override
     public CompletableFuture<Void> missed() {
-        final Instant now = this.clock.instant();
+        return Futures.logged(this.reload(new ArrayList<>(), true), this.logger,
+                "catch up after missed sync messages");
+    }
+
+    public CompletableFuture<Void> imported(final boolean enforce) {
         final List<CompletableFuture<Void>> work = new ArrayList<>();
+        work.add(this.displayIds.load());
+        work.add(this.allowList.reload().thenCompose(ignored -> this.ranges.reload()));
+        return Futures.logged(this.reload(work, enforce), this.logger,
+                "reload the caches after an import");
+    }
+
+    private CompletableFuture<Void> reload(final List<CompletableFuture<Void>> work,
+            final boolean enforce) {
+        final Instant now = this.clock.instant();
         work.add(this.kinds.reload());
         work.add(this.templates.reload());
         work.add(this.lockdowns.reload());
@@ -214,6 +235,9 @@ public final class SyncReceiver implements SyncPacketHandler {
             if (!this.scopes.proxy()) {
                 work.add(this.mutes.load(player.uuid(), player.address()));
             }
+            if (!enforce) {
+                continue;
+            }
             work.add(this.punishments.activeApplicable(PunishmentType.BAN,
                             Applicabilities.of(player.uuid(), player.address(),
                                     this.config.settings().enforcement().addressStrictness()),
@@ -222,8 +246,7 @@ public final class SyncReceiver implements SyncPacketHandler {
                             ? CompletableFuture.completedFuture(null)
                             : this.enforcer.created(bans.getFirst())));
         }
-        return Futures.logged(CompletableFuture.allOf(work.toArray(CompletableFuture[]::new)),
-                this.logger, "catch up after missed sync messages");
+        return CompletableFuture.allOf(work.toArray(CompletableFuture[]::new));
     }
 
 }

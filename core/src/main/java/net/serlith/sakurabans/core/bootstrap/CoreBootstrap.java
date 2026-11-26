@@ -58,6 +58,7 @@ public final class CoreBootstrap {
                                 components.templates(), components.kindService(),
                                 components.authorization(),
                                 components.auditService(), components.formatter(),
-                                components.stats(), components.playerData())));
+                                components.stats(), components.playerData(),
+                                components.importService())));
     }
 }

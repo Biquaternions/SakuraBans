@@ -25,11 +25,13 @@
 #   step-actions         console commands for one step only, by step number (from 1)
 #   groups               group: weight. Templates in a group share progress: a punishment from
 #                        a group mate counts as its weight in that group (voided ones never count)
-#   required-evidence    evidence types (<namespace>:<type>) a punishment must have
+#   required-evidence    evidence types (<namespace>:<type>) a punishment must have. Staff give
+#                        evidence when punishing with --evidence <reference> (repeatable); the
+#                        API takes it in the draft
 #
 # Actions may use {victim}, {uuid}, {address}, {id}, {operator}, {reason}, {template},
 # {step} and {duration}. Quote them, because YAML reads {...} as a section:
-#   actions: ["broadcast {victim} was banned for {duration}"]
+#   actions: ["say {victim} was banned for {duration}"]
 
 templates:
   hacking:

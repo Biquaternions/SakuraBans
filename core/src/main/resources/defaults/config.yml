@@ -2,8 +2,10 @@
 #
 # SakuraBans never rewrites this file, so your comments stay. Keys added by a newer version use
 # their defaults until you add them; they are listed in the log at startup. Durations use the
-# punishment syntax: 30s, 10m, 1h30m, 7d, 2w, 1mo (30 days), 1y (365 days).
-# /sb reload applies changes; if any value is invalid, the old settings stay active.
+# punishment syntax: 30s, 10m, 1h30m, 7d, 2w, 1mo (30 days), 1y (365 days). Every duration here
+# must be longer than zero.
+# /sb reload applies changes; if any value is invalid, the old settings stay active (except
+# commands.labels, which needs a restart).
 
 server:
   # This server's name, used for server scopes and staff notices: 1-64 characters of a-z, 0-9,
@@ -87,7 +89,7 @@ alts:
     limit: 20
 
 reasons:
-  # The reason used when none is given.
+  # The reason used when none is given (at most 1024 characters).
   default: No reason specified
   # Punishments that need a reason.
   require:
@@ -102,7 +104,7 @@ reasons:
   # Reason shortcuts: with "griefing: Griefing", /ban Steve --template griefing uses "Griefing"
   # as the reason (a reason given with -r is added after it). A template with the same name
   # wins; see templates.yml.
-  # Names are 1-64 characters of a-z, 0-9, _ and -. For example:
+  # Names are 1-64 characters of a-z, 0-9, _ and -; a reason is 1-1024 characters. For example:
   #   shortcuts:
   #     griefing: Griefing
   #     language: Inappropriate language
@@ -121,8 +123,10 @@ warnings:
   # How long a warning stays active: a duration, or never.
   expire-after: 30d
   # Console commands run when a player reaches a number of active warnings (in every scope),
-  # on the server that issued the warning that reached it. Placeholders: {victim} (the name),
-  # {uuid}, {address}, {id} (the warning), {operator}, {reason} and {count}. For example:
+  # on the server that issued the warning that reached it. The keys are numbers of warnings (1
+  # or more); each runs when the count is exactly that number. Placeholders: {victim} (the
+  # name), {uuid}, {address}, {id} (the warning), {operator}, {reason}, {duration} and {count}.
+  # Quote the commands, because YAML reads {...} as a section. For example:
   #   actions:
   #     3: ["tempmute {victim} 1h Three active warnings"]
   #     5: ["tempban {victim} 1d Five active warnings"]
@@ -131,7 +135,7 @@ warnings:
 display:
   # The language for messages when the player's own isn't known (for example ban screens).
   default-locale: en_US
-  # How dates are shown (java.time patterns).
+  # How dates are shown (a java.time pattern, for example dd MMM yyyy HH:mm).
   date-format: dd MMM yyyy HH:mm
   # The time zone for dates: default (the server's), UTC, Europe/Berlin, ...
   timezone: default
@@ -146,7 +150,8 @@ lockdown:
 
 notifications:
   # The shortest time between two "tried to join while banned" or "tried to chat while muted"
-  # notices about the same player.
+  # notices about the same player (a duration, for example 30s).
+  # 0s turns the throttle off: every attempt is announced.
   attempt-throttle: 30s
   # Whether this instance sends staff notices to its players (the console always gets them).
   # With SakuraBans on the proxy and on the backends and sync on, both would tell the same staff
@@ -161,8 +166,10 @@ players:
   remote-lookup: true
 
 commands:
-  # The labels of each command; the first is its name, the rest are aliases. A command left out
-  # uses its own name; an empty list ([]) disables it. Changes need a restart.
+  # The labels of each command; the first is its name, the rest are aliases (1-32 characters of
+  # a-z, 0-9, _ and -). A command left out uses its own name; an empty list ([]) disables it.
+  # Changes need a restart. The /sb subcommands (help, status, reload, info, edit, delete,
+  # evidence, allow, templates, kinds, gdpr, import and unlink) follow the sakurabans labels.
   # Commands: sakurabans, ban, tempban, ipban, mute, tempmute, ipmute, warn, kick, unban, pardon
   # (unban under vanilla's name), unmute, unwarn, checkban, checkmute, checkwarn, history,
   # staffhistory, warns, banlist, mutelist, warnlist, alts, iphistory, namehistory, lastuuid,
@@ -171,7 +178,8 @@ commands:
     sakurabans: [sakurabans, sb]
   # Punish commands for punishment kinds: the kind's id, its base type (ban, mute, warn or kick)
   # and the command's labels. Each works like /ban (same arguments and flags) and needs
-  # sakurabans.<type> and sakurabans.kind.<id>. Kinds are listed by /sb kinds list.
+  # sakurabans.<type> and sakurabans.kind.<id>. Kinds are listed by /sb kinds list; the id must
+  # be a kind that exists, or the command says so when used. Changes need a restart.
   kinds:
     blacklist:
       type: ban

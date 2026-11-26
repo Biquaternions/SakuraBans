@@ -16,6 +16,7 @@ final class ConfigFiles {
     static final String STORAGE = "storage.yml";
     static final String LIMITS = "limits.yml";
     static final String WEBHOOKS = "webhooks.yml";
+    static final String IMPORT = "import.yml";
 
     private ConfigFiles() {
     }

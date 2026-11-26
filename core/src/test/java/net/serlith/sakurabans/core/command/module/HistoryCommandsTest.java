@@ -126,4 +126,16 @@ class HistoryCommandsTest extends CommandTest {
         this.run(steve, "warns Alex");
         Assertions.assertThat(steve.last()).contains("don't have permission");
     }
+
+    @Test
+    void warnsWithoutTargetExplainsWhoMayUseIt() {
+        final FakeCommandActor steve = FakeCommandActor.player(STEVE, "Steve",
+                Permissions.LIST_WARNS);
+
+        this.run(steve, "warns");
+        Assertions.assertThat(steve.last()).contains("don't have permission");
+
+        this.run(this.console, "warns");
+        Assertions.assertThat(this.console.last()).contains("players");
+    }
 }

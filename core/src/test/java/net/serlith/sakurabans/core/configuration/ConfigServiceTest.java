@@ -13,10 +13,12 @@ import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.CategoryScope;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.core.RecordingLogger;
+import net.serlith.sakurabans.core.configuration.file.ImportConfig;
 import net.serlith.sakurabans.core.configuration.file.LimitsConfig;
 import net.serlith.sakurabans.core.configuration.file.MainConfig;
 import net.serlith.sakurabans.core.configuration.file.StorageConfig;
 import net.serlith.sakurabans.core.configuration.file.WebhooksConfig;
+import net.serlith.sakurabans.core.configuration.settings.ImportSettings;
 import net.serlith.sakurabans.core.configuration.settings.Settings;
 import net.serlith.sakurabans.core.configuration.settings.StorageType;
 import net.serlith.sakurabans.core.configuration.settings.WebhookSettings;
@@ -245,6 +247,44 @@ class ConfigServiceTest {
     }
 
     @Test
+    void commandChangesWaitForRestart() throws Exception {
+        final ConfigService service = this.service();
+        service.load();
+        this.write(ConfigFiles.CONFIG, "commands:\n  labels:\n    ban: [ban, b]\n"
+                + "  kinds:\n    blacklist:\n      type: ban\n      labels: [blacklist]\n");
+
+        assertThat(service.reload()).isInstanceOfSatisfying(ReloadResult.Reloaded.class,
+                reloaded -> assertThat(reloaded.restartRequired())
+                        .containsExactly("commands.labels", "commands.kinds"));
+
+        this.write(ConfigFiles.CONFIG, "reasons:\n  default: Rule breaking\n");
+        service.reload();
+        this.write(ConfigFiles.CONFIG, "reasons:\n  default: Other\n");
+        assertThat(service.reload()).isInstanceOfSatisfying(ReloadResult.Reloaded.class,
+                reloaded -> assertThat(reloaded.restartRequired()).isEmpty());
+    }
+
+    @Test
+    void theAttemptThrottleMayBeZeroButNothingElseMay() throws Exception {
+        final ConfigService service = this.service();
+        service.load();
+        assertThat(service.settings().notifications().attemptThrottle())
+                .isEqualTo(Duration.ofSeconds(30));
+
+        this.write(ConfigFiles.CONFIG, "notifications:\n  attempt-throttle: 0s\n");
+        service.reload();
+        assertThat(service.settings().notifications().attemptThrottle()).isEqualTo(Duration.ZERO);
+
+        this.write(ConfigFiles.CONFIG, "notifications:\n  attempt-throttle: soon\n");
+        assertThat(service.reload()).isInstanceOfSatisfying(ReloadResult.Failed.class,
+                failed -> assertThat(failed.errors()).extracting(ConfigIssue::path)
+                        .containsExactly("notifications.attempt-throttle"));
+
+        this.write(ConfigFiles.CONFIG, "enforcement:\n  login-check-timeout: 0s\n");
+        assertThat(service.reload()).isInstanceOf(ReloadResult.Failed.class);
+    }
+
+    @Test
     void theStoragePasswordNeverReachesToString() throws Exception {
         this.write(ConfigFiles.STORAGE, "password: hunter2\n");
         final ConfigService service = this.service();
@@ -253,6 +293,52 @@ class ConfigServiceTest {
 
         assertThat(service.storage().password()).isEqualTo("hunter2");
         assertThat(service.storage().toString()).doesNotContain("hunter2");
+    }
+
+    @Test
+    void importYmlIsReadOnlyWhenAskedAndMatchesItsModel() throws Exception {
+        final ConfigService service = this.service();
+        service.load();
+        assertThat(this.dir.resolve(ConfigFiles.IMPORT)).doesNotExist();
+
+        final ImportSettings imports = service.imports();
+
+        try (InputStream shipped = ConfigFiles.defaultResource(ConfigFiles.IMPORT)) {
+            assertThat(Files.readAllBytes(this.dir.resolve(ConfigFiles.IMPORT)))
+                    .isEqualTo(shipped.readAllBytes());
+        }
+        assertThat(this.log.entries("warn")).as("no unknown or missing keys").isEmpty();
+        assertThat(imports).isEqualTo(SettingsMapper.imports(new ImportConfig()).value());
+        assertThat(imports.databases().keySet()).isEqualTo(ImportSettings.DATABASES);
+        assertThat(imports.database(ImportSettings.LITEBANS).orElseThrow().tablePrefix())
+                .isEqualTo("litebans_");
+        assertThat(imports.vanilla().bannedIps()).isEqualTo(Path.of("banned-ips.json"));
+    }
+
+    @Test
+    void importYmlErrorsAndPasswords() throws Exception {
+        final String yaml =
+                """
+                libertybans:
+                  jdbc-url: 'jdbc:sqlite:bans.db'
+                  password: hunter2
+                  table-prefix: 'no spaces'
+                banmanager:
+                  password: hunter2
+                """;
+        this.write(ConfigFiles.IMPORT, yaml);
+        final ConfigService service = this.service();
+
+        assertThatThrownBy(service::imports).isInstanceOfSatisfying(ConfigException.class, e ->
+                assertThat(errorsOf(e)).contains("libertybans.jdbc-url",
+                        "libertybans.table-prefix"));
+
+        this.write(ConfigFiles.IMPORT, "banmanager:\n  password: hunter2\n");
+        final ImportSettings imports = service.imports();
+        assertThat(imports.database(ImportSettings.BANMANAGER).orElseThrow().password())
+                .isEqualTo("hunter2");
+        assertThat(imports.toString()).doesNotContain("hunter2");
+        assertThat(new ImportConfig().banmanager().toString()).contains("password=***");
     }
 
     @Test

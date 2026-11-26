@@ -31,7 +31,14 @@ public interface ImportReport {
     long skipped();
 
     /**
-     * The punishments that couldn't be imported.
+     * How many punishments couldn't be imported, also those beyond {@link #failures()}.
+     *
+     * @return the count
+     */
+    long failed();
+
+    /**
+     * The punishments that couldn't be imported, the first 50 of them.
      *
      * @return the failures, in input order
      */

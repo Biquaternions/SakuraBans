@@ -49,6 +49,7 @@ tasks {
         relocate("com.mysql", "$libs.mysql")
         relocate("com.google.protobuf", "$libs.protobuf")
         relocate("org.postgresql", "$libs.postgresql")
+        relocate("org.hsqldb", "$libs.hsqldb")
     }
 
     runVelocity {

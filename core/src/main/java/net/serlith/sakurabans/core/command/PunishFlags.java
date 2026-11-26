@@ -19,7 +19,6 @@ import org.incendo.cloud.suggestion.SuggestionProvider;
 public final class PunishFlags {
 
     public static final String SILENT = "silent";
-    public static final String PUBLIC = "public";
     public static final String HIDE = "hide";
     public static final String IP = "ip";
     public static final String GLOBAL = "global";
@@ -31,6 +30,7 @@ public final class PunishFlags {
     public static final String SENDER = "sender";
     public static final String SENDER_UUID = "sender-uuid";
     public static final String SKIP = "skip";
+    public static final String EVIDENCE = "evidence";
     public static final String TEMPLATE = "template";
     public static final String REASON = "reason";
     public static final String DURATION = "duration";
@@ -45,11 +45,6 @@ public final class PunishFlags {
     public CommandFlag<Void> silent(final PunishmentType type) {
         return CommandFlag.<CommandActor>builder(SILENT).withAliases("s")
                 .withPermission(Permissions.flag(type, SILENT)).build();
-    }
-
-    public CommandFlag<Void> publicFlag(final PunishmentType type) {
-        return CommandFlag.<CommandActor>builder(PUBLIC).withAliases("p")
-                .withPermission(Permissions.flag(type, PUBLIC)).build();
     }
 
     public CommandFlag<Void> hide(final PunishmentType type) {
@@ -124,6 +119,13 @@ public final class PunishFlags {
                         .parser(StringParser.<CommandActor>stringParser())
                         .suggestionProvider(names))
                 .build();
+    }
+
+    public CommandFlag<String> evidence(final PunishmentType type) {
+        return CommandFlag.<CommandActor>builder(EVIDENCE).withAliases("e")
+                .withComponent(StringParser.<CommandActor>stringParser())
+                .withPermission(Permissions.flag(type, EVIDENCE))
+                .asRepeatable().build();
     }
 
     public CommandFlag<String> reason() {

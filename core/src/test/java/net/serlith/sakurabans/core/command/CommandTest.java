@@ -11,6 +11,7 @@ import net.serlith.sakurabans.core.command.module.CheckCommands;
 import net.serlith.sakurabans.core.command.module.EditCommands;
 import net.serlith.sakurabans.core.command.module.GdprCommands;
 import net.serlith.sakurabans.core.command.module.HistoryCommands;
+import net.serlith.sakurabans.core.command.module.ImportCommands;
 import net.serlith.sakurabans.core.command.module.KindCommands;
 import net.serlith.sakurabans.core.command.module.PunishCommands;
 import net.serlith.sakurabans.core.command.module.RevokeCommands;
@@ -18,6 +19,7 @@ import net.serlith.sakurabans.core.command.module.TemplateCommands;
 import net.serlith.sakurabans.core.command.parser.ScopeParser;
 import net.serlith.sakurabans.core.command.parser.TargetParser;
 import net.serlith.sakurabans.core.configuration.TemplateFiles;
+import net.serlith.sakurabans.core.importer.ImportSources;
 import net.serlith.sakurabans.core.integration.SakuraIntegrationRegistry;
 import net.serlith.sakurabans.core.message.Formats;
 import net.serlith.sakurabans.core.player.TargetResolver;
@@ -77,11 +79,16 @@ public abstract class CommandTest extends ServiceTest {
                         new Formats(this.messages, this.config), flags, targetParser, targets,
                         this.service, this.punishments, this.lockdowns, this.scopes,
                         this.config, this.messages, this.platform,
-                        new ConfirmationTracker(this.clock), Runnable::run, this.clock)),
+                        new ConfirmationTracker(this.clock), Runnable::run, this.clock),
+                new ImportCommands(registrar, runner, this.importJobs(this.importSources()),
+                        new ConfirmationTracker(this.clock), this.platform)),
                 registrar, runner, this.messages).install(this.manager);
     }
 
-    /** Registers a known player, so names resolve from the database. */
+    protected ImportSources importSources() {
+        return ImportSources.standard();
+    }
+
     protected final void known(final UUID uuid, final String name) {
         this.players.recordConnection(uuid, name, this.now.get(), this.home, null).join();
     }

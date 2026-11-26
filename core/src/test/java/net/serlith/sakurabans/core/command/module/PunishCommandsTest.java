@@ -2,6 +2,7 @@ package net.serlith.sakurabans.core.command.module;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Set;
 import net.serlith.sakurabans.api.model.AddressVictim;
 import net.serlith.sakurabans.api.model.CompositeVictim;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
@@ -17,6 +18,7 @@ import net.serlith.sakurabans.core.command.CommandTest;
 import net.serlith.sakurabans.core.command.FakeCommandActor;
 import net.serlith.sakurabans.core.command.PunishFlags;
 import net.serlith.sakurabans.core.fake.FakeOnlinePlayer;
+import net.serlith.sakurabans.core.model.TemplateDefinition;
 import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.util.InetAddresses;
 import org.assertj.core.api.Assertions;
@@ -177,5 +179,61 @@ class PunishCommandsTest extends CommandTest {
 
         this.run(this.console, "ban #3 -r spam");
         Assertions.assertThat(this.console.last()).contains("not a punishment id");
+    }
+
+    @Test
+    void evidenceIsStoredOneOrSeveralTimes() {
+        this.run(this.console, "ban Steve -e https://example.com/clip -r xray");
+        Assertions.assertThat(this.only().evidence()).extracting(e -> e.ref().uri())
+                .containsExactly("https://example.com/clip");
+
+        this.run(this.console, "unban Steve");
+        this.run(this.console, "ban Steve --evidence hydra:chat-snapshot:12 -s "
+                + "--evidence https://example.com/two -r spam -e kept-in-reason");
+
+        Assertions.assertThat(this.all())
+                .filteredOn(p -> p.reason().equals("spam -e kept-in-reason"))
+                .singleElement().satisfies(ban -> Assertions.assertThat(ban.evidence())
+                        .extracting(e -> e.ref().uri()).containsExactlyInAnyOrder(
+                                "hydra:chat-snapshot:12", "https://example.com/two"));
+    }
+
+    @Test
+    void invalidEvidencePunishesNobody() {
+        this.run(this.console, "ban Steve -e nonsense -r xray");
+
+        Assertions.assertThat(this.console.last()).contains("That doesn't work", "nonsense");
+        Assertions.assertThat(this.all()).isEmpty();
+        this.run(this.console, "ban Steve -e https://example.com/ok -e nonsense -r xray");
+        Assertions.assertThat(this.all()).isEmpty();
+    }
+
+    @Test
+    void theEvidenceFlagNeedsItsPermission() {
+        final FakeCommandActor mod = FakeCommandActor.player(MOD, "Mod",
+                Permissions.punish(PunishmentType.BAN));
+
+        this.run(mod, "ban Steve -e https://example.com/clip -r xray");
+        Assertions.assertThat(mod.last()).contains("You can't use the flag");
+        Assertions.assertThat(this.all()).isEmpty();
+
+        mod.grant(Permissions.flag(PunishmentType.BAN, PunishFlags.EVIDENCE));
+        this.run(mod, "ban Steve -e https://example.com/clip -r xray");
+        Assertions.assertThat(this.only().evidence()).hasSize(1);
+    }
+
+    @Test
+    void templatesThatRequireEvidenceNeedTheFlag() {
+        this.templates.create(TemplateDefinition.builder("chat", "ban").reason("Chat abuse")
+                .requiredEvidence(Set.of("hydra:chat-snapshot")).build(), CONSOLE).join();
+
+        this.run(this.console, "ban Steve -t chat");
+        Assertions.assertThat(this.console.last()).contains("needs evidence", "--evidence");
+        this.run(this.console, "ban Steve -t chat -e https://example.com/clip");
+        Assertions.assertThat(this.all()).isEmpty();
+
+        this.run(this.console, "ban Steve -t chat -e hydra:chat-snapshot:7");
+        Assertions.assertThat(this.only().evidence()).extracting(e -> e.ref().uri())
+                .containsExactly("hydra:chat-snapshot:7");
     }
 }

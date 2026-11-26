@@ -163,8 +163,12 @@ public final class HistoryCommands implements CommandModule {
             target = this.targets.resolve(input.get());
         } else {
             final Optional<UUID> self = actor.uuid();
-            if (self.isEmpty() || !actor.hasPermission(Permissions.LIST_WARNS_SELF)) {
+            if (self.isEmpty()) {
                 this.runner.send(actor, MessageKey.COMMAND_PLAYERS_ONLY);
+                return CompletableFuture.completedFuture(null);
+            }
+            if (!actor.hasPermission(Permissions.LIST_WARNS_SELF)) {
+                this.runner.send(actor, MessageKey.ERROR_NO_PERMISSION);
                 return CompletableFuture.completedFuture(null);
             }
             target = CompletableFuture.completedFuture(

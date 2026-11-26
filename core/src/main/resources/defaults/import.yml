@@ -1,0 +1,68 @@
+# SakuraBans imports.
+#
+# Where /sb import <source> reads punishments and players from. This file is read every time an
+# import runs, so edits need no reload; SakuraBans never rewrites it. Each import runs once at a
+# time across the network, and running it again skips what it already imported.
+#
+# Relative paths (in a jdbc-url or below) start at the server folder, the one with
+# server.properties or velocity.toml. Imports only read the other plugin's data. Stop the other plugin first, or at least make sure it
+# doesn't write while the import runs. File databases (H2, HSQLDB) can't be open in two
+# programs at once.
+#
+# A jdbc-url starts with one of:
+#   jdbc:mariadb://<host>:<port>/<database>
+#   jdbc:mysql://<host>:<port>/<database>
+#   jdbc:postgresql://<host>:<port>/<database>
+#   jdbc:h2:<file, without .mv.db>
+#   jdbc:hsqldb:file:<file, without .script>
+# table-prefix is the prefix the other plugin was set up with (up to 32 characters of A-Z, a-z,
+# 0-9 and _; empty for none). Leave jdbc-url empty to disable the section's source.
+
+# Another SakuraBans database, for moving everything (punishments, players, kinds, templates,
+# allow list, audit log, ...) to this one, for example from H2 to MariaDB. Only works while
+# this database is still empty, and both must be of the same SakuraBans version.
+self:
+  # For example jdbc:h2:./plugins/SakuraBans/sakurabans for the default H2 file (the server
+  # using it must be stopped). That path is Paper's; on Velocity the data folder is
+  # plugins/sakurabans/, so use jdbc:h2:./plugins/sakurabans/sakurabans there.
+  jdbc-url: ''
+  username: sakurabans
+  password: ''
+  table-prefix: sb_
+
+# LibertyBans. Its default storage is the HSQLDB file below; with MariaDB, MySQL or PostgreSQL
+# use the connection LibertyBans used.
+libertybans:
+  jdbc-url: jdbc:hsqldb:file:plugins/LibertyBans/internal/hypersql/punishments-database;hsqldb.lock_file=false
+  username: SA
+  password: ''
+  table-prefix: libertybans_
+
+# LiteBans. Its H2 file is plugins/LiteBans/litebans.mv.db; older LiteBans versions wrote an
+# H2 1.x file, which this H2 can't open: move LiteBans to MySQL or MariaDB first in that case.
+litebans:
+  jdbc-url: jdbc:h2:./plugins/LiteBans/litebans
+  username: ''
+  password: ''
+  table-prefix: litebans_
+
+# AdvancedBan. Its default storage is the HSQLDB file below; with MySQL use the connection
+# AdvancedBan used. Its tables have no prefix.
+advancedban:
+  jdbc-url: jdbc:hsqldb:file:plugins/AdvancedBan/data/storage;hsqldb.lock_file=false
+  username: SA
+  password: ''
+  table-prefix: ''
+
+# BanManager. Its default storage is the H2 file below; with MariaDB or MySQL use the
+# connection BanManager used.
+banmanager:
+  jdbc-url: jdbc:h2:./plugins/BanManager/local-bans
+  username: ''
+  password: ''
+  table-prefix: bm_
+
+# The server's own ban lists (/ban and /ban-ip of the vanilla server), as JSON files.
+vanilla:
+  banned-players: banned-players.json
+  banned-ips: banned-ips.json

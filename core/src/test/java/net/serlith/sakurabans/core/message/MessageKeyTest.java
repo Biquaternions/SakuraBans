@@ -2,6 +2,7 @@ package net.serlith.sakurabans.core.message;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -24,6 +25,19 @@ class MessageKeyTest {
 
         assertThat(this.english.keySet()).allMatch(known::contains,
                 "a key of lang/en_US.yml that has no MessageKey constant");
+    }
+
+    @Test
+    void everyConstantHasItsOwnKey() {
+        final List<String> keys = MessageKey.all().stream().map(MessageKey::key).toList();
+
+        assertThat(keys).doesNotHaveDuplicates();
+    }
+
+    @Test
+    void englishTextsAreNotBlank() {
+        assertThat(this.english).allSatisfy((key, text) -> assertThat(text)
+                .as("the text of %s", key).isNotBlank());
     }
 
     @Test

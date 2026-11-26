@@ -34,6 +34,7 @@ public final class Durations {
             Map.entry("years", YEAR));
 
     private static final Pattern PART = Pattern.compile("(\\d{1,12}(?:\\.\\d{1,6})?)([a-z]+)");
+    private static final Pattern ZERO = Pattern.compile("0+(?:\\.0+)?([a-z]*)");
     private static final Set<String> PERMANENT = Set.of("perm", "permanent", "forever");
     private static final BigDecimal MAX_SECONDS = BigDecimal.valueOf(Long.MAX_VALUE / 1000);
     private static final List<Map.Entry<String, Long>> COMPACT_PARTS = List.of(
@@ -74,6 +75,13 @@ public final class Durations {
         }
         final long millis = seconds.movePointRight(3).setScale(0, RoundingMode.HALF_UP).longValue();
         return millis > 0 ? Optional.of(Duration.ofMillis(millis)) : Optional.empty();
+    }
+
+    /** Whether the text is zero ({@code 0}, {@code 0s}), which {@link #parse} rejects. */
+    public static boolean isZero(final String text) {
+        final Matcher matcher = ZERO.matcher(text.strip().toLowerCase(Locale.ROOT));
+        return matcher.matches() && (matcher.group(1).isEmpty()
+                || UNITS.containsKey(matcher.group(1)));
     }
 
     public static boolean isPermanentToken(final String text) {

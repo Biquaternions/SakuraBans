@@ -14,6 +14,7 @@ import net.serlith.sakurabans.api.model.AddressVictim;
 import net.serlith.sakurabans.api.model.CategoryScope;
 import net.serlith.sakurabans.api.model.CompositeVictim;
 import net.serlith.sakurabans.api.model.CustomOperator;
+import net.serlith.sakurabans.api.model.EvidenceRef;
 import net.serlith.sakurabans.api.model.GlobalScope;
 import net.serlith.sakurabans.api.model.Operator;
 import net.serlith.sakurabans.api.model.PlayerOperator;
@@ -58,7 +59,6 @@ import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.parser.flag.CommandFlag;
 import org.incendo.cloud.parser.flag.FlagContext;
-import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.permission.Permission;
 import org.incendo.cloud.suggestion.SuggestionProvider;
 import org.jspecify.annotations.Nullable;
@@ -170,7 +170,6 @@ public final class PunishCommands implements CommandModule {
         final PunishmentType type = spec.type();
         final List<CommandFlag<?>> flagList = new ArrayList<>(List.of(
                 this.flags.silent(type),
-                this.flags.publicFlag(type),
                 this.flags.hide(type),
                 this.flags.global(),
                 this.flags.server(),
@@ -179,7 +178,8 @@ public final class PunishCommands implements CommandModule {
                 this.flags.sender(),
                 this.flags.senderUuid(),
                 this.flags.skip(type),
-                this.flags.template(this.templateNames(type))));
+                this.flags.template(this.templateNames(type)),
+                this.flags.evidence(type)));
         if (spec.mode() != Mode.ADDRESS) {
             flagList.add(this.flags.ip(type));
         }
@@ -219,6 +219,16 @@ public final class PunishCommands implements CommandModule {
             this.runner.send(actor, MessageKey.COMMAND_SENDER_NEEDS_NAME);
             return CompletableFuture.completedFuture(null);
         }
+        final List<EvidenceRef> evidence = new ArrayList<>();
+        for (final String text : flags.<String>getAll(PunishFlags.EVIDENCE)) {
+            try {
+                evidence.add(EvidenceRef.of(text));
+            } catch (final ValidationException e) {
+                this.runner.send(actor, MessageKey.COMMAND_INVALID,
+                        Placeholder.unparsed("details", e.getMessage()));
+                return CompletableFuture.completedFuture(null);
+            }
+        }
         final Shortcut shortcut = this.shortcut(actor, type, reason,
                 flags.<String>getValue(PunishFlags.TEMPLATE).orElse(null));
         if (shortcut == null) {
@@ -246,6 +256,7 @@ public final class PunishCommands implements CommandModule {
                         .duration(duration)
                         .template(shortcut.template())
                         .kind(spec.kind())
+                        .evidence(evidence)
                         .build();
             } catch (final ValidationException e) {
                 this.invalid(actor, e);
@@ -435,7 +446,8 @@ public final class PunishCommands implements CommandModule {
 
     private static MessageKey failureKey(final PunishResult.Failure.Reason reason) {
         return switch (reason) {
-            case ALREADY_PUNISHED -> MessageKey.PUNISH_FAILURE_ALREADY_PUNISHED;
+            // Only reached without a conflicting punishment, so the message has no placeholders.
+            case ALREADY_PUNISHED -> MessageKey.PUNISH_FAILURE_ALREADY_PUNISHED_GENERIC;
             case EXEMPT -> MessageKey.PUNISH_FAILURE_EXEMPT;
             case CANCELLED -> MessageKey.PUNISH_FAILURE_CANCELLED;
             case LIMIT_EXCEEDED -> MessageKey.PUNISH_FAILURE_LIMIT_EXCEEDED;

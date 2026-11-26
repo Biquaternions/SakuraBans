@@ -6,19 +6,25 @@
 # Whether webhooks are sent at all.
 enabled: false
 # The webhook URL routes use unless they name their own (Server settings > Integrations >
-# Webhooks in Discord).
+# Webhooks in Discord). An http(s) URL.
 url: ""
-# The name and avatar the messages show.
+# The name and avatar the messages show (avatar-url is an http(s) URL, or empty for Discord's
+# own avatar of the webhook).
 username: SakuraBans
 avatar-url: ""
 # Whether silent punishments are posted (hidden ones never are).
 include-silent: false
 
 # One route per event: ban, mute, warn, kick, unban, unmute, unwarn, void, delete, edit and
-# rollback. Each has its own url (empty: the one above) and an embed. Texts may use Discord
-# markdown and these placeholders: {victim} {uuid} {address} {id} {display_id} {operator}
-# {reason} {duration} {expires} {type} {kind} {scope} {server} {revoker} {revoke_reason}
-# {edit} (what changed) and {count} (rollbacks). Fields are shown in this order.
+# rollback. An event without a route, or with enabled: false, is not posted. Each route has its
+# own url (empty: the one above; one of the two must be set) and an embed: title, color
+# (#rrggbb), description and fields (name: text, at most 25, shown in this order; a field whose
+# text comes out empty is left out). Texts may use Discord markdown and these placeholders:
+# {victim} {uuid} {address} {id} (the number) {display_id} (the id as display.id-style shows
+# it) {operator} {reason} {duration} {expires} {type} {kind} {scope} {server} (where it was
+# issued) {revoker} {revoke_reason} {edit} (what changed, edit only) and {count}. The rollback
+# route only knows {victim} (the staff member whose punishments were lifted), {revoker},
+# {revoke_reason} and {count} (how many).
 routes:
   ban:
     enabled: true

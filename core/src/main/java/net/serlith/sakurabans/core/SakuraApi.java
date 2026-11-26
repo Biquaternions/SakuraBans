@@ -32,16 +32,9 @@ public record SakuraApi(PunishmentService punishments, PlayerService players,
             final TemplateService templates, final KindService kinds,
             final AuthorizationService authorization, final AuditService audit,
             final MessageFormatter formatter, final StatsService stats,
-            final PlayerDataService playerData) {
+            final PlayerDataService playerData, final ImportService imports) {
         return new SakuraApi(punishments, players, scopes, events, integrations, templates,
-                allowList,
-                formatter,
-                authorization,
-                kinds,
-                stats,
-                audit,
-                playerData,
-                Unsupported.service(ImportService.class, "S38"));
+                allowList, formatter, authorization, kinds, stats, audit, playerData, imports);
     }
 
     @Override
@@ -53,6 +46,6 @@ public record SakuraApi(PunishmentService punishments, PlayerService players,
     public Set<Capability> capabilities() {
         return Set.of(Capability.SHADOW_MUTE, Capability.CURSORS, Capability.KINDS,
                 Capability.EVIDENCE, Capability.VOID, Capability.AUDIT, Capability.ROLLBACK,
-                Capability.STATS, Capability.PLAYER_DATA);
+                Capability.STATS, Capability.PLAYER_DATA, Capability.IMPORT);
     }
 }

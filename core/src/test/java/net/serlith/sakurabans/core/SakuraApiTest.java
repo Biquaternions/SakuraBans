@@ -3,15 +3,18 @@ package net.serlith.sakurabans.core;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import net.serlith.sakurabans.api.Capability;
+import net.serlith.sakurabans.api.admin.AdminResult;
 import net.serlith.sakurabans.api.imports.ImportOptions;
 import net.serlith.sakurabans.core.admin.SakuraStatsService;
 import net.serlith.sakurabans.core.audit.SakuraAuditService;
 import net.serlith.sakurabans.core.enforce.SakuraMessageFormatter;
+import net.serlith.sakurabans.core.importer.ImportSources;
+import net.serlith.sakurabans.core.importer.SakuraImportService;
 import net.serlith.sakurabans.core.integration.SakuraIntegrationRegistry;
 import net.serlith.sakurabans.core.message.Formats;
 import net.serlith.sakurabans.core.player.SakuraPlayerService;
+import net.serlith.sakurabans.core.punish.ActionCheck;
 import net.serlith.sakurabans.core.storage.repository.AuditRepository;
 import net.serlith.sakurabans.core.storage.repository.StatsRepository;
 import org.assertj.core.api.Assertions;
@@ -28,21 +31,17 @@ class SakuraApiTest extends ServiceTest {
                 new SakuraMessageFormatter(this.enforcementMessages,
                         new Formats(this.messages, this.config)),
                 new SakuraStatsService(new StatsRepository(this.storage, this.allowList),
-                        this.punishments, this.clock), this.playerData);
+                        this.punishments, this.clock), this.playerData,
+                new SakuraImportService(this.importJobs(ImportSources.standard()),
+                        ActionCheck.ALLOW_ALL));
     }
 
     @Test
-    void unfinishedServicesSayWhenTheyArrive() {
-        final SakuraApi api = this.api();
-
-        Assertions.assertThat(api.imports().importPunishments(List.of(),
+    void importsAreTheRealService() {
+        Assertions.assertThat(this.api().imports().importPunishments(List.of(),
                         ImportOptions.builder().build(), CONSOLE))
-                .failsWithin(Duration.ofSeconds(1))
-                .withThrowableOfType(ExecutionException.class)
-                .withCauseInstanceOf(UnsupportedOperationException.class)
-                .withMessageContaining("S38");
-        Assertions.assertThat(api.imports()).isEqualTo(api.imports()).hasToString(
-                "Unsupported ImportService");
+                .succeedsWithin(Duration.ofSeconds(5))
+                .isInstanceOf(AdminResult.Ok.class);
     }
 
     @Test
@@ -51,7 +50,7 @@ class SakuraApiTest extends ServiceTest {
                 .containsExactlyInAnyOrder(Capability.SHADOW_MUTE, Capability.CURSORS,
                         Capability.KINDS, Capability.EVIDENCE,
                         Capability.VOID, Capability.AUDIT, Capability.ROLLBACK,
-                        Capability.STATS, Capability.PLAYER_DATA);
+                        Capability.STATS, Capability.PLAYER_DATA, Capability.IMPORT);
         Assertions.assertThat(this.api().punishments()).isSameAs(this.service);
     }
 }

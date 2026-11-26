@@ -33,6 +33,7 @@ public final class PacketCodec {
     private static final int EXPUNGED = 6;
     private static final int EVIDENCE = 7;
     private static final int LOCKDOWN = 8;
+    private static final int IMPORTED = 9;
     private static final int ROLLED_BACK = 10;
     private static final int ERASED = 11;
 
@@ -94,6 +95,10 @@ public final class PacketCodec {
                     ValueCodec.writeEvidence(out, evidence.evidence());
                 }
                 case SyncPacket.LockdownChangedPacket lockdown -> out.writeByte(LOCKDOWN);
+                case SyncPacket.ImportedPacket imported -> {
+                    out.writeByte(IMPORTED);
+                    out.writeBoolean(imported.enforce());
+                }
                 case SyncPacket.PlayerDataErasedPacket erased -> {
                     out.writeByte(ERASED);
                     final SakuraPlayerData.Erase result = erased.result();
@@ -159,6 +164,7 @@ public final class PacketCodec {
                 case EXPUNGED -> Optional.of(new SyncPacket.PunishmentExpungedPacket(
                         ValueCodec.readPunishment(in)));
                 case LOCKDOWN -> Optional.of(new SyncPacket.LockdownChangedPacket());
+                case IMPORTED -> Optional.of(new SyncPacket.ImportedPacket(in.readBoolean()));
                 case ERASED -> Optional.of(new SyncPacket.PlayerDataErasedPacket(
                         new SakuraPlayerData.Erase(new UUID(in.readLong(), in.readLong()),
                                 in.readLong(), in.readLong(), in.readLong(), in.readLong(),

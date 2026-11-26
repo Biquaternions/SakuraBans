@@ -55,6 +55,8 @@ class PacketCodecTest {
                         PunishmentEdit.NewScope.of(CategoryScope.of("pvp"))),
                 new SyncPacket.PunishmentVoidedPacket(5),
                 new SyncPacket.LockdownChangedPacket(),
+                new SyncPacket.ImportedPacket(true),
+                new SyncPacket.ImportedPacket(false),
                 new SyncPacket.PunishmentsRolledBackPacket(List.of(1L, 2L),
                         PlayerOperator.of(UUID.randomUUID(), "Mod"), Instant.ofEpochMilli(7),
                         Actor.of(ConsoleOperator.INSTANCE, "console"), null, Visibility.SILENT),

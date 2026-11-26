@@ -18,6 +18,7 @@ dependencies {
     implementation(libs.mariadb)
     implementation(libs.mysql)
     implementation(libs.postgresql)
+    implementation(libs.hsqldb)
 
     // Shaded and relocated on every platform (plan 3.3, 3.4): the servers' copies are never used.
     implementation(libs.guava)

@@ -339,6 +339,8 @@ public record MessageKey(String key) {
             new MessageKey("edit.failure.not_active");
     public static final MessageKey EDIT_FAILURE_INVALID_EXPIRY =
             new MessageKey("edit.failure.invalid_expiry");
+    public static final MessageKey PUNISH_FAILURE_ALREADY_PUNISHED_GENERIC =
+            new MessageKey("punish.failure.already_punished_generic");
     public static final MessageKey EDIT_FAILURE_ALREADY_PUNISHED =
             new MessageKey("edit.failure.already_punished");
     public static final MessageKey EDIT_FAILURE_EXEMPT = new MessageKey("edit.failure.exempt");
@@ -410,6 +412,28 @@ public record MessageKey(String key) {
     public static final MessageKey GDPR_ERASED = new MessageKey("gdpr.erased");
     public static final MessageKey GDPR_FAILURE_FORBIDDEN =
             new MessageKey("gdpr.failure.forbidden");
+
+    public static final MessageKey COMMAND_DESCRIPTION_IMPORT =
+            new MessageKey("command.description.import");
+    public static final MessageKey IMPORT_UNKNOWN_SOURCE = new MessageKey("import.unknown_source");
+    public static final MessageKey IMPORT_CONFIRM = new MessageKey("import.confirm");
+    public static final MessageKey IMPORT_STARTED = new MessageKey("import.started");
+    public static final MessageKey IMPORT_STARTED_DRY_RUN =
+            new MessageKey("import.started_dry_run");
+    public static final MessageKey IMPORT_BUSY = new MessageKey("import.busy");
+    public static final MessageKey IMPORT_NOT_CONFIGURED = new MessageKey("import.not_configured");
+    public static final MessageKey IMPORT_CONFIG_INVALID = new MessageKey("import.config_invalid");
+    public static final MessageKey IMPORT_UNREACHABLE = new MessageKey("import.unreachable");
+    public static final MessageKey IMPORT_UNREADABLE = new MessageKey("import.unreadable");
+    public static final MessageKey IMPORT_NOT_SAKURABANS = new MessageKey("import.not_sakurabans");
+    public static final MessageKey IMPORT_OTHER_VERSION = new MessageKey("import.other_version");
+    public static final MessageKey IMPORT_TARGET_NOT_EMPTY =
+            new MessageKey("import.target_not_empty");
+    public static final MessageKey IMPORT_FAILED = new MessageKey("import.failed");
+    public static final MessageKey IMPORT_REPORT = new MessageKey("import.report.done");
+    public static final MessageKey IMPORT_REPORT_DRY_RUN = new MessageKey("import.report.dry_run");
+    public static final MessageKey IMPORT_REPORT_TABLES = new MessageKey("import.report.tables");
+    public static final MessageKey IMPORT_REPORT_FAILURE = new MessageKey("import.report.failure");
 
     private static final List<MessageKey> ALL = Arrays.stream(MessageKey.class.getDeclaredFields())
             .filter(field -> Modifier.isStatic(field.getModifiers())

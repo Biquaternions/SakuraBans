@@ -2,6 +2,8 @@ package net.serlith.sakurabans.core.configuration;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
 import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.ZoneId;
@@ -28,12 +30,14 @@ import net.serlith.sakurabans.api.validation.Validator;
 import net.serlith.sakurabans.core.configuration.file.AltsSection;
 import net.serlith.sakurabans.core.configuration.file.CommandsSection;
 import net.serlith.sakurabans.core.configuration.file.DisplaySection;
+import net.serlith.sakurabans.core.configuration.file.ImportConfig;
 import net.serlith.sakurabans.core.configuration.file.LimitsConfig;
 import net.serlith.sakurabans.core.configuration.file.MainConfig;
 import net.serlith.sakurabans.core.configuration.file.ReasonsSection;
 import net.serlith.sakurabans.core.configuration.file.StorageConfig;
 import net.serlith.sakurabans.core.configuration.file.WarningsSection;
 import net.serlith.sakurabans.core.configuration.file.WebhooksConfig;
+import net.serlith.sakurabans.core.configuration.settings.ImportSettings;
 import net.serlith.sakurabans.core.configuration.settings.LimitSettings;
 import net.serlith.sakurabans.core.configuration.settings.Settings;
 import net.serlith.sakurabans.core.configuration.settings.StorageSettings;
@@ -52,6 +56,9 @@ final class SettingsMapper {
     private static final Duration MAX_LOGIN_TIMEOUT = Duration.ofSeconds(30);
     private static final Pattern LABEL = Pattern.compile("[a-z0-9_-]{1,32}");
     private static final Pattern COLOR = Pattern.compile("#([0-9a-fA-F]{6})");
+    private static final Pattern SOURCE_PREFIX = Pattern.compile("[A-Za-z0-9_]{0,32}");
+    private static final List<String> JDBC_SCHEMES = List.of("jdbc:mariadb:", "jdbc:mysql:",
+            "jdbc:postgresql:", "jdbc:h2:", "jdbc:hsqldb:");
 
     private final String file;
     private final List<ConfigIssue> errors = new ArrayList<>();
@@ -177,6 +184,57 @@ final class SettingsMapper {
         return duration;
     }
 
+    private Duration throttle(final String path, final String value) {
+        if (Durations.isZero(value)) {
+            return Duration.ZERO;
+        }
+        return this.duration(path, value).orElse(Duration.ZERO);
+    }
+
+    static Mapped<@Nullable ImportSettings> imports(final ImportConfig config) {
+        final SettingsMapper mapper = new SettingsMapper(ConfigFiles.IMPORT);
+        final ImportSettings imports = mapper.mapImports(config);
+        return new Mapped<>(mapper.errors.isEmpty() ? imports : null, List.copyOf(mapper.errors));
+    }
+
+    private ImportSettings mapImports(final ImportConfig config) {
+        final Map<String, ImportSettings.Database> databases = new LinkedHashMap<>();
+        databases.put(ImportSettings.SELF, this.database(ImportSettings.SELF, config.self()));
+        databases.put(ImportSettings.LIBERTYBANS,
+                this.database(ImportSettings.LIBERTYBANS, config.libertybans()));
+        databases.put(ImportSettings.LITEBANS,
+                this.database(ImportSettings.LITEBANS, config.litebans()));
+        databases.put(ImportSettings.ADVANCEDBAN,
+                this.database(ImportSettings.ADVANCEDBAN, config.advancedban()));
+        databases.put(ImportSettings.BANMANAGER,
+                this.database(ImportSettings.BANMANAGER, config.banmanager()));
+        final ImportConfig.VanillaSection vanilla = config.vanilla();
+        return new ImportSettings(databases, new ImportSettings.Vanilla(
+                this.path("vanilla.banned-players", vanilla.bannedPlayers()),
+                this.path("vanilla.banned-ips", vanilla.bannedIps())));
+    }
+
+    private ImportSettings.Database database(final String section,
+            final ImportConfig.DatabaseSection database) {
+        final String url = database.jdbcUrl().strip();
+        this.check(url.isEmpty() || JDBC_SCHEMES.stream().anyMatch(url::startsWith),
+                section + ".jdbc-url", "must start with " + String.join(", ", JDBC_SCHEMES));
+        final String prefix = database.tablePrefix().strip();
+        this.check(SOURCE_PREFIX.matcher(prefix).matches(), section + ".table-prefix",
+                "must be up to 32 characters of A-Z, a-z, 0-9 and _");
+        return new ImportSettings.Database(section, url, database.username(),
+                database.password(), prefix);
+    }
+
+    private Path path(final String key, final String value) {
+        try {
+            return Path.of(value.strip());
+        } catch (final InvalidPathException e) {
+            this.error(key, "\"" + value + "\" is not a file path");
+            return Path.of("");
+        }
+    }
+
     static Mapped<@Nullable StorageSettings> storage(final StorageConfig config) {
         final SettingsMapper mapper = new SettingsMapper(ConfigFiles.STORAGE);
         final StorageSettings storage = mapper.mapStorage(config);
@@ -218,11 +276,11 @@ final class SettingsMapper {
                 config.exemption().protectsEdits());
         final Settings.Warnings warnings = this.warnings(config.warnings());
         final Settings.Display display = this.display(config.display());
-        this.check(!config.notifications().attemptThrottle().isNegative(),
-                "notifications.attempt-throttle", "must not be negative");
+        final Duration attemptThrottle = this.throttle("notifications.attempt-throttle",
+                config.notifications().attemptThrottle());
         return new Settings(server, scopes, enforcementSettings, alts, reasons, exemption,
                 warnings, display, new Settings.Lockdown(config.lockdown().persist()),
-                new Settings.Notifications(config.notifications().attemptThrottle(),
+                new Settings.Notifications(attemptThrottle,
                         config.notifications().sendToPlayers()),
                 new Settings.Players(config.players().remoteLookup()),
                 this.commands(config.commands()));

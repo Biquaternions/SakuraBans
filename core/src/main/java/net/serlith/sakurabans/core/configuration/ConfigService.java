@@ -11,10 +11,12 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
+import net.serlith.sakurabans.core.configuration.file.ImportConfig;
 import net.serlith.sakurabans.core.configuration.file.LimitsConfig;
 import net.serlith.sakurabans.core.configuration.file.MainConfig;
 import net.serlith.sakurabans.core.configuration.file.StorageConfig;
 import net.serlith.sakurabans.core.configuration.file.WebhooksConfig;
+import net.serlith.sakurabans.core.configuration.settings.ImportSettings;
 import net.serlith.sakurabans.core.configuration.settings.LimitSettings;
 import net.serlith.sakurabans.core.configuration.settings.Settings;
 import net.serlith.sakurabans.core.configuration.settings.StorageSettings;
@@ -74,6 +76,24 @@ public final class ConfigService {
             throw new IllegalStateException("the configuration isn't loaded yet");
         }
         return current;
+    }
+
+    public ImportSettings imports() throws ConfigException {
+        final List<ConfigIssue> errors = new ArrayList<>();
+        final List<ConfigIssue> warnings = new ArrayList<>();
+        final ImportConfig file =
+                this.readFile(ConfigFiles.IMPORT, ImportConfig.class, errors, warnings);
+        ImportSettings imports = null;
+        if (file != null) {
+            final SettingsMapper.Mapped<ImportSettings> mapped = SettingsMapper.imports(file);
+            errors.addAll(mapped.errors());
+            imports = mapped.value();
+        }
+        this.logWarnings(warnings);
+        if (imports == null || !errors.isEmpty()) {
+            throw new ConfigException(errors);
+        }
+        return imports;
     }
 
     public void load() throws ConfigException {
@@ -171,6 +191,14 @@ public final class ConfigService {
         final List<String> restartRequired = new ArrayList<>();
         if (!loaded.storage().equals(this.storage.get())) {
             restartRequired.add(ConfigFiles.STORAGE);
+        }
+        final Settings.Commands before = this.settings().commands();
+        final Settings.Commands after = loaded.settings().commands();
+        if (!before.labels().equals(after.labels())) {
+            restartRequired.add("commands.labels");
+        }
+        if (!before.kinds().equals(after.kinds())) {
+            restartRequired.add("commands.kinds");
         }
         this.settings.set(loaded.settings());
         this.limits.set(loaded.limits());

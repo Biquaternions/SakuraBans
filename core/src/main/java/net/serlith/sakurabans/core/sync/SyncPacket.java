@@ -65,6 +65,9 @@ public sealed interface SyncPacket {
             implements SyncPacket {
     }
 
+    record ImportedPacket(boolean enforce) implements SyncPacket {
+    }
+
     record EvidenceChangedPacket(long punishmentId, boolean attached, Evidence evidence)
             implements SyncPacket {
     }
