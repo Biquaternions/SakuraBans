@@ -61,7 +61,11 @@ class AltAutoBanTest extends CommandTest {
         }
         this.players.recordConnection(ALEX, "Alex", this.now.get(), this.other, null).join();
         this.players.recordConnection(FRAN, "Fran", this.now.get(), this.other, null).join();
+        // Banned while ON_BAN isn't listening: its asynchronous read of the acceptance would
+        // race with a test accepting right after, and copy this ban to Bob's linked accounts.
+        this.autoBans.stop();
         this.ban(BOB, "earlier", ServerScope.of("lobby"));
+        this.autoBans.start();
     }
 
     private PunishResult ban(final UUID victim, final String reason,
