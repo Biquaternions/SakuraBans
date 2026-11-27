@@ -12,6 +12,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.serlith.sakurabans.api.event.PlayerDenyEvent.Denial;
@@ -108,6 +109,8 @@ public final class LoginGate {
                     Denial.LOGIN_CHECK_FAILED));
         }
         final Settings settings = this.config.settings();
+        final AtomicReference<CompletableFuture<?>> recorded =
+                new AtomicReference<>(CompletableFuture.completedFuture(null));
         this.names.put(attempt.uuid(), attempt.name());
         Futures.logged(this.mutes.load(attempt.uuid(), attempt.address()), this.logger,
                 "load the mutes of " + attempt.name());
@@ -120,7 +123,7 @@ public final class LoginGate {
                         return CompletableFuture.completedFuture(locked.get());
                     }
                     // A proxy records the address when the player reaches a server.
-                    this.record(attempt, settings, !this.scopes.proxy());
+                    recorded.set(this.record(attempt, settings, !this.scopes.proxy()));
                     return this.bans(attempt, settings, this.scopes.localScopes())
                             .thenApply(bans -> this.admitted(bans, settings)
                                     .orElseGet(() -> {
@@ -138,7 +141,8 @@ public final class LoginGate {
                         this.mutes.invalidate(attempt.uuid());
                         this.counts.forget(attempt.uuid());
                     } else if (decision != null) {
-                        this.noticeAlts(attempt);
+                        recorded.get().whenComplete((done, failure) ->
+                                this.noticeAlts(attempt));
                     }
                 });
     }
@@ -419,16 +423,16 @@ public final class LoginGate {
         return new LoginDecision.Denied(event.message(), denial, ban, fallback);
     }
 
-    private void record(final LoginAttempt attempt, final Settings settings,
+    private CompletableFuture<?> record(final LoginAttempt attempt, final Settings settings,
             final boolean addressAllowed) {
         if (!settings.alts().registerOnConnection()) {
-            return;
+            return CompletableFuture.completedFuture(null);
         }
         final String server = attempt.server() != null ? attempt.server()
                 : this.scopes.thisServer().map(ServerScope::server).orElse(null);
         final boolean withAddress = addressAllowed && (server == null
                 || !settings.alts().serversWithoutIpRegistration().contains(server));
-        Futures.logged(this.players.recordConnection(attempt.uuid(), attempt.name(),
+        return Futures.logged(this.players.recordConnection(attempt.uuid(), attempt.name(),
                 this.clock.instant(), withAddress ? attempt.address() : null, server),
                 this.logger, "record the connection of " + attempt.name());
     }
