@@ -189,11 +189,14 @@ function closesTag(closing: string, open: Extract<MmNode, { type: 'tag' }>): boo
 export interface ParseOptions {
   /** Names substituted as placeholders (`<reason>`). */
   placeholders?: ReadonlySet<string> | readonly string[]
+  /** Names of colour tags defined by the messages themselves (the palette: `<main>`). */
+  styles?: ReadonlySet<string> | readonly string[]
 }
 
 /** Parses MiniMessage into a tree. Never throws: malformed input becomes literal text. */
 export function parseMiniMessage(input: string, options: ParseOptions = {}): MmNode[] {
   const placeholders = new Set(options.placeholders ?? [])
+  const styles = new Set(options.styles ?? [])
   const root: MmNode[] = []
   const stack: Array<Extract<MmNode, { type: 'tag' }>> = []
   const children = () => (stack.length > 0 ? stack.at(-1)!.children : root)
@@ -226,7 +229,7 @@ export function parseMiniMessage(input: string, options: ParseOptions = {}): MmN
     if (char === '<') {
       const tag = readTag(input, i)
       if (tag !== null) {
-        const known = isKnownTag(tag.name)
+        const known = isKnownTag(tag.name) || styles.has(tag.name)
         const placeholder = !known && placeholders.has(tag.name)
         if (tag.closing) {
           if (known) {
@@ -291,6 +294,8 @@ export interface RenderOptions {
   placeholders?: Readonly<Record<string, string>>
   /** Placeholders whose value is MiniMessage itself (like `<prefix>`). */
   components?: Readonly<Record<string, string>>
+  /** Colour tags and their validated hex colour (the palette: `main` → `#f591ff`). */
+  colors?: Readonly<Record<string, string>>
 }
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -363,7 +368,7 @@ function flatten(nodes: MmNode[], style: MmStyle, auto: boolean, options: Render
         const component = options.components?.[node.name]
         if (component !== undefined && depth < 3) {
           const names = [...Object.keys(options.placeholders ?? {}), ...Object.keys(options.components ?? {})]
-          out.push(...flatten(parseMiniMessage(component, { placeholders: names }), style, auto, options, depth + 1))
+          out.push(...flatten(parseMiniMessage(component, { placeholders: names, styles: Object.keys(options.colors ?? {}) }), style, auto, options, depth + 1))
         } else {
           out.push({ text: options.placeholders?.[node.name] ?? `<${node.name}>`, style, auto })
         }
@@ -379,6 +384,10 @@ function flatten(nodes: MmNode[], style: MmStyle, auto: boolean, options: Render
 
 function flattenTag(node: Extract<MmNode, { type: 'tag' }>, style: MmStyle, auto: boolean,
   options: RenderOptions, depth: number): FlatItem[] {
+  const styled = options.colors?.[node.name]
+  if (styled !== undefined) {
+    return flatten(node.children, { ...style, color: styled }, false, options, depth)
+  }
   const direct = resolveColor(node.name)
   if (direct !== undefined) {
     return flatten(node.children, { ...style, color: direct }, false, options, depth)
@@ -428,7 +437,7 @@ function flattenTag(node: Extract<MmNode, { type: 'tag' }>, style: MmStyle, auto
     }
     case 'hover': {
       const names = [...Object.keys(options.placeholders ?? {}), ...Object.keys(options.components ?? {})]
-      const hoverNodes = parseMiniMessage(node.args.slice(1).join(':'), { placeholders: names })
+      const hoverNodes = parseMiniMessage(node.args.slice(1).join(':'), { placeholders: names, styles: Object.keys(options.colors ?? {}) })
       const hover = plainText(flatten(hoverNodes, {}, false, options, depth + 1))
       return flatten(node.children, { ...style, hover }, auto, options, depth)
     }
@@ -446,7 +455,7 @@ function sameStyle(a: MmStyle, b: MmStyle): boolean {
 /** Renders MiniMessage to lines of styled text runs. */
 export function renderMiniMessage(input: string, options: RenderOptions = {}): MmLine[] {
   const names = [...Object.keys(options.placeholders ?? {}), ...Object.keys(options.components ?? {})]
-  const items = flatten(parseMiniMessage(input, { placeholders: names }), {}, false, options, 0)
+  const items = flatten(parseMiniMessage(input, { placeholders: names, styles: Object.keys(options.colors ?? {}) }), {}, false, options, 0)
   const lines: MmLine[] = [[]]
   for (const item of items) {
     if (item === 'newline') {

@@ -1,8 +1,13 @@
 <script setup lang="ts">
 // A template's or a step's message (decisions D36, D37): what the punished player sees instead of the
 // network's message for that type, with that message's placeholders and a preview.
+import { NETWORK_COUNT_TAGS, messageTagsKnown } from '#shared/editor/countTags'
 import { MAX_MESSAGE } from '#shared/editor/limits'
 import { FALLBACK_MESSAGE_PLACEHOLDERS, NETWORK_MESSAGE_KEYS } from '#shared/editor/templates'
+import { messageOverride } from '#shared/editor/draft'
+import { fileText } from '#shared/editor/layers'
+import { messageStyles, STYLE_COMPONENTS } from '#shared/editor/styles'
+import { GLOBAL } from '#shared/protocol/schema'
 import type { PunishmentType } from '#shared/protocol/schema'
 import { sampleFor } from '~/utils/samples'
 
@@ -21,8 +26,12 @@ const id = useId()
 const networkKey = computed(() => NETWORK_MESSAGE_KEYS[props.type])
 const networkField = computed(() => store.payload.value.messages?.fields.find(field => field.key === networkKey.value))
 const placeholders = computed(() => networkField.value?.placeholders ?? [...FALLBACK_MESSAGE_PLACEHOLDERS[props.type]])
-const samples = computed(() => Object.fromEntries(placeholders.value.map(name => [name, sampleFor(name)])))
+const samples = computed(() => Object.fromEntries(messageTagsKnown(placeholders.value).map(name => [name, sampleFor(name)])))
 const screen = computed(() => props.type === 'ban' || props.type === 'kick')
+// One text for every locale: previewed with the global English <prefix>, <plugin> and palette.
+const styles = computed(() => messageStyles(key => store.payload.value.messages?.fields.some(field => field.key === key)
+  ? messageOverride(store.payload.value, GLOBAL, 'en_US', key) ?? fileText(store.payload.value, 'en_US', key)
+  : undefined))
 
 const textarea = useTemplateRef<{ textareaRef?: HTMLTextAreaElement | null }>('textarea')
 
@@ -74,7 +83,7 @@ function insert(name: string) {
     <div class="flex flex-wrap items-center gap-1">
       <span class="text-xs text-muted">Insert:</span>
       <UButton
-        v-for="name in placeholders"
+        v-for="name in [...placeholders, ...NETWORK_COUNT_TAGS, ...STYLE_COMPONENTS]"
         :key="name"
         :label="`<${name}>`"
         size="xs"
@@ -88,6 +97,8 @@ function insert(name: string) {
       v-if="message.trim() !== ''"
       :text="message"
       :placeholders="samples"
+      :components="styles.components"
+      :colors="styles.colors"
       :mode="screen ? 'screen' : 'chat'"
     />
   </div>

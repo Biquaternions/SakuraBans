@@ -80,6 +80,19 @@ describe('renderMiniMessage', () => {
     expect(lines[0]![0]!.style.color).toBe('#ff5555')
   })
 
+  it('colours the palette tags, also inside the prefix and the plugin name', () => {
+    const options = {
+      components: { prefix: '<plugin> <accent>...🖉</accent> ', plugin: '<gradient:#F591FF:#FFFFFF:#F591FF>SakuraBans</gradient>' },
+      colors: { main: '#f591ff', accent: '#b891ff' }
+    }
+    const [line] = renderMiniMessage('<prefix><main>Reloaded <accent>3</accent></main>', options)
+    expect(line!.map(run => run.text).join('')).toBe('SakuraBans ...🖉 Reloaded 3')
+    expect(line![0]!.style.color).toBe('#f591ff')
+    expect(line!.find(run => run.text.includes('...'))?.style.color).toBe('#b891ff')
+    expect(line!.at(-1)).toEqual({ text: '3', style: { color: '#b891ff' } })
+    expect(text(renderMiniMessage('<main>x</main>'))).toBe('<main>x</main>')
+  })
+
   it('splits lines', () => {
     expect(text(renderMiniMessage('<red>a\n\nb</red>'))).toBe('a\n\nb')
   })

@@ -354,6 +354,19 @@ describe('template steps (D37)', () => {
     expect(changeKind(mute, 'ladder').display).toBe('dialog')
   })
 
+  it('reads and writes silent like the plugin, left out when false (S68)', () => {
+    const ban = definitionToForm('raid', { type: 'ban', reason: 'Raid', display: 'chat', silent: true })
+    expect(ban.silent).toBe(true)
+    expect(Object.keys(formToDefinition(ban))).toEqual(['type', 'reason', 'silent'])
+    expect(formToDefinition(definitionToForm('x', { type: 'kick', reason: 'x', silent: false }))).toEqual({ type: 'kick', reason: 'x' })
+    expect(readTemplate('x', { type: 'mute', reason: 'x', silent: 'yes' } as never).errors)
+      .toEqual([{ path: 'silent', message: 'must be true or false' }])
+    const ladder = definitionToForm('l', { type: 'ladder', reason: 'x', steps: ['warn', 'ban 1d'], silent: true })
+    expect(formToDefinition(ladder).silent).toBe(true)
+    expect(changeKind(ban, 'ladder').silent).toBe(true)
+    expect(issuesOf(ladder)).toEqual([])
+  })
+
   it('keeps template durations to whole seconds, as the plugin does', () => {
     const preset = definitionToForm('m', { type: 'mute', reason: 'x', duration: '1500ms' })
     expect(issuesOf(preset)).toEqual(['duration: Must be whole seconds (a template is written as 90s, not 1500ms).'])

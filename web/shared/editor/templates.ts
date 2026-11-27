@@ -10,6 +10,7 @@
 
 import { checkDuration, describeDuration, formatCompact, isPermanentToken, parseDuration } from '../duration'
 import { canonicalJson } from '../json'
+import { PLAYER_COUNT_TAGS } from './countTags'
 import type { JsonValue, PunishmentType, TemplateDefinition, TemplateDisplay, TemplateKind } from '../protocol/schema'
 import { SCOPE_PATTERN } from '../protocol/schema'
 import {
@@ -61,6 +62,8 @@ interface CommonForm {
   message: string
   /** How the mute notice and the warning reach an online player (S61); chat by default. */
   display: TemplateDisplay
+  /** Its punishments are silent unless the command hides them further (S68). */
+  silent: boolean
   /** Keys this site doesn't know (or that don't belong to this kind), kept as they came. */
   extra: Record<string, JsonValue>
 }
@@ -90,9 +93,9 @@ const PERMANENT = 'permanent'
 
 /** Keys of a definition, in the order templates.yml writes them (TemplateFiles.KEYS). */
 const PRESET_KEYS = new Set(['type', 'ip', 'shadow', 'scope', 'reason', 'duration',
-  'permission-required', 'actions', 'groups', 'message', 'display'])
+  'permission-required', 'actions', 'groups', 'message', 'display', 'silent'])
 const LADDER_KEYS = new Set(['type', 'ip', 'shadow', 'scope', 'reason', 'steps', 'expiry',
-  'address-shared', 'permission-required', 'actions', 'groups', 'message', 'display'])
+  'address-shared', 'permission-required', 'actions', 'groups', 'message', 'display', 'silent'])
 const STEP_KEYS = new Set(['step', 'reason', 'message', 'actions'])
 
 /** Keys of the format before D37, with what replaced them (TemplateFiles.REPLACED). */
@@ -125,10 +128,10 @@ export const NETWORK_MESSAGE_KEYS: Record<PunishmentType, string> = {
 
 /** Placeholders of those messages when the payload has no messages section (lang/en_US.yml). */
 export const FALLBACK_MESSAGE_PLACEHOLDERS: Record<PunishmentType, readonly string[]> = {
-  ban: ['reason', 'operator', 'duration', 'remaining', 'expires', 'id', 'display_id', 'scope', 'type', 'server'],
-  kick: ['reason', 'operator', 'duration', 'remaining', 'expires', 'id', 'display_id', 'scope', 'type', 'server'],
-  mute: ['operator', 'reason', 'duration'],
-  warn: ['operator', 'reason']
+  ban: ['victim', 'created', 'reason', 'operator', 'duration', 'remaining', 'expires', 'id', 'display_id', 'scope', 'type', 'server', ...PLAYER_COUNT_TAGS],
+  kick: ['victim', 'created', 'reason', 'operator', 'duration', 'remaining', 'expires', 'id', 'display_id', 'scope', 'type', 'server', ...PLAYER_COUNT_TAGS],
+  mute: ['operator', 'remaining', 'reason', 'duration', ...PLAYER_COUNT_TAGS],
+  warn: ['operator', 'remaining', 'reason', ...PLAYER_COUNT_TAGS]
 }
 
 export const TYPE_LABEL: Record<PunishmentType, string> = { ban: 'Ban', mute: 'Mute', warn: 'Warn', kick: 'Kick' }
@@ -284,6 +287,7 @@ function common(name: string): CommonForm {
     groups: [],
     message: '',
     display: 'chat',
+    silent: false,
     extra: {}
   }
 }
@@ -333,6 +337,7 @@ export function changeKind(form: TemplateForm, kind: TemplateKind): TemplateForm
     groups: form.groups.map(group => ({ ...group })),
     message: form.message,
     display: form.display,
+    silent: form.silent,
     extra: { ...form.extra }
   }
   let next: TemplateForm
@@ -459,6 +464,7 @@ export function readTemplate(name: string, tree: unknown): ReadTemplate {
     groups: [],
     message: text('message') ?? '',
     display: readDisplay(text('display'), add),
+    silent: flag('silent'),
     extra
   }
   if (tree.groups !== undefined) {
@@ -687,6 +693,9 @@ export function formToDefinition(form: TemplateForm): TemplateDefinition {
   }
   if (form.display !== 'chat') {
     definition.display = form.display
+  }
+  if (form.silent) {
+    definition.silent = true
   }
   for (const [key, value] of Object.entries(form.extra)) {
     definition[key] = value

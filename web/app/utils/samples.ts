@@ -31,7 +31,21 @@ export const PLACEHOLDER_SAMPLES: Readonly<Record<string, string>> = {
   address: '203.0.113.7',
   uuid: 'ec561538-f3fd-461d-aff5-086b22154bce',
   key: 'reasons.default',
-  locale: 'en_US'
+  locale: 'en_US',
+  total_bans: '1284',
+  total_mutes: '903',
+  total_warns: '2210',
+  total_kicks: '517',
+  active_bans: '312',
+  active_mutes: '41',
+  active_warns: '126',
+  player_bans: '1',
+  player_mutes: '2',
+  player_warns: '3',
+  player_kicks: '0',
+  player_active_warns: '1',
+  country: 'United Kingdom',
+  code: 'GB'
 }
 
 export function sampleFor(name: string): string {

@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { NETWORK_COUNT_TAGS, messageTagsKnown } from '#shared/editor/countTags'
 import { messageEditMatters, messageOverride } from '#shared/editor/draft'
 import { fileText, inheritedMessage, layerText, scopeKind } from '#shared/editor/layers'
 import { MAX_MESSAGE } from '#shared/editor/limits'
 import { unknownTags } from '#shared/minimessage'
+import { messageStyles, STYLE_TAGS } from '#shared/editor/styles'
 import type { MessageField } from '#shared/protocol/schema'
 import { GLOBAL } from '#shared/protocol/schema'
 import { sampleFor } from '~/utils/samples'
@@ -70,21 +72,32 @@ const inheritedFrom = computed(() => {
   return props.scope === GLOBAL ? `each server's language file (shown: ${payload.value.meta.server || 'the uploading server'}'s)` : `${layer.server || 'the server'}'s language file`
 })
 
-const samples = reactive<Record<string, string>>(Object.fromEntries(props.field.placeholders.map(name => [name, sampleFor(name)])))
+const samples = reactive<Record<string, string>>(Object.fromEntries(messageTagsKnown(props.field.placeholders).map(name => [name, sampleFor(name)])))
 
 const prefixField = computed(() => payload.value.messages?.fields.find(item => item.key === 'prefix'))
-const components = computed((): Record<string, string> => {
-  if (!prefixField.value || field.value.key === 'prefix') {
-    return {}
+/** `<prefix>`, `<plugin>` and the palette as this scope shows them, drafts included (S74). */
+const styles = computed(() => messageStyles((key) => {
+  if (key === field.value.key) {
+    return text.value
   }
-  const prefixEdit = store.draft.messages[props.scope]?.[props.locale]?.prefix
-  return { prefix: prefixEdit?.kind === 'set' ? prefixEdit.text : messageOverride(payload.value, props.scope, props.locale, 'prefix') ?? fileText(payload.value, props.locale, 'prefix') }
+  if (!payload.value.messages?.fields.some(item => item.key === key)) {
+    return undefined
+  }
+  const edit = store.draft.messages[props.scope]?.[props.locale]?.[key]
+  return edit?.kind === 'set' ? edit.text : messageOverride(payload.value, props.scope, props.locale, key) ?? fileText(payload.value, props.locale, key)
+}, field.value.key))
+const components = computed(() => styles.value.components)
+const colors = computed(() => styles.value.colors)
+// A palette entry is a colour, not a message: shown in that colour.
+const previewText = computed(() => {
+  const tag = field.value.key.startsWith('palette.') ? field.value.key.slice('palette.'.length) : undefined
+  return tag && tag in colors.value ? `<${tag}>${text.value.replace(/</g, '\\<')}</${tag}>` : text.value
 })
 
 const multiline = computed(() => text.value.includes('\n') || field.value.key.startsWith('screen.'))
 const view = ref<'auto' | 'chat' | 'screen'>('auto')
 const previewMode = computed(() => (view.value === 'auto' ? (multiline.value ? 'screen' : 'chat') : view.value))
-const unknown = computed(() => unknownTags(text.value, [...field.value.placeholders, 'prefix']))
+const unknown = computed(() => unknownTags(text.value, [...messageTagsKnown(field.value.placeholders), ...STYLE_TAGS]))
 
 const textarea = useTemplateRef<{ textareaRef?: HTMLTextAreaElement | null }>('textarea')
 
@@ -198,12 +211,25 @@ const textareaId = useId()
       >
         <span class="text-xs text-muted">Insert:</span>
         <UButton
-          v-for="name in [...field.placeholders, ...(prefixField && field.key !== 'prefix' ? ['prefix'] : [])]"
+          v-for="name in [...field.placeholders, ...(prefixField ? ['prefix', 'plugin'].filter(tag => tag !== field.key) : [])]"
           :key="name"
           :label="`<${name}>`"
           size="xs"
           color="neutral"
           variant="soft"
+          class="font-mono"
+          @click="insert(name)"
+        />
+      </div>
+      <div class="mt-1 flex flex-wrap items-center gap-1">
+        <span class="text-xs text-muted">Network counts (any message):</span>
+        <UButton
+          v-for="name in NETWORK_COUNT_TAGS"
+          :key="name"
+          :label="`<${name}>`"
+          size="xs"
+          color="neutral"
+          variant="ghost"
           class="font-mono"
           @click="insert(name)"
         />
@@ -244,9 +270,10 @@ const textareaId = useId()
         </UFieldGroup>
       </div>
       <EditorMiniMessagePreview
-        :text="text"
+        :text="previewText"
         :placeholders="samples"
         :components="components"
+        :colors="colors"
         :mode="previewMode"
       />
       <p

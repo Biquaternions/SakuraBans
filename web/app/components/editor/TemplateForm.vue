@@ -386,7 +386,7 @@ const ids = { name: useId(), reason: useId(), expiry: useId(), scope: useId() }
         <USwitch
           v-model="form.permissionRequired"
           label="Needs a permission"
-          description="Using this template needs its own permission node."
+          description="Using this template, and revoking, editing, voiding or deleting its punishments, needs its own permission node."
         />
         <p
           v-if="form.permissionRequired"
@@ -395,6 +395,11 @@ const ids = { name: useId(), reason: useId(), expiry: useId(), scope: useId() }
           <code class="rounded bg-elevated px-1 py-0.5">{{ permissionNode(form.name || '<name>') }}</code>
         </p>
       </div>
+      <USwitch
+        v-model="form.silent"
+        label="Silent"
+        description="Its punishments are silent, as with -s: only staff who may see silent punishments are told. --hide and --quiet still hide them further."
+      />
     </div>
     <p
       v-if="issueFor('shadow')"

@@ -183,7 +183,8 @@ export const templateDefinitionSchema = z.looseObject({
   'groups': z.record(z.string(), z.number().int()).optional(),
   'message': z.string().optional(),
   // A text, read as the plugin reads it (any case); this site writes chat or dialog.
-  'display': z.string().optional()
+  'display': z.string().optional(),
+  'silent': z.boolean().optional()
 })
 export type TemplateDefinition = z.infer<typeof templateDefinitionSchema>
 
@@ -199,6 +200,22 @@ export const templateItemSchema = z.object({
   definition: templateDefinitionSchema
 })
 export type TemplateItem = z.infer<typeof templateItemSchema>
+
+/**
+ * One of the last changes to settings, messages and templates (protocol 5.6): who and what, never
+ * a value. Read-only; the editor shows it and sends nothing back.
+ */
+export const recentChangeSchema = z.object({
+  at: z.number().int(),
+  actor: z.string(),
+  action: z.string(),
+  kind: sectionSchema,
+  scope: z.string(),
+  locale: z.string().nullable(),
+  target: z.string(),
+  keys: z.array(z.string())
+})
+export type RecentChange = z.infer<typeof recentChangeSchema>
 
 export const payloadSchema = z.object({
   format: z.literal(1),
@@ -222,6 +239,8 @@ export const payloadSchema = z.object({
   templates: z.object({
     items: z.array(templateItemSchema)
   }).optional(),
+  // Optional, and ignored when it isn't what this site knows: it never blocks the editor.
+  recentChanges: z.array(recentChangeSchema).optional().catch(undefined),
   lookups: z.object({
     servers: z.array(z.string()),
     categories: z.array(z.string()),

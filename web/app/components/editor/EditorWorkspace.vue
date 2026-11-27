@@ -285,6 +285,8 @@ onBeforeRouteLeave(() => {
         <EditorMessagesTab v-else-if="tab === 'messages' && sections.includes('messages')" />
         <EditorTemplatesTab v-else-if="tab === 'templates' && sections.includes('templates')" />
       </KeepAlive>
+
+      <EditorRecentChanges />
     </UContainer>
 
     <EditorReviewModal v-model:open="reviewOpen" />
