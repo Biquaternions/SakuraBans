@@ -26,6 +26,7 @@ public record SakuraLadderTemplate(
         Map<String, Integer> groups,
         @Nullable String messageOrNull,
         TemplateDisplay display,
+        boolean silent,
         @Nullable Scope variantOrNull) implements LadderTemplate {
 
     public SakuraLadderTemplate {

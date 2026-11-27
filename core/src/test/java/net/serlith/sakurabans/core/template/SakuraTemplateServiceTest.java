@@ -266,7 +266,7 @@ class SakuraTemplateServiceTest extends ServiceTest {
         final TemplateInfo loud = template("loud", PunishmentType.MUTE).shadow(true).build();
         Assertions.assertThat(this.templates.create(new SakuraPresetTemplate(loud.name(),
                 PunishmentType.BAN, TemplateDuration.open(), false, true, null, loud.reason(),
-                false, List.of(), Map.of(), null, TemplateDisplay.CHAT, null),
+                false, List.of(), Map.of(), null, TemplateDisplay.CHAT, false, null),
                 CONSOLE).join())
                 .isInstanceOf(AdminResult.ValidationFailed.class);
         Assertions.assertThatThrownBy(() -> template("k", PunishmentType.KICK)

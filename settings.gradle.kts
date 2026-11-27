@@ -16,6 +16,13 @@ dependencyResolutionManagement {
                 includeGroup("com.github.retrooper")
             }
         }
+        // PlaceholderAPI (S73) is published only on its own repository.
+        maven("https://repo.extendedclip.com/releases/") {
+            name = "extendedclip"
+            content {
+                includeGroup("me.clip")
+            }
+        }
     }
 }
 

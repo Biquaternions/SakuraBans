@@ -21,6 +21,8 @@ public final class SakuraBansPaper extends JavaPlugin {
     @Override
     public void onEnable() {
         this.commands.onEnable();
+        this.getServer().getMessenger().registerOutgoingPluginChannel(this,
+                PaperNetworkKick.CHANNEL);
         final PaperPlatform platform = new PaperPlatform(this);
         this.core.start(platform);
         this.getServer().getPluginManager()
@@ -29,6 +31,10 @@ public final class SakuraBansPaper extends JavaPlugin {
                 .registerEvents(new PaperChatListener(this.core.chatGate(), platform), this);
         this.getServer().getServicesManager().register(SakuraBansApi.class, this.core.api(),
                 this, ServicePriority.Normal);
+        final PaperPlaceholders placeholders =
+                new PaperPlaceholders(this.core, this.getServer().getPluginManager());
+        this.getServer().getPluginManager().registerEvents(placeholders, this);
+        placeholders.start();
     }
 
     @Override

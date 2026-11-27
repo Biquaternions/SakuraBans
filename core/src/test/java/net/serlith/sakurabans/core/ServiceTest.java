@@ -25,6 +25,7 @@ import net.serlith.sakurabans.core.concurrent.Lifecycle;
 import net.serlith.sakurabans.core.concurrent.LifecycleState;
 import net.serlith.sakurabans.core.configuration.TemplateFiles;
 import net.serlith.sakurabans.core.data.SakuraPlayerDataService;
+import net.serlith.sakurabans.core.enforce.AltAutoBans;
 import net.serlith.sakurabans.core.enforce.ChatGate;
 import net.serlith.sakurabans.core.enforce.CommandBlacklist;
 import net.serlith.sakurabans.core.enforce.EnforcementMessages;
@@ -34,6 +35,8 @@ import net.serlith.sakurabans.core.enforce.LoginGate;
 import net.serlith.sakurabans.core.enforce.SyncReceiver;
 import net.serlith.sakurabans.core.event.SakuraEventBus;
 import net.serlith.sakurabans.core.fake.FakePlatform;
+import net.serlith.sakurabans.core.geoip.Country;
+import net.serlith.sakurabans.core.geoip.CountryLookup;
 import net.serlith.sakurabans.core.importer.ImportJobs;
 import net.serlith.sakurabans.core.importer.ImportRunner;
 import net.serlith.sakurabans.core.importer.ImportSources;
@@ -42,6 +45,7 @@ import net.serlith.sakurabans.core.limit.CooldownTracker;
 import net.serlith.sakurabans.core.limit.LimitService;
 import net.serlith.sakurabans.core.message.Formats;
 import net.serlith.sakurabans.core.message.MessageService;
+import net.serlith.sakurabans.core.message.NetworkTotals;
 import net.serlith.sakurabans.core.message.Placeholders;
 import net.serlith.sakurabans.core.model.StoredTemplate;
 import net.serlith.sakurabans.core.notify.NotificationService;
@@ -51,11 +55,14 @@ import net.serlith.sakurabans.core.permission.ExemptionService;
 import net.serlith.sakurabans.core.permission.OfflinePermissions;
 import net.serlith.sakurabans.core.permission.PermissionService;
 import net.serlith.sakurabans.core.permission.Permissions;
+import net.serlith.sakurabans.core.permission.TemplateGuard;
 import net.serlith.sakurabans.core.player.NameCache;
 import net.serlith.sakurabans.core.player.SakuraIntegrationRegistry;
 import net.serlith.sakurabans.core.punish.ActiveRangeCache;
+import net.serlith.sakurabans.core.punish.AuditRetention;
 import net.serlith.sakurabans.core.punish.ExpirySweeper;
 import net.serlith.sakurabans.core.punish.MuteCache;
+import net.serlith.sakurabans.core.punish.PunishmentCounts;
 import net.serlith.sakurabans.core.punish.PunishmentFactory;
 import net.serlith.sakurabans.core.punish.SakuraPunishmentService;
 import net.serlith.sakurabans.core.punish.TemplateActions;
@@ -107,11 +114,14 @@ public abstract class ServiceTest extends DatabaseTest {
     protected PunishmentRepository punishments;
     protected Lease lease;
     protected MuteCache mutes;
+    protected NetworkTotals totals;
+    protected PunishmentCounts counts;
     protected EnforcementMessages enforcementMessages;
     protected LocalEnforcer enforcer;
     protected SakuraPunishmentService service;
     protected NotificationService notifications;
     protected LoginGate loginGate;
+    protected AltAutoBans autoBans;
     protected ChatGate chatGate;
     protected ExpirySweeper sweeper;
     protected SyncService syncService;
@@ -123,6 +133,8 @@ public abstract class ServiceTest extends DatabaseTest {
     protected AuthorizationService authorization;
     /** What LuckPerms would say about offline players; none by default. */
     protected OfflinePermissions offline = OfflinePermissions.NONE;
+    /** What the services ask for countries (S72); off unless a test sets one. */
+    protected CountryLookup countries = CountryLookup.disabled();
     protected LimitService limits;
     protected LockdownService lockdowns;
     protected SakuraSettingsService settingsService;
@@ -174,25 +186,29 @@ public abstract class ServiceTest extends DatabaseTest {
         this.home = InetAddress.getByName("203.0.113.7");
         this.bus = new SakuraEventBus(this.log.logger());
         this.bus.subscribe(SakuraEvent.class, EventPriority.MONITOR, this.events::add);
-        this.messages = new MessageService(this.dir, this.config, this.log.logger());
+        this.totals = new NetworkTotals();
+        this.messages = new MessageService(this.dir, this.config, this.log.logger(),
+                this.totals);
         this.messages.load();
         this.placeholders =
                 new Placeholders(this.messages, new Formats(this.messages, this.config));
         this.names = new NameCache();
         this.scopes = new SakuraScopeService(this.config, this.platform, this.proxy(),
                 this.log.logger());
-        this.players = new PlayerRepository(this.storage);
+        this.players = new PlayerRepository(this.storage, this.hasher);
         this.displayIds = new DisplayIdCodec(new MetaRepository(this.storage), this.config);
         this.displayIds.load().join();
         this.syncService = new SyncService(this.published::add, this.log.logger());
         this.allowList = new SakuraAllowListService(new AllowListRepository(this.storage),
                 this.syncService, this.config, this.clock);
         this.allowList.reload().join();
-        this.punishments = new PunishmentRepository(this.storage,
+        this.punishments = new PunishmentRepository(this.storage, this.hasher,
                 new PunishmentMapper(this.displayIds::display), this.allowList);
+        this.counts = new PunishmentCounts(this.punishments, this.totals, this.bus, this.config,
+                this.executors, this.clock, this.log.logger());
         this.altService = new AltService(this.players, this.punishments, this.allowList,
                 this.clock);
-        this.lease = new Lease(this.storage, UUID.randomUUID(), this.clock);
+        this.lease = new Lease(this.storage, UUID.randomUUID());
         this.ranges = new ActiveRangeCache(this.punishments, this.players, this.allowList,
                 this.clock);
         this.mutes = new MuteCache(this.punishments, this.scopes, this.config, this.clock,
@@ -200,16 +216,17 @@ public abstract class ServiceTest extends DatabaseTest {
         this.enforcementMessages =
                 new EnforcementMessages(this.messages, this.placeholders, this.names,
                         ref -> this.templates.definition(ref).map(StoredTemplate::template),
-                        this.clock);
+                        this.clock, this.counts, new DelegatingCountries());
         this.notifications = new NotificationService(this.platform, this.messages,
                 this.placeholders, this.names, this.config, this.bus, new Throttle(this.clock),
-                Runnable::run, this.clock);
+                Runnable::run, this.clock, this.counts, this.log.logger());
         this.notifications.start();
         this.permissions = new PermissionService(this.platform, new DelegatingPermissions(),
                 this.executors.worker(), this.log.logger());
-        this.exemption = new ExemptionService(this.config, this.permissions, this.log.logger());
+        this.exemption = new ExemptionService(this.config, this.permissions, this.log.logger(),
+                this.names::name);
         this.authorization = new AuthorizationService(this.permissions, this.exemption,
-                this.punishments, this.config);
+                this.punishments, this.config, TemplateGuard.lazy(() -> this.templates));
         final OverrideRepository overrides = new OverrideRepository(this.storage);
         this.settingsService = new SakuraSettingsService(this.config, overrides,
                 this.authorization, this.syncService,
@@ -221,11 +238,12 @@ public abstract class ServiceTest extends DatabaseTest {
                 this.permissions, this.allowList, this.syncService, this.config, this.clock,
                 this.log.logger());
         this.enforcer = new LocalEnforcer(this.platform, this.scopes, this.punishments, this.mutes,
-                this.enforcementMessages, this.config, this.clock, this.ranges,
+                this.enforcementMessages, this.config, this.clock, this.ranges, this.counts,
                 this.log.logger());
         this.limits = new LimitService(this.config, this.permissions, new CooldownTracker(),
                 this.clock);
-        this.templateRepository = new TemplateRepository(this.storage, this.allowList);
+        this.templateRepository = new TemplateRepository(this.storage, this.hasher,
+                this.allowList);
         this.templates = new SakuraTemplateService(this.templateRepository,
                 new MetaRepository(this.storage), new TemplateFiles(this.dir),
                 this.authorization, this.syncService,
@@ -245,18 +263,29 @@ public abstract class ServiceTest extends DatabaseTest {
                 this.templates, this.templateRepository, this.templateActions,
                 this.log.logger());
         this.playerData = new SakuraPlayerDataService(new PlayerDataRepository(this.storage,
+                this.hasher,
                 new PunishmentMapper(this.displayIds::display)), this.players,
-                new AuditRepository(this.storage), this.allowList, this.mutes, this.names,
+                new AuditRepository(this.storage), this.allowList, this.mutes, this.counts,
+                this.names,
                 this.authorization, this.syncService,
                 this.bus, this.clock);
+        this.autoBans = new AltAutoBans(this.config, this.altService, this.allowList,
+                this.service, this.exemption, new MetaRepository(this.storage), this.bus,
+                this.notifications, this.syncService, this.clock, this.log.logger());
+        this.autoBans.start();
         this.loginGate = new LoginGate(this.lifecycle, this.config, this.scopes,
                 this.punishments, this.players, this.names, this.mutes,
                 this.enforcementMessages, this.notifications, this.bus, this.clock,
-                this.altService, this.ranges, this.enforcer, this.lockdowns, this.log.logger());
+                this.altService, this.ranges, this.enforcer, this.lockdowns,
+                this.autoBans, this.counts, new DelegatingCountries(), this.allowList,
+                this.permissions, this.log.logger());
         this.chatGate = new ChatGate(this.mutes, new CommandBlacklist(this.config),
                 this.enforcementMessages, this.notifications, this.bus, this.clock,
                 this.log.logger());
-        this.sweeper = new ExpirySweeper(this.lease, this.punishments, this.mutes, this.enforcer,
+        this.sweeper = new ExpirySweeper(this.lease,
+                new AuditRetention(new AuditRepository(this.storage), this.config, this.clock,
+                        this.log.logger()),
+                this.punishments, this.mutes, this.enforcer,
                 this.syncService, this.bus, this.executors, this.platform, this.clock,
                 this.log.logger());
         this.platform.join(MOD, "Mod", InetAddress.getByName("203.0.113.254"))
@@ -268,7 +297,8 @@ public abstract class ServiceTest extends DatabaseTest {
 
     /** What receives other instances' packets, wired like {@code CoreComponents} does. */
     protected final SyncReceiver syncReceiver() {
-        return new SyncReceiver(this.punishments, this.enforcer, this.mutes, this.scopes,
+        return new SyncReceiver(this.punishments, this.enforcer, this.mutes, this.counts,
+                this.scopes,
                 this.platform, this.notifications, this.config, this.clock, this.allowList,
                 this.templates, this.lockdowns, this.settingsService,
                 this.messageTemplates, this.playerData, this.ranges, this.displayIds,
@@ -277,7 +307,7 @@ public abstract class ServiceTest extends DatabaseTest {
 
     /** The import framework (S38) wired like {@code CoreComponents} does, with these sources. */
     protected final ImportJobs importJobs(final ImportSources sources) {
-        final ImportRepository repository = new ImportRepository(this.storage);
+        final ImportRepository repository = new ImportRepository(this.storage, this.hasher);
         return new ImportJobs(sources,
                 new ImportRunner(repository, this.clock, this.log.logger()),
                 new SelfImport(repository, this.log.logger()), repository, this.lease,
@@ -291,6 +321,24 @@ public abstract class ServiceTest extends DatabaseTest {
 
     protected final <E extends SakuraEvent> List<E> events(final Class<E> type) {
         return this.events.stream().filter(type::isInstance).map(type::cast).toList();
+    }
+
+    /** The lookup the services were built with, which asks {@link #countries} at each call. */
+    protected final CountryLookup delegatingCountries() {
+        return new DelegatingCountries();
+    }
+
+    private final class DelegatingCountries implements CountryLookup {
+
+        @Override
+        public Optional<Country> country(final InetAddress address) {
+            return ServiceTest.this.countries.country(address);
+        }
+
+        @Override
+        public State state() {
+            return ServiceTest.this.countries.state();
+        }
     }
 
     private final class DelegatingPermissions implements OfflinePermissions {

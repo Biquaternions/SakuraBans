@@ -25,6 +25,7 @@ public record SakuraPresetTemplate(
         Map<String, Integer> groups,
         @Nullable String messageOrNull,
         TemplateDisplay display,
+        boolean silent,
         @Nullable Scope variantOrNull) implements PresetTemplate {
 
     public SakuraPresetTemplate {

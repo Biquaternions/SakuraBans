@@ -24,6 +24,7 @@ import net.serlith.sakurabans.core.permission.Action;
 import net.serlith.sakurabans.core.permission.AuthorizationService;
 import net.serlith.sakurabans.core.player.NameCache;
 import net.serlith.sakurabans.core.punish.MuteCache;
+import net.serlith.sakurabans.core.punish.PunishmentCounts;
 import net.serlith.sakurabans.core.storage.repository.AuditRepository;
 import net.serlith.sakurabans.core.storage.repository.PlayerDataRepository;
 import net.serlith.sakurabans.core.storage.repository.PlayerRepository;
@@ -37,6 +38,7 @@ public final class SakuraPlayerDataService implements PlayerDataService {
     private final AuditRepository audit;
     private final SakuraAllowListService allowList;
     private final MuteCache mutes;
+    private final PunishmentCounts counts;
     private final NameCache names;
     private final AuthorizationService authorization;
     private final SyncService sync;
@@ -45,7 +47,8 @@ public final class SakuraPlayerDataService implements PlayerDataService {
 
     public SakuraPlayerDataService(final PlayerDataRepository repository,
             final PlayerRepository players, final AuditRepository audit,
-            final SakuraAllowListService allowList, final MuteCache mutes, final NameCache names,
+            final SakuraAllowListService allowList, final MuteCache mutes,
+            final PunishmentCounts counts, final NameCache names,
             final AuthorizationService authorization, final SyncService sync,
             final SakuraEventBus events, final InstantSource clock) {
         this.repository = repository;
@@ -53,6 +56,7 @@ public final class SakuraPlayerDataService implements PlayerDataService {
         this.audit = audit;
         this.allowList = allowList;
         this.mutes = mutes;
+        this.counts = counts;
         this.names = names;
         this.authorization = authorization;
         this.sync = sync;
@@ -101,7 +105,8 @@ public final class SakuraPlayerDataService implements PlayerDataService {
     public CompletableFuture<Void> forget(final UUID uuid) {
         this.names.forget(uuid);
         this.mutes.invalidate(uuid);
-        return this.mutes.reloadAll().thenCompose(ignored -> this.allowList.reload());
+        return CompletableFuture.allOf(this.mutes.reloadAll(), this.counts.reload(uuid))
+                .thenCompose(ignored -> this.allowList.reload());
     }
 
     private <T> CompletableFuture<PlayerDataResult<T>> allowed(final Actor actor,

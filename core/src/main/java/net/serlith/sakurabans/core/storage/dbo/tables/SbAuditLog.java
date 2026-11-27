@@ -84,7 +84,9 @@ public final class SbAuditLog extends SbTable<SbAuditLogRecord> {
         return List.of(
                 Indexes.AUDIT_LOG_SUBJECT_IX,
                 Indexes.AUDIT_LOG_AT_IX,
-                Indexes.AUDIT_LOG_ACTOR_IX);
+                Indexes.AUDIT_LOG_ACTOR_IX,
+                Indexes.AUDIT_LOG_ACTION_IX,
+                Indexes.AUDIT_LOG_KIND_IX);
     }
 
     @Override

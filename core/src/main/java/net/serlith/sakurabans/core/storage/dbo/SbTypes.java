@@ -75,7 +75,8 @@ public final class SbTypes {
             Map.of(
                     Visibility.NORMAL, 0,
                     Visibility.SILENT, 1,
-                    Visibility.HIDDEN, 2));
+                    Visibility.HIDDEN, 2,
+                    Visibility.QUIET, 3));
 
     public static final EnumCode<EndKind> END_KIND_CODES = EnumCode.of(EndKind.class, Map.of(
             EndKind.REVOKED, 0,

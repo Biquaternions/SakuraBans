@@ -13,7 +13,7 @@ class SakuraCommandsTest extends CommandTest {
     void parserErrorsUseOurCaptionsWithThePrefix() {
         this.run(this.console, "ban not-a-name");
 
-        Assertions.assertThat(this.console.last()).startsWith("SakuraBans » ")
+        Assertions.assertThat(this.console.last()).startsWith("SakuraBans ...🖉 ")
                 .contains("'not-a-name' is not a player, UUID, address or #id.");
     }
 

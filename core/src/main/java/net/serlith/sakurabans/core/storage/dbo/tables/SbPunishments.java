@@ -166,7 +166,8 @@ public final class SbPunishments extends SbTable<SbPunishmentsRecord> {
                 Indexes.PUNISHMENTS_VICTIM_IX,
                 Indexes.PUNISHMENTS_OPERATOR_IX,
                 Indexes.PUNISHMENTS_CREATED_IX,
-                Indexes.PUNISHMENTS_REVOKER_IX);
+                Indexes.PUNISHMENTS_REVOKER_IX,
+                Indexes.PUNISHMENTS_TYPE_IX);
     }
 
     @Override

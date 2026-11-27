@@ -81,6 +81,9 @@ public final class SbTemplates extends SbTable<SbTemplatesRecord> {
     public final TableField<SbTemplatesRecord, TemplateDisplay> DISPLAY = createField(
             DSL.name("display"), SbTypes.TEMPLATE_DISPLAY.nullable(false), this, "");
 
+    public final TableField<SbTemplatesRecord, Boolean> SILENT = createField(
+            DSL.name("silent"), SbTypes.FLAG.nullable(false), this, "");
+
     public final TableField<SbTemplatesRecord, Long> VERSION = createField(
             DSL.name("version"), SQLDataType.BIGINT.nullable(false), this, "");
 

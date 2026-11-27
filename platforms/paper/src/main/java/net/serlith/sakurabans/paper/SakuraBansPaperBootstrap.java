@@ -24,7 +24,7 @@ public final class SakuraBansPaperBootstrap implements PluginBootstrap {
     @Override
     public void bootstrap(final BootstrapContext context) {
         final SakuraBansCore created = CoreBootstrap.create(new CoreEnvironment(
-                context.getDataDirectory(), context.getLogger(), false));
+                context.getDataDirectory(), context.getLogger(), false, System.getenv()));
         final PaperCommandManager.Bootstrapped<CommandActor> manager =
                 PaperCommandManager.builder(new PaperSenderMapper())
                         .executionCoordinator(ExecutionCoordinator.simpleCoordinator())

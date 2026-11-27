@@ -105,6 +105,7 @@ public final class RevokeCommands implements CommandModule {
                 .required("target", this.targetParser.descriptor())
                 .flag(this.flags.silent(type))
                 .flag(this.flags.hide(type))
+                .flag(this.flags.quiet(type))
                 .flag(this.flags.scopeFilter())
                 .flag(this.flags.voidFlag())
                 // Last: it takes the rest of the line.
@@ -120,8 +121,7 @@ public final class RevokeCommands implements CommandModule {
         // No --scope and --scope all both mean every scope.
         final Scope scope = flags.<ScopeFilter>getValue(PunishFlags.SCOPE)
                 .flatMap(ScopeFilter::scope).orElse(null);
-        final Visibility visibility = flags.isPresent(PunishFlags.HIDE) ? Visibility.HIDDEN
-                : flags.isPresent(PunishFlags.SILENT) ? Visibility.SILENT : Visibility.NORMAL;
+        final Visibility visibility = PunishSupport.visibility(flags);
         final String reason = flags.<String>getValue(PunishFlags.REASON).map(String::strip)
                 .filter(text -> !text.isEmpty()).orElse(null);
         final boolean ownOnly = !actor.hasPermission(Permissions.revoke(spec.type()));
@@ -329,6 +329,7 @@ public final class RevokeCommands implements CommandModule {
             case EXEMPT -> MessageKey.EDIT_FAILURE_EXEMPT;
             case CANCELLED -> MessageKey.EDIT_FAILURE_CANCELLED;
             case FORBIDDEN -> MessageKey.EDIT_FAILURE_FORBIDDEN;
+            case TEMPLATE_PROTECTED -> MessageKey.EDIT_FAILURE_TEMPLATE_PROTECTED;
         };
     }
 
@@ -340,6 +341,7 @@ public final class RevokeCommands implements CommandModule {
             case CANCELLED -> MessageKey.REVOKE_FAILURE_CANCELLED;
             case REASON_REQUIRED -> MessageKey.REVOKE_FAILURE_REASON_REQUIRED;
             case FORBIDDEN -> MessageKey.REVOKE_FAILURE_FORBIDDEN;
+            case TEMPLATE_PROTECTED -> MessageKey.REVOKE_FAILURE_TEMPLATE_PROTECTED;
         };
     }
 }

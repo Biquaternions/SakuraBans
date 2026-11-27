@@ -15,7 +15,6 @@ import net.serlith.sakurabans.core.storage.dbo.SbTable;
 import net.serlith.sakurabans.core.storage.dbo.ScopeKind;
 import net.serlith.sakurabans.core.storage.dbo.VictimKind;
 import net.serlith.sakurabans.core.storage.dbo.records.SbPunishmentsRecord;
-import net.serlith.sakurabans.core.util.AddressHashes;
 import net.serlith.sakurabans.core.util.InetAddresses;
 import net.serlith.sakurabans.core.util.ReleaseChannel;
 import net.serlith.sakurabans.core.util.Uuids;
@@ -50,7 +49,8 @@ class SchemaManagerTest extends DatabaseTest {
         });
 
         Assertions.assertThat(this.count(SakuraTables.SCOPES)).isOne();
-        Assertions.assertThat(this.count(SakuraTables.META)).isEqualTo(2);
+        // schema_version, created_with and the address hash key's fingerprint (S66).
+        Assertions.assertThat(this.count(SakuraTables.META)).isEqualTo(3);
         Assertions.assertThat(this.log.entries("info").stream().map(RecordingLogger.Entry::format)
                 .filter(line -> line.startsWith("Created the database schema"))).hasSize(1);
     }
@@ -65,21 +65,24 @@ class SchemaManagerTest extends DatabaseTest {
 
     @Test
     void refusesDatabasesOfNewerVersions() {
-        this.read(dsl -> dsl.update(SakuraTables.META).set(SakuraTables.META.V, "2")
+        final int newer = SakuraTables.SCHEMA_VERSION + 1;
+        this.read(dsl -> dsl.update(SakuraTables.META)
+                .set(SakuraTables.META.V, Integer.toString(newer))
                 .where(SakuraTables.META.K.eq(SchemaManager.VERSION_KEY)).execute());
 
         Assertions.assertThatThrownBy(() -> this.read(dsl -> {
             this.manager.prepare(dsl, this.schema().orElse(null));
             return null;
         })).hasCauseInstanceOf(StorageException.class)
-                .hasMessageContaining("schema version 2");
+                .hasMessageContaining("schema version " + newer);
         final Optional<Integer> version = this.read(this.manager::version);
-        Assertions.assertThat(version).as("left as it was").contains(2);
+        Assertions.assertThat(version).as("left as it was").contains(newer);
     }
 
     @Test
     void buildsBeforeTheBetasRefuseDatabasesOfOlderVersions() {
-        this.read(dsl -> dsl.update(SakuraTables.META).set(SakuraTables.META.V, "0")
+        // Version 1: before S66's keyed address hashes.
+        this.read(dsl -> dsl.update(SakuraTables.META).set(SakuraTables.META.V, "1")
                 .where(SakuraTables.META.K.eq(SchemaManager.VERSION_KEY))
                 .execute());
 
@@ -87,9 +90,9 @@ class SchemaManagerTest extends DatabaseTest {
             this.manager.prepare(dsl, this.schema().orElse(null));
             return null;
         })).hasCauseInstanceOf(StorageException.class)
-                .hasMessageContaining("schema version 0").hasMessageContaining("dev builds");
+                .hasMessageContaining("schema version 1").hasMessageContaining("dev builds");
         final Optional<Integer> version = this.read(this.manager::version);
-        Assertions.assertThat(version).as("left as it was").contains(0);
+        Assertions.assertThat(version).as("left as it was").contains(1);
     }
 
     @Test
@@ -124,7 +127,7 @@ class SchemaManagerTest extends DatabaseTest {
                 .hasCauseInstanceOf(DataAccessException.class);
 
         // An erased victim has its hash and prefix but no address.
-        final byte[] hash = AddressHashes.of(InetAddress.getByName("198.51.100.9"));
+        final byte[] hash = this.hasher.hash(InetAddress.getByName("198.51.100.9"));
         this.read(dsl -> insertVictim(dsl, VictimKind.COMPOSITE, UUID.randomUUID(), null, 32,
                 hash));
         Assertions.assertThatThrownBy(() -> this.read(dsl -> insertVictim(dsl,
@@ -164,8 +167,9 @@ class SchemaManagerTest extends DatabaseTest {
     private static long insertVictim(final DSLContext dsl, final VictimKind kind,
             final UUID uuid, final byte[] address, final int prefixLength) {
         return insertVictim(dsl, kind, uuid, address, prefixLength, address.length == 0
-                ? new byte[AddressHashes.LENGTH]
-                : AddressHashes.of(InetAddresses.fromBytes(address)));
+                ? new byte[AddressHasher.LENGTH]
+                : AddressHasher.keyed("schema-test-key-0123456789abcdef")
+                        .hash(InetAddresses.fromBytes(address)));
     }
 
     private static long insertVictim(final DSLContext dsl, final VictimKind kind,

@@ -129,6 +129,10 @@ public final class SbTemplatesRecord extends UpdatableRecordImpl<SbTemplatesReco
         return this.get(SakuraTables.TEMPLATES.DISPLAY);
     }
 
+    public Boolean silent() {
+        return this.get(SakuraTables.TEMPLATES.SILENT);
+    }
+
     public String actions() {
         return this.get(SakuraTables.TEMPLATES.ACTIONS);
     }

@@ -147,4 +147,9 @@ public final class SakuraAllowListService implements AllowListService, AltPolicy
         return Optional.ofNullable(this.config.settings().alts().recordExpiration());
     }
 
+    @Override
+    public Optional<Duration> ipBanDecay() {
+        return Optional.ofNullable(this.config.settings().enforcement().ipBanDecay());
+    }
+
 }

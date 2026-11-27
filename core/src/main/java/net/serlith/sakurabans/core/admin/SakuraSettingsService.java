@@ -21,6 +21,7 @@ import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.api.validation.FieldError;
 import net.serlith.sakurabans.core.configuration.ConfigIssue;
 import net.serlith.sakurabans.core.configuration.ConfigService;
+import net.serlith.sakurabans.core.configuration.EnvironmentOverrides;
 import net.serlith.sakurabans.core.configuration.ReloadResult;
 import net.serlith.sakurabans.core.configuration.SettingsLayers;
 import net.serlith.sakurabans.core.configuration.SettingsSchema;
@@ -36,10 +37,6 @@ import net.serlith.sakurabans.core.sync.SyncService;
 import net.serlith.sakurabans.core.util.Scopes;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Setting overrides per scope (D35): sparse layers over each server's {@code config.yml},
- * resolved by {@link ConfigService} as protocol 5.1 says.
- */
 public final class SakuraSettingsService {
 
     private static final String CATEGORIES = "scopes.categories";
@@ -120,12 +117,14 @@ public final class SakuraSettingsService {
         return new TreeMap<>(this.config.overrides(scope));
     }
 
-    /** Every scope that has overrides. */
     public Map<Scope, Map<String, String>> allOverrides() {
         return this.config.overrides();
     }
 
-    /** The scopes that apply to this server, the winning one first. */
+    public List<EnvironmentOverrides.Applied> environment() {
+        return this.config.environment();
+    }
+
     public List<Scope> layers() {
         return this.config.layers();
     }
@@ -134,7 +133,6 @@ public final class SakuraSettingsService {
         return this.config.fileValue(key).map(String::valueOf).orElse("");
     }
 
-    /** What applies without an override, as the file gives it (lists and maps stay so). */
     public Optional<Object> plainFileValue(final String key) {
         return this.config.fileValue(key);
     }
@@ -152,17 +150,14 @@ public final class SakuraSettingsService {
                 : this.config.inFile(key) ? ValueOrigin.FILE : ValueOrigin.DEFAULT;
     }
 
-    /** The scope whose override gives a key its value here, if one does. */
     public Optional<Scope> source(final String key) {
         return this.config.source(key);
     }
 
-    /** The global scope's version. */
     public long version() {
         return this.version(GlobalScope.INSTANCE);
     }
 
-    /** A scope's version: 1 for global until it changes, 0 for a scope never written. */
     public long version(final Scope scope) {
         return this.versions.get().getOrDefault(scope,
                 scope instanceof GlobalScope ? 1L : 0L);
@@ -185,7 +180,6 @@ public final class SakuraSettingsService {
         return this.change(GlobalScope.INSTANCE, set, reset, expectedVersion, actor);
     }
 
-    /** Sets and resets in one scope, in one write, under that scope's version. */
     public CompletableFuture<AdminResult<SettingsSnapshot>> change(final Scope scope,
             final Map<String, Object> set, final Set<String> reset, final long expectedVersion,
             final Actor actor) {
@@ -206,7 +200,6 @@ public final class SakuraSettingsService {
         return errors.isEmpty() ? this.check(this.next(scope, changes)) : errors;
     }
 
-    /** The overrides the change really alters (an override set to its current text doesn't). */
     public Map<String, @Nullable String> effective(final Scope scope,
             final Map<String, Object> set, final Set<String> reset) {
         final Map<String, @Nullable String> changes = new HashMap<>();
@@ -218,7 +211,6 @@ public final class SakuraSettingsService {
         return changes;
     }
 
-    /** A stored override's text as a plain tree. */
     public @Nullable Object decoded(final String text) {
         return this.decode(text);
     }
@@ -229,7 +221,6 @@ public final class SakuraSettingsService {
 
     // Other servers
 
-    /** Where an effective value comes from. */
     public record Effective(@Nullable Object value, @Nullable Scope scope) {
     }
 
@@ -290,11 +281,9 @@ public final class SakuraSettingsService {
         return new Effective(file, null);
     }
 
-    /** One scope's part of a change that several scopes make together. */
     public record Block(Scope scope, Map<String, Object> set, Set<String> reset) {
     }
 
-    /** An error of {@link #validateTogether}: {@code block} is -1 when no block names its key. */
     public record BlockError(int block, FieldError error) {
     }
 

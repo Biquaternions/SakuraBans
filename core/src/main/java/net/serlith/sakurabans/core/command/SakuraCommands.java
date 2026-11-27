@@ -1,7 +1,9 @@
 package net.serlith.sakurabans.core.command;
 
 import java.util.List;
+import java.util.Locale;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.serlith.sakurabans.core.message.MessageKey;
 import net.serlith.sakurabans.core.message.MessageService;
 import net.serlith.sakurabans.core.permission.Permissions;
@@ -41,7 +43,8 @@ public final class SakuraCommands {
                             context.exception().getCause());
                     return null;
                 })
-                .captionFormatter(ComponentCaptionFormatter.miniMessage())
+                .captionFormatter(ComponentCaptionFormatter.miniMessage(
+                        MiniMessage.miniMessage(), this.messages.currentStyles()))
                 .decorator((formatter, context, message) -> Component.empty()
                         .append(this.runner.render(context.context().sender(), MessageKey.PREFIX))
                         .append(message))
@@ -52,8 +55,19 @@ public final class SakuraCommands {
 
     private void help(final CommandManager<CommandActor> manager) {
         this.registrar.label(ROOT).ifPresent(root -> {
-            final MinecraftHelp<CommandActor> help =
-                    MinecraftHelp.create("/" + root + " help", manager, CommandActor::audience);
+            // The palette as it is at startup: the help menu's colours are fixed when built.
+            final Locale locale = this.messages.defaultLocale();
+            final MinecraftHelp<CommandActor> help = MinecraftHelp.<CommandActor>builder()
+                    .commandManager(manager)
+                    .audienceProvider(CommandActor::audience)
+                    .commandPrefix("/" + root + " help")
+                    .colors(MinecraftHelp.helpColors(
+                            this.messages.color(MessageKey.PALETTE_MAIN, locale),
+                            this.messages.color(MessageKey.PALETTE_ACCENT, locale),
+                            this.messages.color(MessageKey.PALETTE_HIGHLIGHT, locale),
+                            this.messages.color(MessageKey.PALETTE_MAIN, locale),
+                            this.messages.color(MessageKey.PALETTE_ACCENT, locale)))
+                    .build();
             this.registrar.builder(manager, ROOT, MessageKey.COMMAND_DESCRIPTION_SAKURABANS)
                     .ifPresent(builder -> manager.command(builder.literal("help")
                             .permission(Permissions.HELP)
