@@ -31,3 +31,11 @@ export function recentText(change: RecentChange): string {
   const what = change.kind === 'settings' && change.keys.length === 0 ? 'settings' : `${KINDS[change.kind]} ${recentSubject(change)}`
   return `${change.actor} ${verb} ${what} in ${change.scope}`
 }
+
+export const RECENT_TAB = 'recent'
+
+// The editor's tabs, in order: the sections you may edit, then Recent changes when the payload
+// carries any.
+export function editorTabs<T extends string>(sections: readonly T[], recentCount: number): (T | typeof RECENT_TAB)[] {
+  return recentCount > 0 ? [...sections, RECENT_TAB] : [...sections]
+}

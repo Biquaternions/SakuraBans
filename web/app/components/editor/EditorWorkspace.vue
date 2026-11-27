@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { TabsItem } from '@nuxt/ui'
 import { NOTE_TEXT } from '#shared/editor/rebase'
+import { editorTabs, RECENT_TAB } from '#shared/editor/recent'
 import type { Section } from '#shared/protocol/schema'
 import type { EditorSession } from '~/composables/useEditor'
 import { createEditorStore, EDITOR_STORE } from '~/composables/useEditor'
@@ -23,8 +24,11 @@ const LABELS: Record<Section, { label: string, icon: string }> = {
 const ORDER: Section[] = ['settings', 'messages', 'templates']
 const sections = computed(() => ORDER.filter(section => meta.value.sections.includes(section)))
 
-const tab = ref<string>(sections.value[0] ?? 'settings')
-watch(sections, (now) => {
+const recentCount = computed(() => (store.payload.value.recentChanges ?? []).length)
+const tabs = computed(() => editorTabs(sections.value, recentCount.value))
+
+const tab = ref<string>(tabs.value[0] ?? 'settings')
+watch(tabs, (now) => {
   if (!now.includes(tab.value as Section) && now[0]) {
     tab.value = now[0]
   }
@@ -34,12 +38,22 @@ function countFor(section: Section): number {
   return store.changes.value.filter(change => change.section === section).length
 }
 
-const items = computed<TabsItem[]>(() => sections.value.map(section => ({
-  label: LABELS[section].label,
-  icon: LABELS[section].icon,
-  value: section,
-  badge: countFor(section) > 0 ? { label: String(countFor(section)), color: 'primary', variant: 'subtle' } : undefined
-})))
+const items = computed<TabsItem[]>(() => [
+  ...sections.value.map(section => ({
+    label: LABELS[section].label,
+    icon: LABELS[section].icon,
+    value: section,
+    badge: countFor(section) > 0 ? { label: String(countFor(section)), color: 'primary' as const, variant: 'subtle' as const } : undefined
+  })),
+  ...(recentCount.value > 0
+    ? [{
+        label: 'Recent changes',
+        icon: 'i-lucide-history',
+        value: RECENT_TAB,
+        badge: { label: String(recentCount.value), color: 'neutral' as const, variant: 'subtle' as const }
+      }]
+    : [])
+])
 
 const now = ref(Date.now())
 let ticker: ReturnType<typeof setInterval> | undefined
@@ -209,7 +223,7 @@ onBeforeRouteLeave(() => {
       />
 
       <UTabs
-        v-if="sections.length > 1"
+        v-if="tabs.length > 1"
         v-model="tab"
         :items="items"
         :content="false"
@@ -271,7 +285,7 @@ onBeforeRouteLeave(() => {
       />
 
       <UAlert
-        v-if="store.isStale(tab as Section)"
+        v-if="tab !== RECENT_TAB && store.isStale(tab as Section)"
         class="mb-4"
         color="warning"
         variant="subtle"
@@ -284,9 +298,8 @@ onBeforeRouteLeave(() => {
         <EditorSettingsTab v-if="tab === 'settings' && sections.includes('settings')" />
         <EditorMessagesTab v-else-if="tab === 'messages' && sections.includes('messages')" />
         <EditorTemplatesTab v-else-if="tab === 'templates' && sections.includes('templates')" />
+        <EditorRecentChanges v-else-if="tab === 'recent' && recentCount > 0" />
       </KeepAlive>
-
-      <EditorRecentChanges />
     </UContainer>
 
     <EditorReviewModal v-model:open="reviewOpen" />

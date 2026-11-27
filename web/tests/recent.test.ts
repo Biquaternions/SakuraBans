@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { recentSubject, recentText } from '../shared/editor/recent'
+import { editorTabs, recentSubject, recentText } from '../shared/editor/recent'
 import { payloadSchema } from '../shared/protocol/schema'
 import type { RecentChange } from '../shared/protocol/schema'
 import { fixtureJson, fixturePayload } from './fixtures'
@@ -42,5 +42,17 @@ describe('recent changes (protocol 5.6)', () => {
     expect(recentSubject({ ...settings, keys: [] })).toBe('settings')
     expect(recentText({ ...settings, keys: [] })).toBe('Alex updated settings in server:skywars')
     expect(recentText({ ...templates, action: 'apply' })).toBe('Mod apply template lifesteal in global')
+  })
+})
+
+describe('the Recent changes tab', () => {
+  it('comes last, and only when there are changes', () => {
+    expect(editorTabs(['settings', 'messages', 'templates'], 3)).toEqual(['settings', 'messages', 'templates', 'recent'])
+    expect(editorTabs(['settings', 'messages', 'templates'], 0)).toEqual(['settings', 'messages', 'templates'])
+    expect(editorTabs([], 2)).toEqual(['recent'])
+  })
+
+  it('the fixture payload has entries to show in it', () => {
+    expect(editorTabs(['settings'], (fixturePayload().recentChanges ?? []).length)).toEqual(['settings', 'recent'])
   })
 })
