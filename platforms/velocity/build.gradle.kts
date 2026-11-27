@@ -55,6 +55,16 @@ tasks {
         relocate("com.google.protobuf", "$libs.protobuf")
         relocate("org.postgresql", "$libs.postgresql")
         relocate("org.hsqldb", "$libs.hsqldb")
+        relocate("com.maxmind", "$libs.maxmind")
+    }
+
+    // VelocityJarTest reads the shaded jar.
+    test {
+        val jar = shadowJar.flatMap { it.archiveFile }
+        inputs.file(jar).withPathSensitivity(PathSensitivity.NONE)
+        jvmArgumentProviders.add(CommandLineArgumentProvider {
+            listOf("-Dsakurabans.shadowJar=" + jar.get().asFile.absolutePath)
+        })
     }
 
     runVelocity {

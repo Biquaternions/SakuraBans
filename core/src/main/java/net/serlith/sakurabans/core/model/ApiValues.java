@@ -90,6 +90,7 @@ public final class ApiValues {
                 .override(options.override())
                 .enforce(options.enforce())
                 .bypassLimits(options.bypassLimits())
+                .originServer(options.originServer().orElse(null))
                 .build();
     }
 

@@ -1,7 +1,9 @@
 package net.serlith.sakurabans.core.alts;
 
+import java.net.InetAddress;
 import java.time.Instant;
 import java.time.InstantSource;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,6 +13,7 @@ import java.util.concurrent.CompletableFuture;
 import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.player.AltEntry;
+import net.serlith.sakurabans.core.configuration.settings.Settings;
 import net.serlith.sakurabans.core.model.SakuraAltEntry;
 import net.serlith.sakurabans.core.player.AltLookup;
 import net.serlith.sakurabans.core.storage.repository.AltPolicy;
@@ -76,6 +79,28 @@ public final class AltService implements AltLookup {
 
     private static SakuraAltEntry own(final PlayerRepository.Link link) {
         return new SakuraAltEntry(link.account(), link.shared(), Set.of());
+    }
+
+    public static List<AltEntry> visible(final List<AltEntry> alts,
+            final Settings.HiddenPlayers hidden) {
+        if (hidden.empty()) {
+            return alts;
+        }
+        final List<AltEntry> visible = new ArrayList<>();
+        for (final AltEntry alt : alts) {
+            if (hidden.hidesPlayer(alt.account().uuid(), alt.account().name())) {
+                continue;
+            }
+            final List<InetAddress> shared = alt.sharedAddresses().stream()
+                    .filter(address -> !hidden.hidesAddress(address))
+                    .toList();
+            if (shared.isEmpty() && !alt.sharedAddresses().isEmpty()) {
+                continue;
+            }
+            visible.add(shared.size() == alt.sharedAddresses().size() ? alt
+                    : new SakuraAltEntry(alt.account(), shared, alt.activePunishments()));
+        }
+        return List.copyOf(visible);
     }
 
     public static boolean anyPunished(final List<AltEntry> alts) {

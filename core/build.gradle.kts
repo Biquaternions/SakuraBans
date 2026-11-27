@@ -19,6 +19,8 @@ dependencies {
     implementation(libs.mysql)
     implementation(libs.postgresql)
     implementation(libs.hsqldb)
+    // GeoIP (S72): only geoip.MaxMindCountryDatabase names it, and only when geoip.enabled.
+    implementation(libs.maxmind.db)
 
     // Shaded and relocated on every platform (plan 3.3, 3.4): the servers' copies are never used.
     implementation(libs.guava)
@@ -26,6 +28,11 @@ dependencies {
 
     // Optional at runtime: only LuckPermsBridge touches it, after checking it is installed.
     compileOnly(libs.luckperms.api)
+    // Optional at runtime (S73): only placeholder.MiniPlaceholdersBridge touches it, after the
+    // platform found the plugin enabled. Its one dependency (an injector) isn't needed.
+    compileOnly(libs.miniplaceholders.api) {
+        isTransitive = false
+    }
     compileOnly(platform(libs.adventure.bom))
     compileOnly(libs.adventure.api)
     compileOnly(libs.adventure.text.minimessage)
@@ -43,6 +50,9 @@ dependencies {
     testImplementation(libs.adventure.text.minimessage)
     testImplementation(libs.adventure.text.serializer.plain)
     testImplementation(libs.slf4j.api)
+    testImplementation(libs.miniplaceholders.api) {
+        isTransitive = false
+    }
     // Brigadier as Paper uses it, to test suggestions the way clients get them (S31 review).
     testImplementation(libs.cloud.brigadier)
     testImplementation(libs.brigadier)

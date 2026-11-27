@@ -7,7 +7,13 @@ dependencies {
     implementation(project(":core"))
     implementation(libs.cloud.paper)
     compileOnly(libs.paper.api)
+    // Provided by the PlaceholderAPI plugin when installed (S73); never shaded or listed.
+    compileOnly(libs.placeholderapi)
     testImplementation(libs.paper.api)
+    testImplementation(libs.placeholderapi)
+    testImplementation(libs.miniplaceholders.api) {
+        isTransitive = false
+    }
 }
 
 val shadedOnPaper = setOf("com.google.guava", "com.google.code.gson")

@@ -31,9 +31,9 @@ class AltQueriesTest extends DatabaseTest {
 
     @BeforeEach
     void fixture() throws Exception {
-        this.punishments = new PunishmentRepository(this.storage,
+        this.punishments = new PunishmentRepository(this.storage, this.hasher,
                 new PunishmentMapper(Long::toString));
-        this.players = new PlayerRepository(this.storage);
+        this.players = new PlayerRepository(this.storage, this.hasher);
         this.shared = InetAddress.getByName("203.0.113.2");
         this.players.recordConnection(STEVE, "Steve", this.now.get(), this.shared, null).join();
         this.players.recordConnection(ALEX, "Alex", this.now.get(), this.shared, null).join();

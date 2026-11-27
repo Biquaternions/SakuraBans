@@ -1,7 +1,12 @@
 package net.serlith.sakurabans.core.permission;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Predicate;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.CategoryScope;
 import net.serlith.sakurabans.api.model.GlobalScope;
@@ -21,14 +26,16 @@ public final class AuthorizationService {
     private final ExemptionService exemption;
     private final PunishmentRepository punishments;
     private final ConfigService config;
+    private final TemplateGuard templates;
 
     public AuthorizationService(final PermissionService permissions,
             final ExemptionService exemption, final PunishmentRepository punishments,
-            final ConfigService config) {
+            final ConfigService config, final TemplateGuard templates) {
         this.permissions = permissions;
         this.exemption = exemption;
         this.punishments = punishments;
         this.config = config;
+        this.templates = templates;
     }
 
     /**
@@ -95,9 +102,52 @@ public final class AuthorizationService {
                 case EXPUNGE -> this.all(actor, Permissions.delete(type));
             };
             return allowed.thenCompose(decision -> decision.allowed()
-                    ? this.protectedIssuer(actor, punishment)
-                    : CompletableFuture.completedFuture(decision));
+                            ? this.protectedIssuer(actor, punishment)
+                            : CompletableFuture.completedFuture(decision))
+                    .thenCompose(decision -> decision.allowed()
+                            ? this.templateNode(actor, punishment)
+                            : CompletableFuture.completedFuture(decision));
         });
+    }
+
+    private CompletableFuture<Decision> templateNode(final Actor actor,
+            final Punishment punishment) {
+        final Optional<String> guarded = punishment.template().flatMap(this.templates::guarding);
+        if (guarded.isEmpty()) {
+            return CompletableFuture.completedFuture(Decision.ALLOWED);
+        }
+        return this.all(actor, Permissions.template(guarded.get())).thenApply(decision ->
+                decision.allowed() ? decision : Decision.TEMPLATE_PROTECTED);
+    }
+
+    /**
+     * Which existing punishments a punish with an override policy may end (S68): those whose
+     * template doesn't guard them, or whose template's node the actor has. Decided before the
+     * insert, so the transaction asks only the cache.
+     */
+    public CompletableFuture<Predicate<Punishment>> replaceable(final Actor actor) {
+        final Set<String> guarded = this.templates.guardedNames();
+        if (guarded.isEmpty()) {
+            return CompletableFuture.completedFuture(punishment -> true);
+        }
+        final List<String> names = List.copyOf(guarded);
+        final List<CompletableFuture<Boolean>> checks = new ArrayList<>();
+        for (final String name : names) {
+            checks.add(this.permissions.hasAll(actor, List.of(Permissions.template(name))));
+        }
+        return CompletableFuture.allOf(checks.toArray(CompletableFuture[]::new))
+                .thenApply(ignored -> {
+                    final Set<String> allowed = new HashSet<>();
+                    for (int i = 0; i < names.size(); i++) {
+                        if (checks.get(i).join()) {
+                            allowed.add(names.get(i));
+                        }
+                    }
+                    return punishment -> punishment.template()
+                            .flatMap(this.templates::guarding)
+                            .map(allowed::contains)
+                            .orElse(true);
+                });
     }
 
     private CompletableFuture<Decision> protectedIssuer(final Actor actor,

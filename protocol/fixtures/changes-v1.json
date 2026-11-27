@@ -83,7 +83,8 @@
         "reason": "Advertising",
         "duration": "1d",
         "message": "<red>No advertising.</red>",
-        "display": "dialog"
+        "display": "dialog",
+        "silent": true
       }
     },
     {

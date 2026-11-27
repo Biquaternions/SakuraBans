@@ -29,7 +29,10 @@ public interface AltPolicy {
 
     Set<InetAddress> allowedAddresses();
 
-    /** Address records not seen for this long don't count. */
     Optional<Duration> recordExpiration();
+
+    default Optional<Duration> ipBanDecay() {
+        return Optional.empty();
+    }
 
 }
