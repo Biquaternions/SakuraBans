@@ -34,7 +34,7 @@ final class ApplicabilityConditions {
     }
 
     /**
-     * Whether a punishment applies (its victim among {@link #victimIds}), with S69's
+     * Whether a punishment applies (its victim among {@link #victimIds}), with
      * {@code enforcement.ip-ban-decay}: a composite ban older than the decay no longer
      * reaches through its address, only through its player (by UUID, and the alts the
      * strictness gives a player ban). Plain address bans, ranges and mutes are untouched.

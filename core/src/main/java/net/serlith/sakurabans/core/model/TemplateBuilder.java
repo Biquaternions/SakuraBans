@@ -26,7 +26,7 @@ import org.jspecify.annotations.Nullable;
  * the editor, a command or a stored row fills it in, {@link #validate()} lists every problem
  * and {@link #build()} makes the record. Error paths are the keys of {@code templates.yml}.
  * {@code variant}: the server or category the definition is in force for, null for the global
- * definition (S62); a variant has no groups of its own.
+ * definition; a variant has no groups of its own.
  */
 public final class TemplateBuilder {
 

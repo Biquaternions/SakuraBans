@@ -6,11 +6,10 @@
 <!--
     SakuraBans Checkstyle configuration.
 
-    Based on google_checks.xml from Checkstyle 14.4.0, with the project deviations
-    (IMPLEMENTATION_PLAN.md 4, DESIGN.md 11.4):
+    Based on google_checks.xml from Checkstyle 14.4.0, with the project deviations:
       - 4-space indentation, +8 for continuation lines;
       - every violation is an error;
-      - fluent naming (plan 4.4): no new get/set/is accessors;
+      - fluent naming: no new get/set/is accessors;
       - import bans that keep api and core platform-neutral (scoped in suppressions.xml).
  -->
 
@@ -432,7 +431,7 @@
                                  or self::RECORD_DEF or self::ENUM_DEF]
                                  [not(./MODIFIERS/LITERAL_PUBLIC)]]"/>
     </module>
-    <!-- SakuraBans: the local Impl inside an API factory (plan 4.3) is private. -->
+    <!-- SakuraBans: the local Impl inside an API factory is private. -->
     <module name="SuppressionXpathSingleFilter">
       <property name="checks" value="MissingJavadocType|MissingJavadocMethod"/>
       <property name="query" value="//METHOD_DEF//RECORD_DEF | //METHOD_DEF//CLASS_DEF
@@ -480,17 +479,17 @@
                 and following-sibling::SEMI]"/>
     </module>
 
-    <!-- SakuraBans: fluent naming (plan 4.4). Overrides keep the third-party name. -->
+    <!-- SakuraBans: fluent naming. Overrides keep the third-party name. -->
     <module name="MatchXpath">
       <property name="id" value="fluentNaming"/>
       <property name="query" value="//METHOD_DEF[not(./MODIFIERS/ANNOTATION/IDENT[@text='Override'])]
           [./IDENT[matches(@text, '^(get|set)[A-Z0-9]')]
           or (./IDENT[matches(@text, '^is[A-Z0-9]')] and not(./PARAMETERS/PARAMETER_DEF))]"/>
       <message key="matchxpath.match"
-          value="Fluent naming (plan 4.4): name accessors and setters after the property, without get/set/is."/>
+          value="Fluent naming: name accessors and setters after the property, without get/set/is."/>
     </module>
 
-    <!-- SakuraBans: api and core stay platform-neutral and framework-free (plan 5.1, D9, D12). -->
+    <!-- SakuraBans: api and core stay platform-neutral and framework-free. -->
     <!-- No Optional parameters or record components: absent values are @Nullable (CLAUDE.md).
          Only the declared type counts, so a Function returning an Optional is fine. The only
          exception: the api's local records (Impl in of methods and builders), see
@@ -518,13 +517,13 @@
           javax.inject"/>
     </module>
 
-    <!-- SakuraBans: only geoip.MaxMindCountryDatabase names MaxMind's reader (S72). -->
+    <!-- SakuraBans: only geoip.MaxMindCountryDatabase names MaxMind's reader. -->
     <module name="IllegalImport">
       <property name="id" value="maxmindImports"/>
       <property name="illegalPkgs" value="com.maxmind"/>
     </module>
 
-    <!-- SakuraBans: the public API exposes only records, Adventure and jspecify (plan 4.3). -->
+    <!-- SakuraBans: the public API exposes only records, Adventure and jspecify. -->
     <module name="IllegalImport">
       <property name="id" value="apiImports"/>
       <property name="illegalPkgs" value="lombok, org.jooq, org.incendo,

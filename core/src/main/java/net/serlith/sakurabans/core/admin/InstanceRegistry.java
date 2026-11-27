@@ -28,7 +28,7 @@ import net.serlith.sakurabans.core.util.Futures;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The servers of the network (D35): each instance writes its name, categories, platform,
+ * The servers of the network: each instance writes its name, categories, platform,
  * version and file values at start, on reload and on every heartbeat.
  */
 public final class InstanceRegistry {

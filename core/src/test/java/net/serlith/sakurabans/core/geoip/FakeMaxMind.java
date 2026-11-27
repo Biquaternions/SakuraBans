@@ -23,7 +23,7 @@ import java.util.zip.GZIPOutputStream;
 import org.jspecify.annotations.Nullable;
 
 /**
- * MaxMind's download service as the plan describes it: basic auth on
+ * MaxMind's download service as the plugin uses it: basic auth on
  * {@code /geoip/databases/GeoLite2-Country/download}, {@code HEAD} with {@code Last-Modified},
  * the checksum at {@code suffix=tar.gz.sha256}, and the archive as a redirect to a storage
  * path with a signed query.

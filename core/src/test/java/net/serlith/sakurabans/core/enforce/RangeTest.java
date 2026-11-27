@@ -18,7 +18,7 @@ import net.serlith.sakurabans.core.util.Cidrs;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** Address ranges at login, in the mute cache and online (plan S30). */
+/** Address ranges at login, in the mute cache and online. */
 class RangeTest extends ServiceTest {
 
     private static final AddressRangeVictim TEN = Cidrs.parse("10.0.0.0/8").orElseThrow();

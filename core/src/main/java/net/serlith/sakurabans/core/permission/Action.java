@@ -8,7 +8,7 @@ public sealed interface Action {
 
     /**
      * {@code requiredTemplate}: the preset's name when it has {@code permission-required}, so
-     * its node {@code sakurabans.template.<name>} is needed too (S63); null otherwise.
+     * its node {@code sakurabans.template.<name>} is needed too; null otherwise.
      */
     record Punish(PunishmentType type, @Nullable Scope scope, @Nullable String requiredTemplate)
             implements Action {
@@ -18,7 +18,7 @@ public sealed interface Action {
         }
     }
 
-    /** D37: a ladder needs {@code sakurabans.punish}, not the permission of its step's type. */
+    /** A ladder needs {@code sakurabans.punish}, not the permission of its step's type. */
     record ApplyLadder(String ladder, boolean permissionRequired, @Nullable Scope scope)
             implements Action {
     }

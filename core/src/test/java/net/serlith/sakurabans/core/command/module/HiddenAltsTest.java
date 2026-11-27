@@ -15,7 +15,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** S68: {@code alts.hidden-players} in /alts, /ipreport and the join notification. */
+/** {@code alts.hidden-players} in /alts, /ipreport and the join notification. */
 class HiddenAltsTest extends CommandTest {
 
     private static final UUID BOB = UUID.fromString("2b1c9e5a-7f3d-4c8e-9a6b-1d2e3f4a5b6c");

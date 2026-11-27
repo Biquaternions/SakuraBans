@@ -89,7 +89,7 @@ import org.jspecify.annotations.Nullable;
 
 public final class SakuraPunishmentService implements PunishmentService {
 
-    /** How often a ladder apply is counted again after a concurrent one (S64). */
+    /** How often a ladder apply is counted again after a concurrent one. */
     static final int APPLY_ATTEMPTS = 3;
 
     private final Lifecycle lifecycle;
@@ -166,7 +166,7 @@ public final class SakuraPunishmentService implements PunishmentService {
 
     /**
      * Disconnects an online player with the kick screen without storing, announcing or posting
-     * anything (S67: {@code /kick --no-record} and {@code enforcement.kick-ignored-reasons}).
+     * anything ({@code /kick --no-record} and {@code enforcement.kick-ignored-reasons}).
      * Not part of the API: {@link #punish} of a kick always records it. The authorization and
      * exemption checks are those of a kick; limits, cooldowns and the create event don't apply
      * because no punishment is made. Empty when the player was sent away (or isn't online
@@ -214,7 +214,7 @@ public final class SakuraPunishmentService implements PunishmentService {
             return CompletableFuture.failedFuture(e);
         }
         return this.whenRunning().thenCompose(ignored -> {
-            // The variant in force where it is applied (S62); progress is shared by name.
+            // The variant in force where it is applied; progress is shared by name.
             final StoredTemplate found = this.templates.resolve(checked.ladder(),
                     checked.scope().orElse(null), checked.actor()).orElse(null);
             if (found == null) {
@@ -234,7 +234,7 @@ public final class SakuraPunishmentService implements PunishmentService {
 
     /**
      * Counts the step, applies it, and stores the use only if the count still holds under the
-     * victim's lock (S64). The step is counted up front because what is checked depends on its
+     * victim's lock. The step is counted up front because what is checked depends on its
      * type (exemption, limits, the create event); when a concurrent apply on the same victim
      * was stored in between, the whole apply runs again from the count. After
      * {@link #APPLY_ATTEMPTS} attempts the last count is stored as it is. An
@@ -267,7 +267,7 @@ public final class SakuraPunishmentService implements PunishmentService {
                 });
     }
 
-    /** A victim in a log line: its UUID, never an address (S64). */
+    /** A victim in a log line: its UUID, never an address. */
     private static String logged(final Victim victim) {
         return switch (victim) {
             case PlayerVictim player -> player.uuid().toString();
@@ -405,7 +405,7 @@ public final class SakuraPunishmentService implements PunishmentService {
     }
 
     /**
-     * Posts the create event. A ladder step applied again after a concurrent apply (S64) posts
+     * Posts the create event. A ladder step applied again after a concurrent apply posts
      * it once per attempt.
      */
     private boolean cancelled(final PunishmentFactory.Prepared.Ready ready,
@@ -487,7 +487,7 @@ public final class SakuraPunishmentService implements PunishmentService {
     }
 
     /**
-     * After a use is stored: its event, then the template's actions (S64: run here, with the
+     * After a use is stored: its event, then the template's actions (Run here, with the
      * definition that was applied, right after the event's handlers, where the actions'
      * {@code MONITOR} subscription used to run them).
      */

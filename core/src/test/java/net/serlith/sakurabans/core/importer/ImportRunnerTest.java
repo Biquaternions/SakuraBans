@@ -26,7 +26,7 @@ import org.assertj.core.api.Assertions;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
-/** The import runner (plan S38): batches, dry runs, re-runs, failures, ends, supersession. */
+/** The import runner: batches, dry runs, re-runs, failures, ends, supersession. */
 class ImportRunnerTest extends ImportTest {
 
     private final FakeSource source = new FakeSource();

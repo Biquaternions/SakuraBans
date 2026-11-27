@@ -330,7 +330,7 @@ class EditorSiteInteropTest extends CommandTest {
                 .filter(item -> item.get("name").getAsString().equals("interop_mixed"))
                 .findFirst().orElseThrow().getAsJsonObject("definition")
                 .getAsJsonArray("steps")).hasToString("[\"kick\",\"mute 1h\",\"ban 7d\"]");
-        // The variant travels as its own item, with its scope (S62).
+        // The variant travels as its own item, with its scope.
         Assertions.assertThat(fresh.payload().getAsJsonObject("templates")
                 .getAsJsonArray("items").asList().stream().map(JsonElement::getAsJsonObject)
                 .filter(item -> item.get("name").getAsString().equals("interop_mixed"))

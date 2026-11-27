@@ -12,7 +12,7 @@ import org.bukkit.plugin.Plugin;
 import org.junit.jupiter.api.Test;
 
 /**
- * S64: {@code showNotice} says whether the dialog was handed to the player's thread. The dialog
+ * {@code showNotice} says whether the dialog was handed to the player's thread. The dialog
  * itself needs a running server (its registry), so the scheduled task is never run here.
  */
 class PaperOnlinePlayerTest {

@@ -18,7 +18,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** The queries behind alts and ranges (S29, S30); the integration tests run them everywhere. */
+/** The queries behind alts and ranges; the integration tests run them everywhere. */
 class AltQueriesTest extends DatabaseTest {
 
     private static final UUID STEVE = UUID.fromString("8667ba71-b85a-4004-af54-457a9734eed7");

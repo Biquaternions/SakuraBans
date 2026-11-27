@@ -45,7 +45,7 @@ final class VelocityLoginListener {
                     if (decision instanceof LoginDecision.Denied denied) {
                         event.setResult(ResultedEvent.ComponentResult.denied(denied.screen()));
                     } else if (decision instanceof LoginDecision.Allowed allowed) {
-                        // A banned player let in (S68): told on their first server.
+                        // A banned player let in: told on their first server.
                         allowed.notice().ifPresent(notice -> this.notices.put(
                                 event.getPlayer().getUniqueId(), notice));
                     }

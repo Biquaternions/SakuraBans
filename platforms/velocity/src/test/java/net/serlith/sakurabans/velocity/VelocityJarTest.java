@@ -13,7 +13,7 @@ import java.util.zip.ZipFile;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** The shaded jar a proxy owner installs (plan 3.4); the build passes its path. */
+/** The shaded jar a proxy owner installs; the build passes its path. */
 class VelocityJarTest {
 
     private static Path jar() {

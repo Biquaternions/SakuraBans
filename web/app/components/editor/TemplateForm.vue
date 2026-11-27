@@ -38,7 +38,7 @@ function issuesUnder(path: string): string[] {
 
 const renamed = computed(() => form.value.origin !== null && form.value.origin !== form.value.name)
 
-// ---- Variant (S62) ----
+// ---- Variant ----
 const isVariant = computed(() => form.value.variant !== GLOBAL)
 const global = computed(() => (isVariant.value
   ? store.draft.templates.find(other => other.variant === GLOBAL && other.name === form.value.name) ?? null
@@ -75,7 +75,7 @@ function undoKindChange() {
   }
 }
 
-/** The commands whose -t takes this preset (S59: the temp commands only take open ones). */
+/** The commands whose -t takes this preset (The temp commands only take open ones). */
 const presetCommands = computed(() => {
   const current = form.value
   if (current.kind !== 'preset') {

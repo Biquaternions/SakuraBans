@@ -17,7 +17,7 @@ import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** /sb import (plan S38). */
+/** /sb import. */
 class ImportCommandsTest extends CommandTest {
 
     private final FakeSource source = new FakeSource();

@@ -41,7 +41,7 @@ public final class AuthorizationService {
     /**
      * Whether the actor may do this. A player actor (or a custom operator with a UUID) who is
      * online is checked with their live permissions; one who isn't, with the offline
-     * permissions (LuckPerms), and is denied without them (S64, D38). The console and a custom
+     * permissions (LuckPerms), and is denied without them. The console and a custom
      * operator without a UUID pass every permission check.
      */
     public CompletableFuture<Decision> check(final Actor actor, final Action action) {
@@ -121,7 +121,7 @@ public final class AuthorizationService {
     }
 
     /**
-     * Which existing punishments a punish with an override policy may end (S68): those whose
+     * Which existing punishments a punish with an override policy may end: those whose
      * template doesn't guard them, or whose template's node the actor has. Decided before the
      * insert, so the transaction asks only the cache.
      */

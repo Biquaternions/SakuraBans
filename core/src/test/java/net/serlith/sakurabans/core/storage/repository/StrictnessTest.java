@@ -28,7 +28,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * Every address strictness against one fixture (plan S28). The integration tests run it on
+ * Every address strictness against one fixture. The integration tests run it on
  * MariaDB, MySQL and PostgreSQL.
  *
  * <pre>

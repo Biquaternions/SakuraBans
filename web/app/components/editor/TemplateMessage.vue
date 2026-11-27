@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// A template's or a step's message (decisions D36, D37): what the punished player sees instead of the
+// A template's or a step's message: what the punished player sees instead of the
 // network's message for that type, with that message's placeholders and a preview.
 import { NETWORK_COUNT_TAGS, messageTagsKnown } from '#shared/editor/countTags'
 import { MAX_MESSAGE } from '#shared/editor/limits'

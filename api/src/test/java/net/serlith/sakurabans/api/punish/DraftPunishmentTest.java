@@ -79,7 +79,7 @@ class DraftPunishmentTest {
     @Test
     void templatesAreNormalisedAndMayComeWithDurations() {
         assertThat(ban().template("Hacking").build().template()).contains("hacking");
-        // Whether the preset takes it is decided when it is applied (D37).
+        // Whether the preset takes it is decided when it is applied.
         assertThat(ban().template("hacking").duration(Duration.ofDays(1)).build().duration())
                 .contains(Duration.ofDays(1));
         assertThatThrownBy(() -> ban().template("hacking").duration(Duration.ZERO).build())

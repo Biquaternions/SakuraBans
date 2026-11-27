@@ -1,7 +1,7 @@
 // Templates in the editor: an editable form model, its conversion to and from the protocol's
 // definition (protocol section 5.4), validation and the summary line.
 //
-// A template has a kind (decision D37). A preset (`type: ban|mute|warn|kick`) fills in one
+// A template has a kind. A preset (`type: ban|mute|warn|kick`) fills in one
 // punishment of its type and may fix its duration. A ladder (`type: ladder`) holds the
 // escalation: steps that each name their own type, or `none` (no punishment, only actions).
 // The definition is the templates.yml tree as the plugin writes it (TemplateFiles.tree):
@@ -60,9 +60,9 @@ interface CommonForm {
   groups: TemplateGroupForm[]
   /** Empty: the network's message for the punishment's type. */
   message: string
-  /** How the mute notice and the warning reach an online player (S61); chat by default. */
+  /** How the mute notice and the warning reach an online player; chat by default. */
   display: TemplateDisplay
-  /** Its punishments are silent unless the command hides them further (S68). */
+  /** Its punishments are silent unless the command hides them further. */
   silent: boolean
   /** Keys this site doesn't know (or that don't belong to this kind), kept as they came. */
   extra: Record<string, JsonValue>
@@ -98,7 +98,7 @@ const LADDER_KEYS = new Set(['type', 'ip', 'shadow', 'scope', 'reason', 'steps',
   'address-shared', 'permission-required', 'actions', 'groups', 'message', 'display', 'silent'])
 const STEP_KEYS = new Set(['step', 'reason', 'message', 'actions'])
 
-/** Keys of the format before D37, with what replaced them (TemplateFiles.REPLACED). */
+/** Keys of the format before typed templates, with what replaced them (TemplateFiles.REPLACED). */
 export const REPLACED_KEYS: Readonly<Record<string, string>> = {
   'ladder': 'use \'type: ladder\' and \'steps\' (each step names its type: warn, kick, mute 1h, ban 7d, none)',
   'ladder-expiry': 'use \'expiry\'',
@@ -407,7 +407,7 @@ function asText(value: unknown): string | null {
 /**
  * Reads one template from a tree of maps, lists and scalars (a payload definition, or a template
  * of a templates.yml), with the plugin's rules for each key. A key this site doesn't know is
- * kept in `extra`; a key of the format before D37 is an error naming its replacement.
+ * kept in `extra`; a key of the format before typed templates is an error naming its replacement.
  */
 export function readTemplate(name: string, tree: unknown): ReadTemplate {
   const errors: FieldIssue[] = []
@@ -945,7 +945,7 @@ export function summarizeTemplate(form: TemplateForm, all: readonly TemplateForm
 
 /**
  * The templates as templates.yml writes them (for the YAML export): global definitions under
- * `templates`, variants (S62, `variant` other than `global`) under `variants.<scope>`.
+ * `templates`, variants (`variant` other than `global`) under `variants.<scope>`.
  */
 export function templatesToYamlObject(forms: ReadonlyArray<TemplateForm & { variant?: string }>): {
   templates: Record<string, TemplateDefinition>

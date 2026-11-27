@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Templates per definition scope (S62): `global` holds every template's global definition; a
+// Templates per definition scope: `global` holds every template's global definition; a
 // server or category holds the variants in force there, whole definitions of the same kind.
 import type { TemplateDraft } from '#shared/editor/draft'
 import { templateKey } from '#shared/editor/draft'

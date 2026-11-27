@@ -91,7 +91,7 @@ public final class TemplateCommands implements CommandModule {
                 .ifPresent(root -> {
                     final var templates = root.literal("templates")
                             .permission(Permissions.ADMIN_TEMPLATES);
-                    // A scope names the variants there; none means global (D36, S62).
+                    // A scope names the variants there; none means global.
                     manager.command(templates.literal("list")
                             .optional(SCOPE, this.scopes.configDescriptor())
                             .handler(context -> this.list(context.sender(),
@@ -208,7 +208,7 @@ public final class TemplateCommands implements CommandModule {
     }
 
     /**
-     * Forgets ladder progress (D37, S64): the uses one template (or every template) counts for
+     * Forgets ladder progress: the uses one template (or every template) counts for
      * a player or an address, their alts' and addresses' too for an {@code address-shared}
      * ladder. The confirmation says how many uses of how many victims would go.
      */

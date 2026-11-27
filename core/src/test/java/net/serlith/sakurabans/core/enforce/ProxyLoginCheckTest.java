@@ -16,7 +16,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 /**
- * S68: a proxy's {@code servers-without-login-check}. "gone" isn't a backend, so connecting
+ * A proxy's {@code servers-without-login-check}. "gone" isn't a backend, so connecting
  * there fails and the next server is tried; network-kick is ignored on a proxy.
  */
 class ProxyLoginCheckTest extends ServiceTest {

@@ -78,7 +78,7 @@ public final class SbPunishments extends SbTable<SbPunishmentsRecord> {
     public final TableField<SbPunishmentsRecord, Short> TEMPLATE_STEP = createField(
             DSL.name("template_step"), SQLDataType.SMALLINT.nullable(true), this, "");
 
-    /** The variant of the template it came from (S62); null: the global definition. */
+    /** The variant of the template it came from; null: the global definition. */
     public final TableField<SbPunishmentsRecord, Integer> TEMPLATE_VARIANT_SCOPE_ID =
             createField(DSL.name("template_variant_scope_id"),
                     SQLDataType.INTEGER.nullable(true), this, "");

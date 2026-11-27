@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * S72: with GeoIP off, no class of MaxMind's reader and not {@link MaxMindCountryDatabase} is
+ * With GeoIP off, no class of MaxMind's reader and not {@link MaxMindCountryDatabase} is
  * loaded. Our classes are loaded again by a loader that records them and that can't see
  * {@code com.maxmind}, as on a server where the library is missing.
  */

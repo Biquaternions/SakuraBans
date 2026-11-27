@@ -38,7 +38,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** D37: ladders whose steps name their own type or none, applied with {@code applyLadder}. */
+/** Ladders whose steps name their own type or none, applied with {@code applyLadder}. */
 class LadderTest extends ServiceTest {
 
     private static final UUID HELPER = UUID.fromString("3a7b4f1c-0f0e-4c1e-9d55-6c1f2b4a8e01");
@@ -260,7 +260,7 @@ class LadderTest extends ServiceTest {
 
     @Test
     void templateMessagesReachEveryEnforcementPath() {
-        // A scoped network message (S53) still gives way to the template's.
+        // A scoped network message still gives way to the template's.
         this.messageTemplates.change(ServerScope.of("lobby"), Locale.US, Map.of(
                 "screen.ban_temporary",
                 "Lobby screen: <reason>"), Set.of(), 0, CONSOLE).join();

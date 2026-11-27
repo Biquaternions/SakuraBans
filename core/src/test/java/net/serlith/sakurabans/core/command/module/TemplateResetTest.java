@@ -23,7 +23,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * S64: {@code /sb templates reset <player|address> [template]} deletes what each ladder counts
+ * {@code /sb templates reset <player|address> [template]} deletes what each ladder counts
  * for the target, alts and addresses included for an {@code address-shared} ladder.
  */
 class TemplateResetTest extends CommandTest {

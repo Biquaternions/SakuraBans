@@ -11,7 +11,7 @@ import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** S66: the address hash key is never stored, exported, uploaded or logged. */
+/** The address hash key is never stored, exported, uploaded or logged. */
 class AddressHashKeySecrecyTest extends EditorTest {
 
     @Test

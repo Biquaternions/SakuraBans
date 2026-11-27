@@ -43,7 +43,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
-/** Exporting and erasing a player's data by the rules of D28 (plan S37g and its revision). */
+/** Exporting and erasing a player's data. */
 class PlayerDataTest extends ServiceTest {
 
     private static final Actor STEVE_STAFF = Actor.of(PlayerOperator.of(STEVE, "Steve"),

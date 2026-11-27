@@ -70,7 +70,7 @@ final class VelocityPlatform implements Platform {
         return this.identity;
     }
 
-    /** Velocity has no profile lookup: a proxy resolves only names it has seen (plan 6.2). */
+    /** Velocity has no profile lookup: a proxy resolves only names it has seen. */
     @Override
     public ProfileLookup profiles() {
         return ProfileLookup.NONE;

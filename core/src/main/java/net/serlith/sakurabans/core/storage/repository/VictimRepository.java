@@ -86,7 +86,7 @@ public final class VictimRepository {
 
     /**
      * The victim's row, created if needed, locked ({@code FOR UPDATE}) until the transaction
-     * ends: applies of a ladder to one victim store their uses one after the other (S64).
+     * ends: applies of a ladder to one victim store their uses one after the other.
      */
     static long lock(final DSLContext dsl, final AddressHasher hasher, final Victim victim) {
         final long id = resolve(dsl, hasher, victim);

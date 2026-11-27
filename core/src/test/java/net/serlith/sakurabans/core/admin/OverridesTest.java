@@ -26,7 +26,7 @@ import net.serlith.sakurabans.core.sync.SyncPacket;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** Network settings, message overrides and the formatter (plan S37a). */
+/** Network settings, message overrides and the formatter. */
 class OverridesTest extends ServiceTest {
 
     @Override

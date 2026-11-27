@@ -25,7 +25,7 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * Starts a {@link StorageService} on a fresh database for every test: H2 here, and MariaDB,
  * MySQL or PostgreSQL in the integration tests, which subclass the same tests and override
- * {@link #database()} (S16).
+ * {@link #database()}.
  */
 public abstract class DatabaseTest {
 
@@ -51,7 +51,7 @@ public abstract class DatabaseTest {
         return "";
     }
 
-    /** The process environment the configuration reads (S71); none by default. */
+    /** The process environment the configuration reads; none by default. */
     protected Map<String, String> environment() {
         return Map.of();
     }

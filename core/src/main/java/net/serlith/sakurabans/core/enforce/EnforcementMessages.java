@@ -37,7 +37,7 @@ public final class EnforcementMessages {
 
     /**
      * {@code templates}: the definition a punishment came from, in memory (no database
-     * access): its variant, else the global definition (S62).
+     * access): its variant, else the global definition.
      */
     public EnforcementMessages(final MessageService messages, final Placeholders placeholders,
             final NameCache names, final Function<TemplateRef, Optional<TemplateInfo>> templates,

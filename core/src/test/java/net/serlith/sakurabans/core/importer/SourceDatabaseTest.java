@@ -18,7 +18,7 @@ import org.jooq.Record;
 import org.jooq.exception.DataAccessException;
 import org.junit.jupiter.api.Test;
 
-/** A JDBC source end to end, on HSQLDB, the way S39-S41 sources work. */
+/** A JDBC source end to end, on HSQLDB, the way the importers' sources work. */
 class SourceDatabaseTest extends ImportTest {
 
     /** Reads the made-up plugin of {@code import/example/fixture.sql}. */

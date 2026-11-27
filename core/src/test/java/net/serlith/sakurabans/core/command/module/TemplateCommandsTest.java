@@ -18,7 +18,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** {@code --template} and reason shortcuts in punish commands, and /sb templates (plan S31). */
+/** {@code --template} and reason shortcuts in punish commands, and /sb templates. */
 class TemplateCommandsTest extends CommandTest {
 
     @Override

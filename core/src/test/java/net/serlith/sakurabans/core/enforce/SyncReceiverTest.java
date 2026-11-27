@@ -32,7 +32,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** Packets from another instance: this one does its own work and posts no event (D33). */
+/** Packets from another instance: this one does its own work and posts no event. */
 class SyncReceiverTest extends ServiceTest {
 
     private SyncReceiver receiver;

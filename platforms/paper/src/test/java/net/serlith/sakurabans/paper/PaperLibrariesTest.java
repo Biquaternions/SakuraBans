@@ -7,7 +7,7 @@ import java.util.List;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** The generated library list Paper resolves at load (plan 3.3). */
+/** The generated library list Paper resolves at load. */
 class PaperLibrariesTest {
 
     private static List<String> libraries() throws IOException {
@@ -21,7 +21,7 @@ class PaperLibrariesTest {
 
     @Test
     void geoIpsReaderIsResolvedByPaper() throws IOException {
-        // S72: eager, like the other libraries; only loaded where geoip.enabled is true.
+        // Eager, like the other libraries; only loaded where geoip.enabled is true.
         Assertions.assertThat(libraries()).contains("com.maxmind.db:maxmind-db:4.2.0");
     }
 

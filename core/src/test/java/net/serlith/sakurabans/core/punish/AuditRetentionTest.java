@@ -16,7 +16,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** S70: audit.retention, applied by the sweeper's lease holder. */
+/** Audit.retention, applied by the sweeper's lease holder. */
 class AuditRetentionTest extends ServiceTest {
 
     private AuditRepository audit;

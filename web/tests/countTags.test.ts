@@ -16,7 +16,7 @@ function javaList(file: string, constant: string): string[] {
   return [...body.matchAll(/"([a-z_]+)"/g)].map(match => match[1]!)
 }
 
-describe('count tags (S73)', () => {
+describe('count tags', () => {
   it('match the plugin', () => {
     expect(NETWORK_COUNT_TAGS).toEqual(javaList('NetworkTotals.java', 'TAGS'))
     expect(PLAYER_COUNT_TAGS).toEqual(javaList('Placeholders.java', 'PLAYER_COUNT_TAGS'))

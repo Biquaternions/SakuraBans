@@ -9,7 +9,7 @@ import net.serlith.sakurabans.core.fake.FakeOnlinePlayer;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** S68: {@code enforcement.network-kick} on a backend asks for a network-wide disconnect. */
+/** {@code enforcement.network-kick} on a backend asks for a network-wide disconnect. */
 class NetworkKickTest extends ServiceTest {
 
     @Override

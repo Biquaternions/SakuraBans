@@ -26,7 +26,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** S67: {@code /sb reset}, the console's bulk delete, deactivation and prune. */
+/** {@code /sb reset}, the console's bulk delete, deactivation and prune. */
 class ResetCommandsTest extends CommandTest {
 
     @BeforeEach

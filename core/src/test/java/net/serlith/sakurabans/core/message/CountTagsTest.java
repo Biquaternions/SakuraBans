@@ -22,7 +22,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * S73: {@code <total_*>} in every message, {@code <player_*>} where a message shows a
+ * {@code <total_*>} in every message, {@code <player_*>} where a message shows a
  * punishment, for online (cached) and offline (fetched when used) victims. The texts are this
  * test's own, so only the values are asserted.
  */

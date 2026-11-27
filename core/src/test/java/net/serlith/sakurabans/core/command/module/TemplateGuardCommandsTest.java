@@ -14,7 +14,7 @@ import net.serlith.sakurabans.core.permission.Permissions;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** S68: the commands say why a guarded template's punishment can't be changed. */
+/** The commands say why a guarded template's punishment can't be changed. */
 class TemplateGuardCommandsTest extends CommandTest {
 
     private static final UUID HELPER = UUID.fromString("7d3e5c1a-2b4f-4e6a-8c9d-0e1f2a3b4c5d");

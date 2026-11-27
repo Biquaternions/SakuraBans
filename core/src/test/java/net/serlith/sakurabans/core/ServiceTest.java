@@ -88,7 +88,7 @@ import net.serlith.sakurabans.core.template.SakuraTemplateService;
 import org.junit.jupiter.api.BeforeEach;
 
 /**
- * The services of S17-S20 wired like {@code CoreComponents} does, on a fresh database, with a
+ * The core services wired like {@code CoreComponents} does, on a fresh database, with a
  * {@link FakePlatform} named {@code lobby} and a running lifecycle.
  */
 public abstract class ServiceTest extends DatabaseTest {
@@ -133,7 +133,7 @@ public abstract class ServiceTest extends DatabaseTest {
     protected AuthorizationService authorization;
     /** What LuckPerms would say about offline players; none by default. */
     protected OfflinePermissions offline = OfflinePermissions.NONE;
-    /** What the services ask for countries (S72); off unless a test sets one. */
+    /** What the services ask for countries; off unless a test sets one. */
     protected CountryLookup countries = CountryLookup.disabled();
     protected LimitService limits;
     protected LockdownService lockdowns;
@@ -305,7 +305,7 @@ public abstract class ServiceTest extends DatabaseTest {
                 this.log.logger());
     }
 
-    /** The import framework (S38) wired like {@code CoreComponents} does, with these sources. */
+    /** The import framework wired like {@code CoreComponents} does, with these sources. */
     protected final ImportJobs importJobs(final ImportSources sources) {
         final ImportRepository repository = new ImportRepository(this.storage, this.hasher);
         return new ImportJobs(sources,

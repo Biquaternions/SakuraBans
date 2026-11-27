@@ -300,7 +300,7 @@ public final class PunishCommands implements CommandModule {
             return new Shortcut(null, reason);
         }
         final String name = given.strip().toLowerCase(Locale.ROOT);
-        // The variant the service will use (S62): the same scope and issuer.
+        // The variant the service will use: the same scope and issuer.
         final TemplateInfo template = this.templates.resolve(name, scope, issuer)
                 .map(StoredTemplate::template).orElse(null);
         if (template != null) {

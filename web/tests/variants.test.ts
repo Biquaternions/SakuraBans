@@ -1,4 +1,4 @@
-// Scoped template variants (S62): a definition is keyed by its variant scope and name in the
+// Scoped template variants: a definition is keyed by its variant scope and name in the
 // change set, the review, undo, validation, re-basing and the demo's result and snapshot.
 
 import { describe, expect, it } from 'vitest'

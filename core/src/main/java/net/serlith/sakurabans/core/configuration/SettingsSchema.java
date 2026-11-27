@@ -14,7 +14,7 @@ import org.jspecify.annotations.Nullable;
 
 public final class SettingsSchema {
 
-    /** Where a key may be overridden (D35, protocol 5.2). */
+    /** Where a key may be overridden (protocol 5.2). */
     public enum Level {
         /** Only in this server's file. */
         FILE,

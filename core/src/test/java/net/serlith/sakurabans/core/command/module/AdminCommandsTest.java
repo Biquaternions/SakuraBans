@@ -29,7 +29,7 @@ import net.serlith.sakurabans.core.util.BuildConstants;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** /lockdown, /staffrollback, /prunehistory and /sb status|reload (plan S36). */
+/** /lockdown, /staffrollback, /prunehistory and /sb status|reload. */
 class AdminCommandsTest extends CommandTest {
 
     private Punishment punish(final PunishmentType type, final UUID victim) {

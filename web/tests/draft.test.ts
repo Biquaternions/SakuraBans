@@ -172,7 +172,7 @@ describe('message changes per scope', () => {
   })
 })
 
-describe('template steps (D37)', () => {
+describe('template steps', () => {
   it('reads step texts as the plugin does, errors included', () => {
     expect(parseStepText('none')).toEqual({ type: null, duration: { mode: 'open', length: '' } })
     expect(parseStepText('kick')).toEqual({ type: 'kick', duration: { mode: 'open', length: '' } })
@@ -326,7 +326,7 @@ describe('template steps (D37)', () => {
       .toEqual(['duration: a ladder\'s steps have the durations'])
   })
 
-  it('reads, writes and checks display like the plugin (S61)', () => {
+  it('reads, writes and checks display like the plugin', () => {
     const mute = definitionToForm('spam', { type: 'mute', reason: 'Spam', message: '<red>Quiet', display: 'Dialog' })
     expect(mute.display).toBe('dialog')
     expect(issuesOf(mute)).toEqual([])
@@ -354,7 +354,7 @@ describe('template steps (D37)', () => {
     expect(changeKind(mute, 'ladder').display).toBe('dialog')
   })
 
-  it('reads and writes silent like the plugin, left out when false (S68)', () => {
+  it('reads and writes silent like the plugin, left out when false', () => {
     const ban = definitionToForm('raid', { type: 'ban', reason: 'Raid', display: 'chat', silent: true })
     expect(ban.silent).toBe(true)
     expect(Object.keys(formToDefinition(ban))).toEqual(['type', 'reason', 'silent'])

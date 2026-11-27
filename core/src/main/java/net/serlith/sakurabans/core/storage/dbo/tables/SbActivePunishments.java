@@ -21,7 +21,7 @@ import org.jooq.impl.SQLDataType;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Only active bans, mutes and warns; what enforcement reads (DESIGN 7.3).
+ * Only active bans, mutes and warns; what enforcement reads.
  *
  * <p>A warn's {@code exclusivity_slot} is its {@code punishment_id}, written by the
  * repository: MySQL forbids a CHECK on a column with a foreign key action.

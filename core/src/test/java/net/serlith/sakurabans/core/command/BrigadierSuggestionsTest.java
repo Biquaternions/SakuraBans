@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Suggestions through a real Brigadier tree, built by cloud-brigadier like Paper builds it, so a
- * client would get them (S31 review): flag values after the reason, templates, categories.
+ * client would get them: flag values after the reason, templates, categories.
  */
 class BrigadierSuggestionsTest extends CommandTest {
 

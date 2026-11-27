@@ -11,7 +11,7 @@ import net.serlith.sakurabans.api.model.ServerScope;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** S52: scoped blocks, publish and secrets through the editor (protocol 5 and 6). */
+/** Scoped blocks, publish and secrets through the editor (protocol 5 and 6). */
 class EditorScopesTest extends EditorTest {
 
     private static final String URL = "https://discord.example/api/webhooks/9/hidden-token";

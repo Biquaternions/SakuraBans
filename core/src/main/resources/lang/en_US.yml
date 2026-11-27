@@ -22,7 +22,7 @@
 # so they can be changed one by one without touching the palette. The help menu takes the
 # palette when the plugin starts (a reload doesn't recolour it).
 #
-# --- Punishment counts (S73) ------------------------------------------------------------------
+# --- Punishment counts ------------------------------------------------------------------------
 # Usable in every message (and in templates' messages), none used by the texts below:
 #   <total_bans> <total_mutes> <total_warns> <total_kicks>  every punishment of the type on the
 #              network that wasn't voided, revoked and expired ones included
@@ -38,7 +38,7 @@
 #   except in staff notices, /check #id and /sb info, which read them first when the text uses
 #   them. In what the punished player is shown, <player_mutes> leaves out shadow mutes.
 #
-# --- Country (S72) ----------------------------------------------------------------------------
+# --- Country ----------------------------------------------------------------------------------
 #   <country>  the English name of the country of an address, from the GeoIP database (geoip in
 #              config.yml); empty while GeoIP is off on this server or the country isn't known,
 #              except in screen.geoip and notify.attempt_geoip, which show geoip.unknown_country.
@@ -479,7 +479,7 @@ list:
     instant: '<highlight>●</highlight>'
 alts:
   none: '<prefix><main>No alts are known for <name>.</main>'
-  # alts.auto-ban (S69): /sb accept alts, the reminder while it is pending, and /ban's check.
+  # alts.auto-ban: /sb accept alts, the reminder while it is pending, and /ban's check.
   auto_ban:
     accepted: '<prefix><main>Automatic alt bans are accepted: alts.auto-ban (<mode>) now bans linked accounts. Revoking a ban does not lift the bans it made; undo them with /staffrollback or by their source "auto".</main>'
     already: '<prefix><main>Automatic alt bans were already accepted.</main>'

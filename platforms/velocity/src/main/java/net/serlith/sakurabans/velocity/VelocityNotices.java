@@ -6,7 +6,7 @@ import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 
 /**
  * Dialogs on the proxy. Velocity has no API to build one, so they go through packetevents when
- * that plugin is loaded (S61); otherwise nothing is shown and the core falls back to chat.
+ * that plugin is loaded; otherwise nothing is shown and the core falls back to chat.
  */
 interface VelocityNotices {
 
@@ -16,7 +16,7 @@ interface VelocityNotices {
 
     // VelocityDialogBridge is the only class that touches packetevents. It is created at the
     // first dialog, inside the guard, so a proxy without packetevents never resolves its classes
-    // and one with an incompatible packetevents gets chat instead of an error (S64).
+    // and one with an incompatible packetevents gets chat instead of an error.
     static VelocityNotices create(final boolean packetEventsLoaded, final ComponentLogger logger) {
         if (!packetEventsLoaded) {
             return NONE;

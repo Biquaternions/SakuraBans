@@ -150,7 +150,7 @@ class StorageServiceTest extends DatabaseTest {
         final Duration ttl = Duration.ofSeconds(30);
         Assertions.assertThat(first.tryAcquire("sweeper", ttl).join()).isTrue();
 
-        // The hosts' clocks (the tests' clock) are not what a lease goes by (S68).
+        // The hosts' clocks (the tests' clock) are not what a lease goes by.
         this.now.set(this.now.get().plus(Duration.ofMinutes(10)));
         Assertions.assertThat(second.tryAcquire("sweeper", ttl).join()).isFalse();
         this.now.set(this.now.get().minus(Duration.ofMinutes(20)));

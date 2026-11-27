@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Global, each category and each server the network knows, with how many overrides (and
 // pending changes) each has; a scope can be added by typing a server or category name. For
-// templates the count is of variants (S62): definitions in force there instead of the global one.
+// templates the count is of variants: definitions in force there instead of the global one.
 import { changesPerScope } from '#shared/editor/draft'
 import { effectiveCategories, scopeKind, scopeName, uploadingServer } from '#shared/editor/layers'
 import { IDENTIFIER_HINT, isIdentifier } from '#shared/editor/limits'

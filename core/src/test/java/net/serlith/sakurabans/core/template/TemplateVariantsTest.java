@@ -34,7 +34,7 @@ import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** S62 on a backend ("lobby", in the categories pvp and games, in that order). */
+/** Template variants on a backend ("lobby", in the categories pvp and games, in that order). */
 class TemplateVariantsTest extends ServiceTest {
 
     @Override

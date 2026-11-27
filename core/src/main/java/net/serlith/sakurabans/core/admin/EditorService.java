@@ -564,7 +564,7 @@ public final class EditorService {
 
     private EditorPayload.Templates templatesSection() {
         final List<EditorPayload.Template> items = new ArrayList<>();
-        // By name, the global definition first, then its variants (S62).
+        // By name, the global definition first, then its variants.
         for (final StoredTemplate template : this.templates.definitions()) {
             items.add(new EditorPayload.Template(Scopes.format(template.variant()
                     .orElse(GlobalScope.INSTANCE)), template.name(), template.version(),
@@ -808,7 +808,7 @@ public final class EditorService {
             String name, @Nullable TemplateInfo definition) {
 
         /**
-         * The order templates are applied in (S62): variant deletions, global creations and
+         * The order templates are applied in: variant deletions, global creations and
          * updates, variant creations and updates, global deletions. So a variant meets its
          * global template, and a kind change can follow the removal of its variants.
          */
@@ -1048,7 +1048,7 @@ public final class EditorService {
         return scope instanceof ServerScope server ? this.row(server.server()) : null;
     }
 
-     private static @Nullable Object value(final SettingsSchema.Entry entry,
+    private static @Nullable Object value(final SettingsSchema.Entry entry,
             final @Nullable Object value, final String path, final List<FieldError> errors) {
         final Object converted = switch (entry.type()) {
             case BOOLEAN -> value instanceof Boolean ? value : null;

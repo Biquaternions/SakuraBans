@@ -8,7 +8,7 @@ import net.kyori.adventure.text.Component;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The packetevents bridge behind a guard (S64): its code never ran against a real proxy, so
+ * The packetevents bridge behind a guard: its code never ran against a real proxy, so
  * whatever it throws, including a {@link LinkageError} when the bridge class itself can't be
  * loaded against the installed packetevents, makes {@link #show} return {@code false} and the
  * core send the message as chat. The first failure is reported once, not per player. A

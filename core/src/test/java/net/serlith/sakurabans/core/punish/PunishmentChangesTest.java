@@ -39,7 +39,7 @@ import net.serlith.sakurabans.core.sync.SyncPacket;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** Edits, voids, expunges, evidence and their audit trail (plan S35). */
+/** Edits, voids, expunges, evidence and their audit trail. */
 class PunishmentChangesTest extends ServiceTest {
 
     private Punishment punished(final PunishmentType type, final Duration duration) {

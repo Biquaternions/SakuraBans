@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// Settings, limits and webhooks per scope (protocol 5.1, 5.2). Global is the default view
-// (decision D36). A server view shows one server's effective configuration.
+// Settings, limits and webhooks per scope (protocol 5.1, 5.2). Global is the default view.
+// A server view shows one server's effective configuration.
 import { settingGroup } from '#shared/editor/settings'
 import type { SettingField, SettingGroup } from '#shared/protocol/schema'
 import { GLOBAL } from '#shared/protocol/schema'

@@ -17,7 +17,7 @@ public record StoredTemplate(TemplateInfo template, long version) {
         return this.template.name();
     }
 
-    /** Where this definition is in force; empty for the global definition (S62). */
+    /** Where this definition is in force; empty for the global definition. */
     public Optional<Scope> variant() {
         return this.template.variant();
     }

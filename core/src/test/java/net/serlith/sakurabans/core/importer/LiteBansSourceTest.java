@@ -27,7 +27,7 @@ import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** {@link LiteBansSource} on H2 in MySQL mode (plan S40). */
+/** {@link LiteBansSource} on H2 in MySQL mode. */
 class LiteBansSourceTest extends ImportTest {
 
     private static final UUID HEROBRINE = UUID.fromString("3f0d2a3c-1b5e-4c3a-9d6e-2a1b3c4d5e6f");

@@ -22,7 +22,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** S67: the quiet visibility level, --server-origin and the kicks that leave no record. */
+/** The quiet visibility level, --server-origin and the kicks that leave no record. */
 class QuietAndKickCommandsTest extends CommandTest {
 
     private FakeOnlinePlayer staff;
@@ -87,7 +87,7 @@ class QuietAndKickCommandsTest extends CommandTest {
 
     @Test
     void capitalLetterFlagIsCloudsSilentFlagNotHide() {
-        // S68 removed S67's -S: Cloud matches flag aliases without regard to case, so -S is -s.
+        // There is no -S flag: Cloud matches flag aliases without regard to case, so -S is -s.
         final FakeCommandActor mod = FakeCommandActor.player(MOD, "Mod",
                 Permissions.punish(PunishmentType.BAN),
                 Permissions.flag(PunishmentType.BAN, "silent"));

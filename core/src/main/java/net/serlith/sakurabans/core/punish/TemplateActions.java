@@ -14,7 +14,7 @@ import net.serlith.sakurabans.core.player.NameCache;
 
 /**
  * A template's console actions. {@link SakuraPunishmentService} runs them after a use is stored,
- * right after posting its {@link TemplateAppliedEvent} (S64; they used to run from a
+ * right after posting its {@link TemplateAppliedEvent} (they used to run from a
  * {@code MONITOR} subscription to that event, so the order is unchanged).
  */
 public final class TemplateActions {

@@ -20,7 +20,7 @@ import net.serlith.sakurabans.core.permission.Permissions;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** S70: the payload's read-only "Recent changes" (protocol 5.6). */
+/** The payload's read-only "Recent changes" (protocol 5.6). */
 class EditorRecentChangesTest extends EditorTest {
 
     private static final String WEBHOOK = "https://discord.example/api/webhooks/1/s3cr3t-t0ken";

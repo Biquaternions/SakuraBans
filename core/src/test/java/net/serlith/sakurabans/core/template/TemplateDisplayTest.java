@@ -22,7 +22,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** S61: a template's mute notice and warning as chat or as a dialog. */
+/** A template's mute notice and warning as chat or as a dialog. */
 class TemplateDisplayTest extends ServiceTest {
 
     @BeforeEach

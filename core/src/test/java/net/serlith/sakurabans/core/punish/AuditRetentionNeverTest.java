@@ -8,7 +8,7 @@ import net.serlith.sakurabans.core.storage.repository.AuditRepository;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** S70: audit.retention defaults to never. */
+/** Audit.retention defaults to never. */
 class AuditRetentionNeverTest extends ServiceTest {
 
     @Test

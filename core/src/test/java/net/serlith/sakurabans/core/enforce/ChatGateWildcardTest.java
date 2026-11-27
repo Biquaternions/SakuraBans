@@ -12,7 +12,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** S67: wildcards in the mute blacklist, matched from the settings' compiled form. */
+/** Wildcards in the mute blacklist, matched from the settings' compiled form. */
 class ChatGateWildcardTest extends ServiceTest {
 
     private FakeOnlinePlayer steve;

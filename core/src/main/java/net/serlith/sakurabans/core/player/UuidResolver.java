@@ -43,7 +43,7 @@ public final class UuidResolver {
     }
 
     public CompletableFuture<Optional<UUID>> resolve(final String name) {
-        // Floodgate names (prefix + Bedrock name) aren't valid Java names: S28 adds the prefix.
+        // Floodgate names (prefix + Bedrock name) aren't valid Java names.
         if (!Strings.isValidPlayerName(name)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }

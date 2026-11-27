@@ -32,7 +32,7 @@ import org.junit.jupiter.params.ParameterizedClass;
 import org.junit.jupiter.params.provider.EnumSource;
 
 /**
- * The login query (DESIGN 7.4; {@code LoginGate}, S19) must reach every table through an
+ * The login query ({@code LoginGate}) must reach every table through an
  * index. PostgreSQL is asked with sequential scans disabled, so any "Seq Scan" left means no
  * index could serve that access; MariaDB and MySQL must list a usable key for each table.
  */

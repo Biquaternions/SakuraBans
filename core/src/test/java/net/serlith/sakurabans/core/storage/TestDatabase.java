@@ -2,7 +2,7 @@ package net.serlith.sakurabans.core.storage;
 
 import java.util.Optional;
 
-/** A database the storage tests can run against (S16). */
+/** A database the storage tests can run against. */
 public interface TestDatabase {
 
     /** The default: a new H2 file in the test's temporary directory. */

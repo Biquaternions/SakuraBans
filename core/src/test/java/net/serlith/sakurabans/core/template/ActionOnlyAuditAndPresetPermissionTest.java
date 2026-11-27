@@ -38,8 +38,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * S63: an audit entry for action-only ladder steps; a preset's node checked in the service.
- * S64: an address is never its subject.
+ * An audit entry for action-only ladder steps; a preset's node checked in the service.
+ * An address is never its subject.
  */
 class ActionOnlyAuditAndPresetPermissionTest extends ServiceTest {
 
@@ -106,7 +106,7 @@ class ActionOnlyAuditAndPresetPermissionTest extends ServiceTest {
         return this.hasher.hex(this.home);
     }
 
-    /** No audit row holds the address as text (S64). */
+    /** No audit row holds the address as text. */
     private void noLiteralAddress() {
         final String text = this.home.getHostAddress();
         Assertions.assertThat(this.read(dsl -> dsl.selectFrom(SakuraTables.AUDIT_LOG).fetch())
@@ -170,7 +170,7 @@ class ActionOnlyAuditAndPresetPermissionTest extends ServiceTest {
 
         Assertions.assertThat(this.playerData.erase(STEVE, MODERATOR).join())
                 .isInstanceOf(PlayerDataResult.Success.class);
-        // sb_victims keeps the hash on erase (D28), so the entry stays as it was.
+        // sb_victims keeps the hash on erase, so the entry stays as it was.
         Assertions.assertThat(this.applies(SubjectType.ADDRESS_HASH, this.hash())).hasSize(1);
         this.noLiteralAddress();
     }

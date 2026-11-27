@@ -50,7 +50,7 @@ public final class PermissionService {
     }
 
     /**
-     * Whether the actor has every node, for authorization (S64, D38). The console and a custom
+     * Whether the actor has every node, for authorization. The console and a custom
      * operator without a UUID pass. A player (or a custom operator with a UUID) who is online
      * has their live permissions; one who isn't is asked of the offline permissions
      * (LuckPerms), on the worker, and is denied without LuckPerms or without an answer.

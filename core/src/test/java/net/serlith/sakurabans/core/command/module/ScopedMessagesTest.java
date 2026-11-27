@@ -13,7 +13,7 @@ import net.serlith.sakurabans.core.model.AdminResult;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** S53: message overrides per scope, resolved like settings, and their commands. */
+/** Message overrides per scope, resolved like settings, and their commands. */
 class ScopedMessagesTest extends CommandTest {
 
     private static final String KEY = "chat.muted";

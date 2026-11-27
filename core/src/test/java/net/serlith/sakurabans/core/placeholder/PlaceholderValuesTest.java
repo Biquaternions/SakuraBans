@@ -21,7 +21,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** S73: the placeholder values and the MiniPlaceholders bridge, against the real API jar. */
+/** The placeholder values and the MiniPlaceholders bridge, against the real API jar. */
 class PlaceholderValuesTest extends ServiceTest {
 
     private PlaceholderValues values;

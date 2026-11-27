@@ -22,9 +22,8 @@ import org.spongepowered.configurate.yaml.NodeStyle;
 import org.spongepowered.configurate.yaml.YamlConfigurationLoader;
 
 /**
- * The library behaviour S03 proved on the platforms that a plain classpath can reproduce
- * (plan 3.6). Packaging itself (relocation, class loaders) is only visible on runServer and
- * runVelocity.
+ * The library behaviour proved on the platforms that a plain classpath can reproduce.
+ * Packaging itself (relocation, class loaders) is only visible on runServer and runVelocity.
  */
 class LibraryCompatibilityTest {
 
@@ -82,7 +81,7 @@ class LibraryCompatibilityTest {
 
         loader.save(node);
 
-        // Configurate 4.2.0 doesn't write @Comment in YAML (plan 10.3), which is why defaults
+        // Configurate 4.2.0 doesn't write @Comment in YAML, which is why defaults
         // ship as commented resources. If this starts failing, comments are written now.
         assertThat(Files.readString(file)).contains("greeting: hello")
                 .doesNotContain("This comment is not written.");

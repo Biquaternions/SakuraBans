@@ -50,7 +50,7 @@ public final class SbTemplates extends SbTable<SbTemplatesRecord> {
             DSL.name("shadow"), SbTypes.FLAG.nullable(false), this, "");
 
     /**
-     * Where the definition is in force (S62): the global scope row for the global definition,
+     * Where the definition is in force: the global scope row for the global definition,
      * a server or category for a variant. Not {@link #SCOPE_ID}, where punishments apply.
      */
     public final TableField<SbTemplatesRecord, Integer> VARIANT_SCOPE_ID = createField(

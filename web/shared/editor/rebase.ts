@@ -10,7 +10,7 @@
 // - Publishing: a key is dropped once global holds the publishing server's file value.
 // - A pending update of a template that no longer exists, and a pending create of one that now
 //   exists, are kept and flagged ("template-gone", "template-exists"). Templates are keyed by
-//   variant scope and name, so a variant is re-based on its own (S62).
+//   variant scope and name, so a variant is re-based on its own.
 // - Edits of a section the new snapshot doesn't have stay in the draft but can't be sent.
 
 import { jsonEqual } from '../json'
@@ -174,7 +174,7 @@ function rebaseMessages(before: Payload, after: Payload, draft: EditorDraft, nex
 
 function rebaseTemplates(before: Payload, after: Payload, draft: EditorDraft, next: EditorDraft,
   notes: RebaseNote[], hints: Required<RebaseHints>) {
-  // Keyed by variant scope and name (S62): a variant re-bases like any other definition.
+  // Keyed by variant scope and name: a variant re-bases like any other definition.
   const keyed = (items: Payload['templates']) => new Map((items?.items ?? []).map(item => [templateKey(item.scope, item.name), item]))
   const oldItems = keyed(before.templates)
   const drafted = new Map(draft.templates.map(form => [templateKey(form.variant, form.name), form]))

@@ -45,7 +45,7 @@ import org.incendo.cloud.parser.flag.FlagContext;
 import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.suggestion.SuggestionProvider;
 
-/** {@code /punish <target> <ladder> [flags…] [-r reason]} (D37; its own module since S64). */
+/** {@code /punish <target> <ladder> [flags…] [-r reason]}. */
 public final class LadderCommands implements CommandModule {
 
     static final String PUNISH = "punish";

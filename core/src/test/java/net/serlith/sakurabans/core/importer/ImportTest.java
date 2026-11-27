@@ -22,7 +22,7 @@ import org.jooq.impl.DSL;
 import org.junit.jupiter.api.AfterEach;
 
 /**
- * Base of importer tests (S38-S41): the services of {@link ServiceTest}, in-memory source
+ * Base of importer tests: the services of {@link ServiceTest}, in-memory source
  * databases filled from SQL fixtures, and imports run the way {@code /sb import} runs them.
  *
  * <pre>{@code

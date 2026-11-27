@@ -9,7 +9,7 @@ import net.serlith.sakurabans.core.command.CommandTest;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** {@code /sb settings list|reset|publish} with scopes (S50); no scope means global. */
+/** {@code /sb settings list|reset|publish} with scopes; no scope means global. */
 class ScopedSettingsCommandsTest extends CommandTest {
 
     @Override

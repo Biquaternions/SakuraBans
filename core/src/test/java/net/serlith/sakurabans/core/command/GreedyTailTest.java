@@ -11,7 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * Pins down how Cloud 2.1's flag-yielding greedy string combines with flags (plan 9.3, S21):
+ * Pins down how Cloud 2.1's flag-yielding greedy string combines with flags:
  * flags work after the free text only, and a word starting with {@code -} inside it is taken
  * for a flag.
  */

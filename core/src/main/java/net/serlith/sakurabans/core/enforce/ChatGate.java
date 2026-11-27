@@ -72,7 +72,7 @@ public final class ChatGate {
         return switch (this.mutes.lookup(player)) {
             case MuteCache.Lookup.NotMuted notMuted -> new ChatDecision.Allowed();
             case MuteCache.Lookup.Unknown unknown -> {
-                // Shouldn't happen after a login; deny once and load (DESIGN 10.3).
+                // Shouldn't happen after a login; deny once and load.
                 Futures.logged(this.mutes.load(player.uuid(), player.address()), this.logger,
                         "load the mutes of " + player.name());
                 yield cancellable

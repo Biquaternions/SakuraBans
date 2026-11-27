@@ -184,7 +184,7 @@ then the default. So a scoped `en_US` override also reaches a locale with no tex
 written in `templates.yml`, as JSON with the same keys. Names are unique across every type.
 Items are listed by name, each template's global definition first, then its variants by scope.
 
-**Variants** (S62). `scope` is where the definition is **in force**: `global` for a template's
+**Variants**. `scope` is where the definition is **in force**: `global` for a template's
 global definition, or `server:<name>` / `category:<name>` for a **variant**, a whole definition
 (no field-by-field merge) of a template that has a global definition, of the **same `type`**,
 without `groups` (a variant counts in its global definition's groups; progress on a ladder is
@@ -224,7 +224,7 @@ variant (from the global definition once the variant is deleted).
   Both sides write a step as the plain text when it has nothing else.
 
 Optional keys at their default are left out, exactly as the YAML export leaves them out. The
-keys of the format before D37 (`ladder`, `ladder-expiry`, `step-actions`, `step-messages`)
+keys of the format before typed templates (`ladder`, `ladder-expiry`, `step-actions`, `step-messages`)
 are refused with an error that names the new key.
 
 ### 5.5 Lookups
@@ -234,7 +234,7 @@ a language file or overrides. The editor accepts values outside them.
 
 ### 5.6 Recent changes
 
-An optional, read-only list of the last 20 changes to settings, messages and templates (S70),
+An optional, read-only list of the last 20 changes to settings, messages and templates,
 newest first, for the editor's "Recent changes" panel. It is **absent** when there is nothing
 to list, and a client that doesn't know it **must ignore it**; a client must also work when it
 is missing. It only holds entries of the sections the uploader may edit (`meta.sections`), so

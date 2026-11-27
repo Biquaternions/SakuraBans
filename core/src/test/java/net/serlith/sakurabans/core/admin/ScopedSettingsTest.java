@@ -17,7 +17,7 @@ import net.serlith.sakurabans.core.storage.repository.OverrideRepository;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** D35 and protocol 5.1: settings resolve server, categories, global, file, default. */
+/** Protocol 5.1: settings resolve server, categories, global, file, default. */
 class ScopedSettingsTest extends ServiceTest {
 
     private static final Scope LOBBY = ServerScope.of("lobby");

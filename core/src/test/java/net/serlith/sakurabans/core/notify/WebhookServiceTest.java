@@ -40,7 +40,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** Discord webhooks against a local HTTP server (plan S37). */
+/** Discord webhooks against a local HTTP server. */
 class WebhookServiceTest extends ServiceTest {
 
     private final List<String> received = new CopyOnWriteArrayList<>();

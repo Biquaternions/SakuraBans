@@ -103,7 +103,7 @@ final class PaperOnlinePlayer implements OnlinePlayer, ForwardingAudience.Single
     public boolean showNotice(final Component title, final Component body,
             final Component button) {
         // Built and shown on the player's thread (Folia: its region). False when the hop isn't
-        // scheduled (S64): the player is offline, or their scheduler retired. A player who
+        // scheduled: the player is offline, or their scheduler retired. A player who
         // leaves after it was scheduled still drops it silently.
         if (!this.player.isOnline()) {
             return false;

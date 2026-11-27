@@ -1,12 +1,12 @@
-// templates.yml import and export in the browser, in the file format of decision D37 (the
-// plugin's core/src/main/resources/defaults/templates.yml).
+// templates.yml import and export in the browser, in the file format of the
+// plugin's core/src/main/resources/defaults/templates.yml.
 
 import { parse, stringify } from 'yaml'
 import { readTemplate, templatesToYamlObject, validateTemplate } from './templates'
 import type { TemplateForm } from './templates'
 
 export interface YamlImport {
-  /** `variant`: `global`, or a variant's server or category (the `variants:` section, S62). */
+  /** `variant`: `global`, or a variant's server or category (the `variants:` section). */
   templates: Array<TemplateForm & { variant: string }>
   errors: string[]
 }
@@ -25,7 +25,7 @@ export function exportTemplatesYaml(forms: ReadonlyArray<TemplateForm & { varian
  * Reads a templates.yml text as /sb templates import --all does: a template with any error is
  * left out and its errors are listed (`templates.<name>.<key>: <message>`); the others are read,
  * variants from `variants.<scope>.<name>` too.
- * Keys of the format before D37 (`ladder`, `step-actions`, ...) are errors naming the new key.
+ * Keys of the format before typed templates (`ladder`, `step-actions`, ...) are errors naming the new key.
  */
 export function importTemplatesYaml(text: string): YamlImport {
   let root: unknown

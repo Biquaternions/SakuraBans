@@ -89,7 +89,7 @@ public final class PunishmentRepository {
     }
 
     /**
-     * {@code expected}: the ladder step the use was counted at (S64). The use's victim is then
+     * {@code expected}: the ladder step the use was counted at. The use's victim is then
      * locked first and counted again, and nothing is stored when the step changed meanwhile
      * ({@link InsertOutcome.StepChanged}). The lock comes before the active slot's, as on every
      * path that takes both, so the two can't deadlock.

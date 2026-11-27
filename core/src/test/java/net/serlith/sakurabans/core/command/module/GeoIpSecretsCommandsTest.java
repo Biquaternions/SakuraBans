@@ -8,7 +8,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 /**
- * S72: the MaxMind account, from the file or the environment, is in no editor payload,
+ * The MaxMind account, from the file or the environment, is in no editor payload,
  * registry row, settings list or log line; the global country lists are in the payload.
  */
 class GeoIpSecretsCommandsTest extends EditorTest {

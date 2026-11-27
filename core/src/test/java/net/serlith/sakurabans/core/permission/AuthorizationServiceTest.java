@@ -32,7 +32,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** Authorization and exemption (plan S33); there are no guards any more (D32). */
+/** Authorization and exemption; there are no guards any more. */
 class AuthorizationServiceTest extends ServiceTest {
 
     private static final UUID ADMIN = UUID.fromString("5a0f1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c2d");
@@ -104,7 +104,7 @@ class AuthorizationServiceTest extends ServiceTest {
 
     @Test
     void offlinePlayersAreAskedOfLuckPermsForEveryAction() {
-        // S64 (D38): an actor who isn't online is checked with LuckPerms' answer.
+        // An actor who isn't online is checked with LuckPerms' answer.
         this.offline = this.luckPerms.grant(ADMIN, Permissions.ADMIN_TEMPLATES,
                 Permissions.punish(PunishmentType.BAN), Permissions.PUNISH,
                 Permissions.revoke(PunishmentType.BAN));

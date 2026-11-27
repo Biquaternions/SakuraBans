@@ -25,7 +25,7 @@ import net.serlith.sakurabans.core.sync.SyncPacket;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** S73: the counts behind the message tags and placeholders. */
+/** The counts behind the message tags and placeholders. */
 class PunishmentCountsTest extends ServiceTest {
 
     private Punishment punish(final PunishmentType type, final boolean enforce,

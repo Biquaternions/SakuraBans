@@ -33,7 +33,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * S72b: the country lists at login, with MaxMind's test database: 81.2.69.142 is in the United
+ * The country lists at login, with MaxMind's test database: 81.2.69.142 is in the United
  * Kingdom, 89.160.20.112 in Sweden, 2001:218::1 in Japan; 203.0.113.7 (the tests' home) isn't
  * listed, and 192.168.1.10 is private.
  */

@@ -112,7 +112,7 @@ public record EditorPayload(Meta meta, @Nullable Settings settings, @Nullable Me
 
     /**
      * {@code definition} is the tree {@code templates.yml} writes; {@code scope} is
-     * {@code global} or the variant's scope (S62).
+     * {@code global} or the variant's scope.
      */
     public record Template(String scope, String name, long version,
             Map<String, Object> definition) {

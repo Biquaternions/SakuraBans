@@ -143,7 +143,7 @@ public final class LoginGate {
                 });
     }
 
-    // S68: a proxy with servers that let banned players in admits them (the server checks keep
+    // A proxy with servers that let banned players in admits them (the server checks keep
     // them there); a backend with login-check: false admits them. Told once they are in; staff
     // hear nothing, since nothing was refused.
     private Optional<LoginDecision> admitted(final List<Punishment> bans,
@@ -163,9 +163,9 @@ public final class LoginGate {
     }
 
     /**
-     * S72: the country lists, for a login the ban check let through (one S68 admits too: GeoIP
-     * is not a ban). Only here, at login; a proxy's server switch doesn't check it. Off, or with
-     * both lists empty, nothing is looked up and nothing changes.
+     * The country lists, for a login the ban check let through (an admitted banned player
+     * too: GeoIP is not a ban). Only here, at login; a proxy's server switch doesn't check it.
+     * Off, or with both lists empty, nothing is looked up and nothing changes.
      */
     private CompletableFuture<LoginDecision> geoip(final LoginAttempt attempt,
             final LoginDecision decision) {
@@ -182,7 +182,7 @@ public final class LoginGate {
             return CompletableFuture.completedFuture(decision);
         }
         // Asked only of those the lists turn away. Not online yet: the bypass comes from
-        // LuckPerms (D38), as the lockdown's does; without it, nobody has it at login.
+        // LuckPerms, as the lockdown's does; without it, nobody has it at login.
         return this.permissions.has(attempt.uuid(), Permissions.GEOIP_BYPASS)
                 .thenApply(bypass -> bypass.orElse(false) ? decision
                         : this.geoipDenied(attempt, country, decision));
@@ -263,7 +263,7 @@ public final class LoginGate {
 
     /**
      * A proxy's check before a player connects to {@code server}. {@code initial}: the first
-     * server after the login; a banned player let in (S68) is sent on to a server without a
+     * server after the login; a banned player let in is sent on to a server without a
      * login check then, and staff aren't told of it. A non-empty
      * {@code servers-without-login-check} checks every connection, whatever
      * {@code enforce-server-switch} says, since it is what keeps banned players there.

@@ -85,7 +85,7 @@ public final class LimitService implements PunishLimits {
             return new Prepared.Refused(Reason.COOLDOWN);
         }
         final Optional<Duration> max = group.maxDuration(punishment.type());
-        // A ladder's step decides its duration; the caps don't clip it (D37).
+        // A ladder's step decides its duration; the caps don't clip it.
         if (unlimited || ready.origin() == Origin.LADDER_STEP || max.isEmpty()
                 || !longer(punishment, max.get())) {
             return ready;

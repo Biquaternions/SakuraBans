@@ -4,24 +4,24 @@
         "https://checkstyle.org/dtds/suppressions_1_2.dtd">
 
 <suppressions>
-    <!-- jOOQ column fields are UPPER_SNAKE (decision D2). -->
+    <!-- jOOQ column fields are UPPER_SNAKE. -->
     <suppress checks="GoogleNonConstantFieldName|MemberName|StaticVariableName|AbbreviationAsWordInName"
             files="[\\/]core[\\/]src[\\/]main[\\/]java[\\/].*[\\/]storage[\\/]dbo[\\/]"/>
 
-    <!-- Integration tests are named *IT (plan 12). -->
+    <!-- Integration tests are named *IT. -->
     <suppress checks="AbbreviationAsWordInName" files="[\\/]src[\\/]integrationTest[\\/]"/>
 
     <!-- Platform modules may import platform APIs. -->
     <suppress id="neutralImports" files="[\\/]platforms[\\/]"/>
 
-    <!-- One core test drives a real Brigadier tree, as Paper builds it (S31 review). -->
+    <!-- One core test drives a real Brigadier tree, as Paper builds it. -->
     <suppress id="neutralImports" files="[\\/]core[\\/]src[\\/]test[\\/].*BrigadierSuggestionsTest\.java"/>
 
-    <!-- Javadoc is mandatory in the public api module only (plan 4.3). -->
+    <!-- Javadoc is mandatory in the public api module only. -->
     <suppress checks="MissingJavadocType|MissingJavadocMethod"
             files="[\\/](core|platforms[\\/][^\\/]+)[\\/]src[\\/]"/>
 
-    <!-- MaxMind's reader is loaded only through this class (S72). -->
+    <!-- MaxMind's reader is loaded only through this class. -->
     <suppress id="maxmindImports" files="[\\/]core[\\/]src[\\/]main[\\/].*[\\/]geoip[\\/]MaxMindCountryDatabase\.java"/>
 
     <!-- The API-only import bans apply to the api module alone. -->

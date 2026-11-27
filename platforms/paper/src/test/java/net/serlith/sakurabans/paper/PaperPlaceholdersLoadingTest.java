@@ -9,7 +9,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 /**
- * S73: a Paper start without PlaceholderAPI and MiniPlaceholders loads neither bridge class,
+ * A Paper start without PlaceholderAPI and MiniPlaceholders loads neither bridge class,
  * through a loader that records our classes and can't see the plugins' ones.
  */
 class PaperPlaceholdersLoadingTest {

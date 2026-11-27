@@ -32,7 +32,7 @@ import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** Limit groups, reduce-to-limit, cooldowns and require-template (plan S32). */
+/** Limit groups, reduce-to-limit, cooldowns and require-template. */
 class LimitServiceTest extends ServiceTest {
 
     private FakeOnlinePlayer mod;
@@ -153,7 +153,7 @@ class LimitServiceTest extends ServiceTest {
 
     @Test
     void ladderStepIsKnownByItsMarkerNotByItsUse() {
-        // S64: Prepared.Ready says where it comes from; the limits read that.
+        // Prepared.Ready says where it comes from; the limits read that.
         this.mod.grant("sakurabans.group.helper");
         this.templates.create(TemplateBuilder.preset("hacking", PunishmentType.BAN)
                 .reason("Hacking")

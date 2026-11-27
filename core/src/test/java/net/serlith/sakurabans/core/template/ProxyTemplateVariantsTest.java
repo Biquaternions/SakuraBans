@@ -13,7 +13,10 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** S62 on a proxy: the operator's server picks the variant; the console gets the global one. */
+/**
+ * Template variants on a proxy: the operator's server picks the variant; the console gets the
+ * global one.
+ */
 class ProxyTemplateVariantsTest extends ServiceTest {
 
     @Override

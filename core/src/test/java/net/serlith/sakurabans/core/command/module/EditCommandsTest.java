@@ -13,7 +13,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** /sb info, edit, delete and evidence (plan S35). */
+/** /sb info, edit, delete and evidence. */
 class EditCommandsTest extends CommandTest {
 
     private Punishment ban;

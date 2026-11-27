@@ -68,7 +68,7 @@ public final class PunishmentFactory {
         this.templates = templates;
     }
 
-    /** Where a prepared punishment comes from (S64): a ladder step isn't clipped by limits. */
+    /** Where a prepared punishment comes from: a ladder step isn't clipped by limits. */
     public enum Origin { PLAIN, PRESET, LADDER_STEP }
 
     public sealed interface Prepared {
@@ -105,7 +105,7 @@ public final class PunishmentFactory {
     }
 
     /**
-     * The preset whose node the draft needs (S63): its name when the definition in force has
+     * The preset whose node the draft needs: its name when the definition in force has
      * {@code permission-required} and fits the draft's type, else null (the factory refuses a
      * preset that doesn't fit).
      */
@@ -130,7 +130,7 @@ public final class PunishmentFactory {
         if (name == null) {
             preset = null;
         } else {
-            // The variant in force where it is issued (S62).
+            // The variant in force where it is issued.
             final StoredTemplate found = this.templates.resolve(name,
                     draft.scope().orElse(null), draft.actor()).orElse(null);
             if (found == null) {
@@ -153,7 +153,7 @@ public final class PunishmentFactory {
                 null, null), options);
     }
 
-    /** A ladder's step with a punishment (D37): the step decides type and duration. */
+    /** A ladder's step with a punishment: the step decides type and duration. */
     public CompletableFuture<Prepared> prepare(final LadderRequest request,
             final LadderTemplate ladder, final int index, final PunishOptions options) {
         if (request.victim() instanceof ErasedAddressVictim) {

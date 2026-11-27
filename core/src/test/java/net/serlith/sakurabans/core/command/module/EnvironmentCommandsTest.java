@@ -10,7 +10,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 /**
- * S71: what the environment sets is listed by name, and its secrets are in no payload, registry
+ * What the environment sets is listed by name, and its secrets are in no payload, registry
  * row, meta value or log line.
  */
 class EnvironmentCommandsTest extends EditorTest {

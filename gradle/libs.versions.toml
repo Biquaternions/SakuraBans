@@ -10,10 +10,10 @@ h2 = "2.5.252"
 mariadb = "4.0.0"
 mysql = "26.10.0"
 postgresql = "42.7.14"
-# Only read by importers (S38): LibertyBans' and AdvancedBan's default storage.
+# Only read by importers: LibertyBans' and AdvancedBan's default storage.
 hsqldb = "2.7.4"
 caffeine = "3.3.1"
-# Shaded and relocated on every platform (plan 3.3, 3.4), never the server's copy.
+# Shaded and relocated on every platform, never the server's copy.
 guava = "33.8.0-jre"
 configurate = "4.2.0"
 # Shaded and relocated on every platform like Guava: Paper and Velocity ship their own copy.
@@ -21,14 +21,14 @@ gson = "2.15.0"
 cloud-core = "2.1.0"
 cloud-minecraft = "2.0.1"
 luckperms = "5.5"
-# GeoIP (S72): reads GeoLite2-Country; no runtime dependencies. Paper library, Velocity shaded.
+# GeoIP: reads GeoLite2-Country; no runtime dependencies. Paper library, Velocity shaded.
 maxmind-db = "4.2.0"
 
 paper = "26.3.build.+"
 velocity = "4.3.1"
-# Velocity only, compile-only: dialogs where the proxy has the packetevents plugin (S61).
+# Velocity only, compile-only: dialogs where the proxy has the packetevents plugin.
 packetevents = "2.14.0"
-# Soft dependencies, compile-only, never shaded (S73): placeholders where the plugin is installed.
+# Soft dependencies, compile-only, never shaded: placeholders where the plugin is installed.
 miniplaceholders = "3.2.0"
 placeholderapi = "2.12.3"
 adventure = "5.2.0"

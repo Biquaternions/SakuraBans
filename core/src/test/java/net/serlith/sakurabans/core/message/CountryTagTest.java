@@ -27,7 +27,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * S72b: {@code <country>} in each message that has an address, with this test's own texts, and
+ * {@code <country>} in each message that has an address, with this test's own texts, and
  * the editor's lists. 81.2.69.142 is in the United Kingdom in MaxMind's test database.
  */
 class CountryTagTest extends CommandTest {
@@ -165,7 +165,7 @@ class CountryTagTest extends CommandTest {
                 Assertions.assertThat(field.placeholders().contains(Placeholders.COUNTRY_TAG))
                         .as(field.key())
                         .isEqualTo(Placeholders.COUNTRY_KEYS.contains(field.key())));
-        // S74 owns the wording of the existing texts: only the GeoIP texts use the tag.
+        // Of the built-in texts, only the GeoIP texts use the tag.
         final Map<String, String> english = MessageService.builtInTexts();
         english.forEach((key, text) -> Assertions.assertThat(text.contains("<country>"))
                 .as(key)

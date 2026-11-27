@@ -12,7 +12,7 @@ import net.serlith.sakurabans.core.permission.Permissions;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** S68: a backend with {@code enforcement.login-check: false} keeps banned players in. */
+/** A backend with {@code enforcement.login-check: false} keeps banned players in. */
 class BackendLoginCheckTest extends ServiceTest {
 
     @Override

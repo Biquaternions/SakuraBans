@@ -22,7 +22,7 @@ import org.assertj.core.api.Assertions;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
-/** A proxy: server bans and mutes apply to the players on that backend (D29). */
+/** A proxy: server bans and mutes apply to the players on that backend. */
 class ProxyEnforcementTest extends ServiceTest {
 
     @Override

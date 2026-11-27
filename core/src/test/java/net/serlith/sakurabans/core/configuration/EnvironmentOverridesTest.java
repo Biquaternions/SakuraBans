@@ -10,7 +10,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.spongepowered.configurate.ConfigurationNode;
 
-/** S71: which variables exist, how values are read, and what is refused. */
+/** Which variables exist, how values are read, and what is refused. */
 class EnvironmentOverridesTest {
 
     private static EnvironmentOverrides of(final String... pairs) {
@@ -50,7 +50,7 @@ class EnvironmentOverridesTest {
                 .containsEntry("SAKURABANS_STORAGE_ADDRESS_HASH_KEY",
                         "storage.address-hash-key");
         assertThat(new HashSet<>(variables.values())).hasSameSizeAs(variables.values());
-        // 7 of config.yml (S72 added 4 of geoip), and exactly the keys of the storage model.
+        // 7 of config.yml (4 of them geoip), and exactly the keys of the storage model.
         assertThat(variables.keySet().stream().filter(name ->
                 name.startsWith("SAKURABANS_STORAGE_"))).hasSize(variables.size() - 7);
         assertThat(variables.values().stream().filter(key -> key.startsWith("storage.")))

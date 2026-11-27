@@ -11,7 +11,7 @@ import org.jspecify.annotations.Nullable;
  * victim (with its alts and addresses when {@code addressShared}) since {@code since} (null: all),
  * leaving out uses whose punishment was voided, each worth its template's weight; {@code stepFor}
  * turns the points into the step. The same count runs before an apply and again, under the
- * victim's lock, in the transaction that stores the use (S64).
+ * victim's lock, in the transaction that stores the use.
  */
 public record LadderCount(Map<String, Integer> weights, boolean addressShared,
         @Nullable Instant since, Instant now, LongToIntFunction stepFor) {

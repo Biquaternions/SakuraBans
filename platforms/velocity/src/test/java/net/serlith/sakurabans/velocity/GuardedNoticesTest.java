@@ -9,7 +9,7 @@ import net.kyori.adventure.text.Component;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** S64: whatever the packetevents bridge throws, the core gets {@code false} and uses chat. */
+/** Whatever the packetevents bridge throws, the core gets {@code false} and uses chat. */
 class GuardedNoticesTest {
 
     private static final Component TEXT = Component.text("Muted");

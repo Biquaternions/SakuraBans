@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Instances on one database. The integration tests run it on MariaDB, MySQL, PostgreSQL. Every
- * time the transport uses is the database's (S66), so the hosts' clocks are set minutes apart.
+ * time the transport uses is the database's, so the hosts' clocks are set minutes apart.
  */
 class SqlPollingTransportTest extends DatabaseTest {
 

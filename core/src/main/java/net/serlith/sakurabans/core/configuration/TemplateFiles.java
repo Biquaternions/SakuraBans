@@ -45,7 +45,7 @@ public final class TemplateFiles {
             "duration", "steps", "expiry", "address-shared", "permission-required", "actions",
             "groups", "message", "display", "silent");
     private static final Set<String> STEP_KEYS = Set.of("step", "reason", "message", "actions");
-    // Keys of the format before D37, with what replaced them.
+    // Keys of the format before typed templates, with what replaced them.
     private static final Map<String, String> REPLACED = Map.of(
             "ladder", "use 'type: ladder' and 'steps' (each step names its type: warn, kick,"
                     + " mute 1h, ban 7d, none)",
@@ -88,7 +88,7 @@ public final class TemplateFiles {
                     template(name, entry.getValue(), "templates." + name, null, errors);
             parsed.ifPresent(templates::add);
         }
-        // Variants (S62): {<scope>: {<name>: definition}}, each a whole definition.
+        // Variants: {<scope>: {<name>: definition}}, each a whole definition.
         final ConfigurationNode variants = root.node("variants");
         if (!variants.virtual() && !variants.isMap()) {
             errors.add(ConfigIssue.error(FILE, "variants", "must be a section"));

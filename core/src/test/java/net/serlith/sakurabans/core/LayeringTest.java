@@ -16,7 +16,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 /**
- * Checks the package layering of {@code core} (IMPLEMENTATION_PLAN.md 5.3).
+ * Checks the package layering of {@code core}.
  *
  * <p>A package may import packages of a lower layer, and packages of its own layer that are
  * listed before it. Sub-packages count as their top-level package. The root package is written
@@ -24,7 +24,6 @@ import org.junit.jupiter.api.Test;
  */
 class LayeringTest {
 
-    /** Keep in sync with the table in IMPLEMENTATION_PLAN.md 5.3. */
     private static final List<List<String>> LAYERS = List.of(
             List.of("util", "concurrent", "model", "platform"),
             List.of("configuration", "message", "storage", "geoip"),
@@ -57,7 +56,7 @@ class LayeringTest {
             }
         }
         assertThat(unknown)
-                .as("packages missing from the layer table (plan 5.3 and LayeringTest.LAYERS)")
+                .as("packages missing from the layer table (LayeringTest.LAYERS)")
                 .isEmpty();
     }
 
@@ -75,7 +74,7 @@ class LayeringTest {
                 }
             }
         }
-        assertThat(violations).as("imports that break the layering of plan 5.3").isEmpty();
+        assertThat(violations).as("imports that break the layering").isEmpty();
     }
 
     @Test

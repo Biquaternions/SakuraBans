@@ -43,8 +43,8 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 /**
  * Two complete instances ({@link CoreBootstrap}, each with its own data folder and fake
- * platform) on one database with SQL sync (S46). Beta's host clock runs minutes ahead: sync
- * goes by the database's clock (S66), so every test here also covers skewed hosts.
+ * platform) on one database with SQL sync. Beta's host clock runs minutes ahead: sync
+ * goes by the database's clock, so every test here also covers skewed hosts.
  */
 @ParameterizedClass
 @EnumSource(ContainerDatabase.class)

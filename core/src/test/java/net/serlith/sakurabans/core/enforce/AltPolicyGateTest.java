@@ -12,7 +12,7 @@ import net.serlith.sakurabans.core.sync.SyncPacket;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** The allow list at login (plan S28). */
+/** The allow list at login. */
 class AltPolicyGateTest extends ServiceTest {
 
     private LoginDecision join(final UUID uuid, final String name) {

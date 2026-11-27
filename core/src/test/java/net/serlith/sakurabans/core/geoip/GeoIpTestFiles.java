@@ -51,7 +51,7 @@ public final class GeoIpTestFiles {
     }
 
     /**
-     * For tests of what uses GeoIP (S72b): a service on {@code config} (which must have
+     * For tests of what uses GeoIP: a service on {@code config} (which must have
      * {@code geoip.enabled}) with the test database placed by hand and loaded, so it is
      * {@code READY} on return. Without an account it never makes a request; stop it after.
      */

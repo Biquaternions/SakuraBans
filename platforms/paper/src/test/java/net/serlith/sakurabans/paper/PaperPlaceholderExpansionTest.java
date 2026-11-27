@@ -8,7 +8,7 @@ import org.assertj.core.api.Assertions;
 import org.bukkit.OfflinePlayer;
 import org.junit.jupiter.api.Test;
 
-/** S73: the PlaceholderAPI expansion passes its requests to the core's cached values. */
+/** The PlaceholderAPI expansion passes its requests to the core's cached values. */
 class PaperPlaceholderExpansionTest {
 
     private static final UUID STEVE = UUID.fromString("8667ba71-b85a-4004-af54-457a9734eed7");

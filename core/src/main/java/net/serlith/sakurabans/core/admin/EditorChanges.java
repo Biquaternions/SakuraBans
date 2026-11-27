@@ -54,7 +54,7 @@ public record EditorChanges(int format, long sequence, List<SettingsChange> sett
 
     /**
      * {@code scope}: the definition's scope as written, {@code global} or a variant's server
-     * or category (S62).
+     * or category.
      */
     public sealed interface TemplateChange {
 

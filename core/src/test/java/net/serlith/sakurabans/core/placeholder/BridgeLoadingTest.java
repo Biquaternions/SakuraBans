@@ -9,7 +9,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 /**
- * S73: a start without MiniPlaceholders never loads the bridge class, so nothing resolves the
+ * A start without MiniPlaceholders never loads the bridge class, so nothing resolves the
  * plugin's classes. Our classes are loaded again by a loader that records them and that can't
  * see MiniPlaceholders, as on a server without it.
  */

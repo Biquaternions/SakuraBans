@@ -11,7 +11,7 @@ dependencies {
     implementation(libs.configurate.yaml)
     implementation(libs.cloud.core)
     implementation(libs.cloud.minecraft.extras) {
-        // Declares Adventure 4.15; Paper 26.3 and Velocity 4.3 provide Adventure 5.2 (D18).
+        // Declares Adventure 4.15; Paper 26.3 and Velocity 4.3 provide Adventure 5.2.
         exclude(group = "net.kyori")
     }
     implementation(libs.h2)
@@ -19,16 +19,16 @@ dependencies {
     implementation(libs.mysql)
     implementation(libs.postgresql)
     implementation(libs.hsqldb)
-    // GeoIP (S72): only geoip.MaxMindCountryDatabase names it, and only when geoip.enabled.
+    // GeoIP: only geoip.MaxMindCountryDatabase names it, and only when geoip.enabled.
     implementation(libs.maxmind.db)
 
-    // Shaded and relocated on every platform (plan 3.3, 3.4): the servers' copies are never used.
+    // Shaded and relocated on every platform: the servers' copies are never used.
     implementation(libs.guava)
     implementation(libs.gson)
 
     // Optional at runtime: only LuckPermsBridge touches it, after checking it is installed.
     compileOnly(libs.luckperms.api)
-    // Optional at runtime (S73): only placeholder.MiniPlaceholdersBridge touches it, after the
+    // Optional at runtime: only placeholder.MiniPlaceholdersBridge touches it, after the
     // platform found the plugin enabled. Its one dependency (an injector) isn't needed.
     compileOnly(libs.miniplaceholders.api) {
         isTransitive = false
@@ -53,7 +53,7 @@ dependencies {
     testImplementation(libs.miniplaceholders.api) {
         isTransitive = false
     }
-    // Brigadier as Paper uses it, to test suggestions the way clients get them (S31 review).
+    // Brigadier as Paper uses it, to test suggestions the way clients get them.
     testImplementation(libs.cloud.brigadier)
     testImplementation(libs.brigadier)
 }

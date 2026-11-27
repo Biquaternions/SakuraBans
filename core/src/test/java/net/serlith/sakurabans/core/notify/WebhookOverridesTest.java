@@ -31,7 +31,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** S51: limits and webhook keys are scoped settings; webhook URLs are secrets. */
+/** Limits and webhook keys are scoped settings; webhook URLs are secrets. */
 class WebhookOverridesTest extends CommandTest {
 
     private static final String FILE_TOKEN = "file-token-1a2b";

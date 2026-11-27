@@ -23,7 +23,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** D37 commands: {@code -t} per type, {@code /punish}, {@code /sb templates reset}. */
+/** Template commands: {@code -t} per type, {@code /punish}, {@code /sb templates reset}. */
 class LadderCommandsTest extends CommandTest {
 
     @BeforeEach
@@ -161,7 +161,7 @@ class LadderCommandsTest extends CommandTest {
         Assertions.assertThat(new AuditRepository(this.storage).about(SubjectType.PLAYER,
                         STEVE.toString(), 10).join())
                 .extracting(entry -> entry.action())
-                .as("newest first; the action-only step is audited too (S63)")
+                .as("newest first; the action-only step is audited too")
                 .containsExactly(AuditAction.RESET, AuditAction.RESET, AuditAction.APPLY);
 
         final FakeCommandActor mod = FakeCommandActor.player(MOD, "Mod", Permissions.PUNISH);

@@ -1,4 +1,4 @@
-// The tags every message can use besides its placeholders (S74): `<prefix>` and `<plugin>`,
+// The tags every message can use besides its placeholders: `<prefix>` and `<plugin>`,
 // whose values are messages themselves, and the palette's colour tags, whose colours are the
 // `palette.*` messages. Previews resolve them from the texts in effect.
 import { resolveColor } from '../minimessage'

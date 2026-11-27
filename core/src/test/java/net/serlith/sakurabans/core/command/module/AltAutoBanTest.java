@@ -28,7 +28,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * S69: {@code alts.auto-ban}.
+ * {@code alts.auto-ban}.
  *
  * <pre>
  * STEVE  home              ALEX   home (Steve's alt)      BOB  home (already banned there)

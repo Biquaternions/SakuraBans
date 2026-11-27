@@ -10,7 +10,7 @@ import net.serlith.sakurabans.core.storage.repository.AuditRepository;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** S70: with display.censor-ip-addresses off (the default), nobody's audit view is masked. */
+/** With display.censor-ip-addresses off (the default), nobody's audit view is masked. */
 class AuditUncensoredTest extends CommandTest {
 
     @Test

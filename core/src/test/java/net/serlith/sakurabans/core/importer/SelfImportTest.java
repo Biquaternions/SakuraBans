@@ -49,7 +49,7 @@ import org.assertj.core.api.Assertions;
 import org.jooq.impl.DSL;
 import org.junit.jupiter.api.Test;
 
-/** {@code /sb import self}: another SakuraBans database (H2) into this empty one (plan S38). */
+/** {@code /sb import self}: another SakuraBans database (H2) into this empty one. */
 class SelfImportTest extends ImportTest {
 
     private static final String SECRET = "ab".repeat(32);

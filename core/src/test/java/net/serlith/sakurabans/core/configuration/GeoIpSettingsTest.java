@@ -12,7 +12,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** S72: the {@code geoip} section, its checks and its environment variables. */
+/** The {@code geoip} section, its checks and its environment variables. */
 class GeoIpSettingsTest {
 
     private static final String ACCOUNT = "761234";

@@ -27,7 +27,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * S64: {@code TemplateAppliedEvent} with its actor and reason, the actions run by the service
+ * {@code TemplateAppliedEvent} with its actor and reason, the actions run by the service
  * from the definition that was applied, and {@code nextStep} at a scope.
  */
 class TemplateAppliedTest extends ServiceTest {

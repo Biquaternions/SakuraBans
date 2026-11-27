@@ -145,11 +145,11 @@ export type MessageScope = z.infer<typeof messageScopeSchema>
 export const punishmentTypeSchema = z.enum(['ban', 'mute', 'warn', 'kick'])
 export type PunishmentType = z.infer<typeof punishmentTypeSchema>
 
-/** A template's `type` (protocol 5.4, decision D37): a preset of one punishment type, or a ladder. */
+/** A template's `type` (protocol 5.4): a preset of one punishment type, or a ladder. */
 export const templateKindSchema = z.enum(['ban', 'mute', 'warn', 'kick', 'ladder'])
 export type TemplateKind = z.infer<typeof templateKindSchema>
 
-/** How the mute notice and the warning reach an online player (S61). */
+/** How the mute notice and the warning reach an online player. */
 export const templateDisplaySchema = z.enum(['chat', 'dialog'])
 export type TemplateDisplay = z.infer<typeof templateDisplaySchema>
 
@@ -190,7 +190,7 @@ export type TemplateDefinition = z.infer<typeof templateDefinitionSchema>
 
 /**
  * A template's definition: `scope` is `global` for the global definition, or the server or
- * category of a variant (S62) — where the definition is in force, not the definition's own
+ * category of a variant — where the definition is in force, not the definition's own
  * `scope` key (where its punishments apply).
  */
 export const templateItemSchema = z.object({

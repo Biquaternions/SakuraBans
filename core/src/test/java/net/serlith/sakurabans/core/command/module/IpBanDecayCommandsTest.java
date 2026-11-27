@@ -13,7 +13,7 @@ import net.serlith.sakurabans.core.model.LoginAttempt;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** S69: the decay at login, with ON_JOIN, and in /checkban and the lists. */
+/** The decay at login, with ON_JOIN, and in /checkban and the lists. */
 class IpBanDecayCommandsTest extends CommandTest {
 
     @Override

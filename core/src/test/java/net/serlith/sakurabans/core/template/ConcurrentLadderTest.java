@@ -24,7 +24,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** S64: concurrent applies of a ladder to one victim get consecutive steps. */
+/** Concurrent applies of a ladder to one victim get consecutive steps. */
 class ConcurrentLadderTest extends ServiceTest {
 
     private static final PlayerVictim VICTIM = PlayerVictim.of(STEVE);

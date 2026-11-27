@@ -290,7 +290,7 @@ public final class ConfigService {
         if (!before.labels().equals(after.labels())) {
             restartRequired.add("commands.labels");
         }
-        // S72: the database is loaded at start only where GeoIP is on.
+        // The database is loaded at start only where GeoIP is on.
         if (this.settings().geoip().enabled() != loaded.settings().geoip().enabled()) {
             restartRequired.add("geoip.enabled");
         }

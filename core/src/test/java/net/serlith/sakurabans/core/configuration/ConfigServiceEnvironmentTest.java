@@ -16,7 +16,7 @@ import net.serlith.sakurabans.core.configuration.settings.SyncMode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** S71: the environment through {@code ConfigService}, from a map the platform would give. */
+/** The environment through {@code ConfigService}, from a map the platform would give. */
 class ConfigServiceEnvironmentTest {
 
     private static final String KEY = "environment-address-hash-key-0123456789";

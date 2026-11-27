@@ -7,7 +7,7 @@ dependencies {
     implementation(project(":core"))
     implementation(libs.cloud.velocity)
     compileOnly(libs.velocity.api)
-    // Provided by the packetevents plugin when installed (S61); never shaded.
+    // Provided by the packetevents plugin when installed; never shaded.
     compileOnly(libs.packetevents.api) {
         isTransitive = false
     }
@@ -23,7 +23,7 @@ tasks {
         }
         mergeServiceFiles()
 
-        // Provided by Velocity 4.3 (plan 3.4): never shade them.
+        // Provided by Velocity 4.3: never shade them.
         dependencies {
             exclude(dependency("net.kyori:.*"))
             exclude(dependency("org.slf4j:.*"))

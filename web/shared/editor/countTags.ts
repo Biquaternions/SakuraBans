@@ -1,4 +1,4 @@
-// Punishment counts the plugin adds to messages (S73, core message.NetworkTotals and
+// Punishment counts the plugin adds to messages (core message.NetworkTotals and
 // message.Placeholders). The network's counts work in every message, so they aren't in each
 // field's placeholder list; the player's counts are, for the messages that show a punishment.
 

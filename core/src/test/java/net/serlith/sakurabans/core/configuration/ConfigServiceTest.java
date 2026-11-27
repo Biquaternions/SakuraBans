@@ -555,7 +555,7 @@ class ConfigServiceTest {
 
     @Test
     void thereIsNoUpdateCheck() {
-        // Removed on 2026-11-27 (S68, the user's decision): no updates.* keys of any kind.
+        // Removed on 2026-11-27 (the user's decision): no updates.* keys of any kind.
         assertThat(SettingsSchema.ENTRIES).extracting(SettingsSchema.Entry::key)
                 .noneMatch(key -> key.startsWith("updates."));
     }

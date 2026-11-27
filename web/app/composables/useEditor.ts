@@ -59,7 +59,7 @@ function normalizeDraft(raw: Partial<EditorDraft>, revision: number): EditorDraf
   if (typeof raw !== 'object' || raw === null || !Array.isArray(raw.templates)) {
     return null
   }
-  // A draft kept by a version of this site before typed templates (D37) can't be read.
+  // A draft kept by a version of this site before typed templates can't be read.
   if (!raw.templates.every(form => typeof form === 'object' && form !== null
     && (form.kind === 'preset' || form.kind === 'ladder'))) {
     return null
@@ -69,7 +69,7 @@ function normalizeDraft(raw: Partial<EditorDraft>, revision: number): EditorDraf
     publish: raw.publish ?? null,
     messages: raw.messages ?? {},
     addedLocales: raw.addedLocales ?? [],
-    // A draft kept before scoped variants (S62) holds global definitions only.
+    // A draft kept before scoped variants holds global definitions only.
     templates: raw.templates.map(form => ({ ...form, variant: typeof form.variant === 'string' ? form.variant : GLOBAL })),
     lastSequence: Number(raw.lastSequence) || 0,
     revision,

@@ -5,7 +5,7 @@
 // reset (the override removed, so the next layer applies). Global may also publish a server's
 // file values. Templates are held as the whole edited list and compared with the payload by
 // scope and name: `global` for a template's global definition, a server or category for one of
-// its variants (S62).
+// its variants.
 
 import { canonicalJson, jsonEqual, removeKey } from '../json'
 import { FORMAT } from '../protocol/constants'
@@ -27,7 +27,7 @@ export type TemplateDraft = TemplateForm & {
   /** The name the template had in the payload; null for one created in the editor. */
   origin: string | null
   /**
-   * Where this definition is in force: `global`, or a variant's server or category (S62). Not
+   * Where this definition is in force: `global`, or a variant's server or category. Not
    * `scope` of the form, which is where its punishments apply.
    */
   variant: string
@@ -44,7 +44,7 @@ export function templatePath(variant: string, name: string): string {
 }
 
 /**
- * The order the plugin applies template changes in (EditorService, S62): variant deletions,
+ * The order the plugin applies template changes in (EditorService): variant deletions,
  * global creations and updates, variant creations and updates, global deletions. The change set
  * is written in this order, so its result lines come back in it too.
  */
@@ -590,7 +590,7 @@ function validateAll(payload: Payload, draft: EditorDraft): Issue[] {
     }
   }
   // Only templates the user touched: the payload's own are valid by construction. A variant is
-  // also checked against its global definition (S62), which may have changed since.
+  // also checked against its global definition, which may have changed since.
   const original = templateItems(payload)
   const globals = new Map(draft.templates.filter(form => form.variant === GLOBAL).map(form => [form.name, form]))
   draft.templates.forEach((form, index) => {

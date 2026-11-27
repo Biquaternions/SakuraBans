@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// A preset's or a ladder step's duration (decision D37): open, permanent or a fixed length, as
+// A preset's or a ladder step's duration: open, permanent or a fixed length, as
 // far as the type allows. The length is kept while another mode is picked.
 import { durationModes } from '#shared/editor/templates'
 import type { DurationForm, DurationMode } from '#shared/editor/templates'

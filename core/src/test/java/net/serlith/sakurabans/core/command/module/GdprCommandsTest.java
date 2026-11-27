@@ -10,7 +10,7 @@ import net.serlith.sakurabans.core.command.CommandTest;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** /sb gdpr (plan S37e). */
+/** /sb gdpr. */
 class GdprCommandsTest extends CommandTest {
 
     @Test

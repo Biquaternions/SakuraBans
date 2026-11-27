@@ -9,7 +9,7 @@ import org.jspecify.annotations.Nullable;
 
 public sealed interface LoginDecision {
 
-   record Allowed(@Nullable Component noticeOrNull) implements LoginDecision {
+    record Allowed(@Nullable Component noticeOrNull) implements LoginDecision {
 
         public Allowed() {
             this(null);

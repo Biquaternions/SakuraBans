@@ -27,7 +27,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** S70: /sb audit and /sb audit export. */
+/** /sb audit and /sb audit export. */
 class AuditCommandsTest extends CommandTest {
 
     private static final UUID AUDITOR = UUID.fromString("5a0e1a7c-0d52-4b6e-8f0a-3f1d7a3a9b11");

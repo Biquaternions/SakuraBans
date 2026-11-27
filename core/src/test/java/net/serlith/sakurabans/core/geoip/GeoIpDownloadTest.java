@@ -21,7 +21,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-/** S72: the download from a local stand-in for MaxMind's service. */
+/** The download from a local stand-in for MaxMind's service. */
 class GeoIpDownloadTest {
 
     private static final Instant PUBLISHED = Instant.parse("2026-11-24T10:00:00Z");

@@ -26,7 +26,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * S69: {@code enforcement.ip-ban-decay} in every applicability query: the login query, the
+ * {@code enforcement.ip-ban-decay} in every applicability query: the login query, the
  * live check, "applicable to" queries and their counts. The integration tests run it on
  * MariaDB, MySQL and PostgreSQL.
  *

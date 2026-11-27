@@ -75,7 +75,7 @@ const inheritedFrom = computed(() => {
 const samples = reactive<Record<string, string>>(Object.fromEntries(messageTagsKnown(props.field.placeholders).map(name => [name, sampleFor(name)])))
 
 const prefixField = computed(() => payload.value.messages?.fields.find(item => item.key === 'prefix'))
-/** `<prefix>`, `<plugin>` and the palette as this scope shows them, drafts included (S74). */
+/** `<prefix>`, `<plugin>` and the palette as this scope shows them, drafts included. */
 const styles = computed(() => messageStyles((key) => {
   if (key === field.value.key) {
     return text.value

@@ -33,7 +33,7 @@ final class PaperLoginListener implements Listener {
         if (decision instanceof LoginDecision.Denied denied) {
             event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_BANNED, denied.screen());
         } else if (decision instanceof LoginDecision.Allowed allowed) {
-            // login-check: false let a banned player in (S68): told once they have joined.
+            // login-check: false let a banned player in: told once they have joined.
             allowed.notice().ifPresent(notice -> this.notices.put(event.getUniqueId(), notice));
         }
     }

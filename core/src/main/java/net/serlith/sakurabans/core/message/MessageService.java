@@ -158,7 +158,7 @@ public final class MessageService {
     public Component renderText(final String text, final Locale locale,
             final TagResolver... resolvers) {
         final TagResolver styles = this.styles(locale);
-        // S73: the network's counts in every message.
+        // The network's counts in every message.
         return MINI_MESSAGE.deserialize(text,
                 TagResolver.resolver(styles, this.totals.tags(), TagResolver.resolver(resolvers)));
     }

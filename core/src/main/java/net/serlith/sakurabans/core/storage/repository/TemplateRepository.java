@@ -335,7 +335,7 @@ public final class TemplateRepository {
     }
 
     /**
-     * Locks the victim's row and counts its step again (S64): empty when it is still the
+     * Locks the victim's row and counts its step again: empty when it is still the
      * expected one, else the step it is now. Called first in the transaction that stores a
      * ladder use, so two applies on one victim can't both store the same step. Uses counted
      * through other victims (an {@code address-shared} ladder counts the alts' and addresses'
@@ -361,9 +361,9 @@ public final class TemplateRepository {
 
     /**
      * Records a use without a punishment (a ladder step that only runs actions), audited in the
-     * same transaction (S63): the victim is the subject ({@link #victimSubject}), the template,
+     * same transaction: the victim is the subject ({@link #victimSubject}), the template,
      * step (from 1) and variant are the new value. {@code expected}: the step it was counted at,
-     * so nothing is stored when a concurrent use changed it (S64); null: stored whatever the
+     * so nothing is stored when a concurrent use changed it; null: stored whatever the
      * count.
      */
     public CompletableFuture<UseOutcome> recordUse(final NewTemplateUse use,
@@ -391,7 +391,7 @@ public final class TemplateRepository {
     }
 
     /**
-     * Which uses a reset concerns (S64): those of {@code templates} (null: of any template) on
+     * Which uses a reset concerns: those of {@code templates} (null: of any template) on
      * the target's own victim rows, or, when {@code addressShared}, on every victim an
      * {@code address-shared} ladder counts for it (its alts and addresses too).
      */
@@ -463,11 +463,11 @@ public final class TemplateRepository {
     }
 
     /**
-     * A victim as an audit subject, never with its address (S64): {@code PLAYER} and the UUID for
+     * A victim as an audit subject, never with its address: {@code PLAYER} and the UUID for
      * a victim with one (player, composite, erased composite); {@code ADDRESS_HASH} and the
      * address hash {@code sb_victims} stores (hex) for an address; {@code VICTIM} and the
      * {@code sb_victims} id for a range or an erased address. Erasing a player keeps the hashes
-     * of {@code sb_victims} (D28), so the subject needs no redaction.
+     * of {@code sb_victims}, so the subject needs no redaction.
      */
     static Subject victimSubject(final DSLContext dsl, final AddressHasher hasher,
             final Victim victim) {

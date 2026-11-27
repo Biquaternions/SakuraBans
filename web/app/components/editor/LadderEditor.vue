@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// A ladder's ordered steps (decision D37): each names its own type, or "No punishment" (actions
+// A ladder's ordered steps: each names its own type, or "No punishment" (actions
 // only), with a duration where the type has one and an optional reason, message and actions.
 // Drag and drop with the mouse, or the move buttons from the keyboard; a step's reason, message
 // and actions belong to it and move with it.

@@ -15,7 +15,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** S72b: {@code /geoip <target>} with MaxMind's test database. */
+/** {@code /geoip <target>} with MaxMind's test database. */
 class GeoIpCommandsTest extends CommandTest {
 
     private static final InetAddress BRITISH = GeoIpTestFiles.address("81.2.69.142");

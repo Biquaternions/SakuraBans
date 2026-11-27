@@ -19,7 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * S72b: with GeoIP off on this server the lists, even when set (they are global), change
+ * With GeoIP off on this server the lists, even when set (they are global), change
  * nothing, and the lookup is never asked: not by the login check, not for {@code <country>}.
  */
 class GeoIpOffLoginTest extends ServiceTest {

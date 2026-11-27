@@ -49,7 +49,7 @@ class SchemaManagerTest extends DatabaseTest {
         });
 
         Assertions.assertThat(this.count(SakuraTables.SCOPES)).isOne();
-        // schema_version, created_with and the address hash key's fingerprint (S66).
+        // schema_version, created_with and the address hash key's fingerprint.
         Assertions.assertThat(this.count(SakuraTables.META)).isEqualTo(3);
         Assertions.assertThat(this.log.entries("info").stream().map(RecordingLogger.Entry::format)
                 .filter(line -> line.startsWith("Created the database schema"))).hasSize(1);
@@ -81,7 +81,7 @@ class SchemaManagerTest extends DatabaseTest {
 
     @Test
     void buildsBeforeTheBetasRefuseDatabasesOfOlderVersions() {
-        // Version 1: before S66's keyed address hashes.
+        // Version 1: before keyed address hashes.
         this.read(dsl -> dsl.update(SakuraTables.META).set(SakuraTables.META.V, "1")
                 .where(SakuraTables.META.K.eq(SchemaManager.VERSION_KEY))
                 .execute());

@@ -35,7 +35,7 @@ public final class SbTemplateUses extends SbTable<SbTemplateUsesRecord> {
     public final TableField<SbTemplateUsesRecord, String> TEMPLATE = createField(
             DSL.name("template"), SQLDataType.VARCHAR(64).nullable(false), this, "");
 
-    /** The variant that was used (S62); null: the global definition. */
+    /** The variant that was used; null: the global definition. */
     public final TableField<SbTemplateUsesRecord, Integer> TEMPLATE_VARIANT_SCOPE_ID =
             createField(DSL.name("template_variant_scope_id"),
                     SQLDataType.INTEGER.nullable(true), this, "");

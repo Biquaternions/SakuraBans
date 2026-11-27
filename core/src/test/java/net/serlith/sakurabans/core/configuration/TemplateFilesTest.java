@@ -26,7 +26,7 @@ import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** {@code templates.yml}: the shipped seed, both shapes, errors with paths, exports (D37). */
+/** {@code templates.yml}: the shipped seed, both shapes, errors with paths, exports. */
 class TemplateFilesTest {
 
     @TempDir

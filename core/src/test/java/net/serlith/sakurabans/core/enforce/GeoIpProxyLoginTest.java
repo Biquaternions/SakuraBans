@@ -18,7 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * S72b on a proxy: GeoIP is checked at login to the proxy, also for a banned player that
+ * On a proxy, GeoIP is checked at login to the proxy, also for a banned player that
  * {@code servers-without-login-check} lets in, and never when switching servers.
  */
 class GeoIpProxyLoginTest extends ServiceTest {

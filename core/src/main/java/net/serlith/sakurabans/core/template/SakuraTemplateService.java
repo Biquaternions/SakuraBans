@@ -98,9 +98,9 @@ public final class SakuraTemplateService implements TemplateService, TemplateGua
     }
 
     /**
-     * Every definition in memory: the global ones by name, and each name's variants by scope
-     * (S62). Every instance keeps every variant: a punishment issued elsewhere is shown here
-     * from the variant it came from.
+     * Every definition in memory: the global ones by name, and each name's variants by scope.
+     * Every instance keeps every variant: a punishment issued elsewhere is shown here from
+     * the variant it came from.
      */
     private record Catalog(Map<String, StoredTemplate> global,
             Map<String, Map<Scope, StoredTemplate>> variants) {
@@ -252,7 +252,7 @@ public final class SakuraTemplateService implements TemplateService, TemplateGua
     }
 
     /**
-     * The definition a use gets (S62, rule in {@link TemplateService}): {@code explicit} is the
+     * The definition a use gets (rule in {@link TemplateService}): {@code explicit} is the
      * scope the request names (null: none); without one, this server on a backend, the
      * operator's server on a proxy, else global.
      */
@@ -355,7 +355,7 @@ public final class SakuraTemplateService implements TemplateService, TemplateGua
         Preconditions.checkNotNull(ladder, "ladder");
         final Optional<StoredTemplate> definition;
         try {
-            // An explicit scope picks the variant as /punish --scope does (S62); null: global.
+            // An explicit scope picks the variant as /punish --scope does; null: global.
             definition = scope == null ? this.find(ladder)
                     : this.find(ladder).flatMap(global -> this.firstOf(global.name(),
                             this.layers(ApiValues.scope(scope))));
@@ -377,7 +377,7 @@ public final class SakuraTemplateService implements TemplateService, TemplateGua
 
     /**
      * The victim's step on the ladder: its points are the earlier uses of every template
-     * sharing a group with it, each with its weight (D37: presets too).
+     * sharing a group with it, each with its weight (Presets too).
      */
     public CompletableFuture<Integer> step(final LadderTemplate template, final Victim victim) {
         return this.step(victim, this.counting(template));
@@ -388,7 +388,7 @@ public final class SakuraTemplateService implements TemplateService, TemplateGua
     }
 
     /**
-     * How the ladder counts a step now (S64): the same count before an apply and in the
+     * How the ladder counts a step now: the same count before an apply and in the
      * transaction that stores its use.
      */
     public LadderCount counting(final LadderTemplate template) {
@@ -400,7 +400,7 @@ public final class SakuraTemplateService implements TemplateService, TemplateGua
                 points -> Math.clamp(points, 0, last));
     }
 
-    /** Groups and weights come from the global definitions only (S62). */
+    /** Groups and weights come from the global definitions only. */
     Map<String, Integer> weights(final TemplateInfo template) {
         final Map<String, Integer> weights = new HashMap<>();
         final TemplateInfo global = template.variant().isEmpty() ? template
@@ -435,7 +435,7 @@ public final class SakuraTemplateService implements TemplateService, TemplateGua
 
     /**
      * Forgets the uses each template concerned would count for the target, so its ladders
-     * start over (S64): for a ladder, the uses of it and its group mates (weights of the
+     * start over: for a ladder, the uses of it and its group mates (weights of the
      * global definitions), on the target's alts and addresses too when the ladder (its global
      * definition or a variant) is {@code address-shared}; for a preset or a name without a
      * template, the target's own uses. Without a template: the target's own uses of every

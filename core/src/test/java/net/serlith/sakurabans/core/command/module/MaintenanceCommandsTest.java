@@ -13,7 +13,7 @@ import net.serlith.sakurabans.core.util.InetAddresses;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-/** S67: {@code /sb addlogin} and the default aliases of {@code /alts} and {@code /warns}. */
+/** {@code /sb addlogin} and the default aliases of {@code /alts} and {@code /warns}. */
 class MaintenanceCommandsTest extends CommandTest {
 
     private static final UUID NEW_PLAYER = UUID.fromString("11111111-2222-3333-4444-555555555555");

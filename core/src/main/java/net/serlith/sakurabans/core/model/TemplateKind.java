@@ -9,7 +9,7 @@ import net.serlith.sakurabans.api.template.PresetTemplate;
 import net.serlith.sakurabans.api.template.TemplateInfo;
 import org.jspecify.annotations.Nullable;
 
-/** What a template is: a preset of one type, or a ladder (D37). */
+/** What a template is: a preset of one type, or a ladder. */
 public enum TemplateKind {
     BAN(PunishmentType.BAN),
     MUTE(PunishmentType.MUTE),

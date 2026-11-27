@@ -18,7 +18,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.junit.jupiter.api.Test;
 
-/** S68: the BungeeCord kick request, and the local kick when no proxy takes the player. */
+/** The BungeeCord kick request, and the local kick when no proxy takes the player. */
 class PaperNetworkKickTest {
 
     private static final Component SCREEN = Component.text("Banned", NamedTextColor.RED);

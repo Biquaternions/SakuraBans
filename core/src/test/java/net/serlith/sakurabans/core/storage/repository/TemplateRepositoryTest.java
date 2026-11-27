@@ -32,7 +32,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** Templates in the database and the ladder history (S31); the integration test runs it too. */
+/** Templates in the database and the ladder history; the integration test runs it too. */
 class TemplateRepositoryTest extends DatabaseTest {
 
     private static final UUID STEVE = UUID.fromString("8667ba71-b85a-4004-af54-457a9734eed7");
@@ -185,7 +185,7 @@ class TemplateRepositoryTest extends DatabaseTest {
 
     @Test
     void useExpectingStepIsStoredOnlyWhileTheCountHolds() {
-        // S64: the storing transaction locks the victim and counts again.
+        // The storing transaction locks the victim and counts again.
         final LadderCount count = new LadderCount(Map.of("ladder", 1), false, null,
                 this.now.get(), points -> (int) Math.min(points, 3));
         final PlayerVictim steve = PlayerVictim.of(STEVE);

@@ -74,7 +74,7 @@ public final class OverrideCommands implements CommandModule {
                 .ifPresent(root -> {
                     final var settings = root.literal("settings")
                             .permission(Permissions.ADMIN_SETTINGS);
-                    // No scope means global (D36), never scopes.default.
+                    // No scope means global, never scopes.default.
                     manager.command(settings.literal("list")
                             .optional(SCOPE, this.scopes.configDescriptor())
                             .flag(CommandFlag.builder(EFFECTIVE).build())

@@ -11,7 +11,7 @@ import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 
 /**
- * Writes `paper-libraries.txt` (plan 3.3): one `group:artifact:version` per line for every
+ * Writes `paper-libraries.txt`: one `group:artifact:version` per line for every
  * external module that one of our own projects depends on directly. Paper's
  * `MavenLibraryResolver` resolves their transitive dependencies at runtime.
  */

@@ -8,4 +8,4 @@ hundred networks chosen for testing and is not a current GeoLite2 database.
 
 The MaxMind-DB repository is Copyright (c) 2013 - 2026 by MaxMind, Inc. and licensed under the
 Apache License, Version 2.0 or the MIT License, at your option (LICENSE-APACHE and LICENSE-MIT
-in that repository). Used only by the GeoIP tests (S72).
+in that repository). Used only by the GeoIP tests.
