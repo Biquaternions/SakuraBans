@@ -30,7 +30,7 @@ import org.jspecify.annotations.Nullable;
 @SuppressWarnings("NotNullFieldNotInitialized")
 public final class SakuraTables {
 
-    public static final int SCHEMA_VERSION = 5;
+    public static final int SCHEMA_VERSION = 1;
 
     public static SbMeta META;
     public static SbPlayers PLAYERS;

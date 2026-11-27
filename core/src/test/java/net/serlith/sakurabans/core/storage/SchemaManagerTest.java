@@ -81,8 +81,7 @@ class SchemaManagerTest extends DatabaseTest {
 
     @Test
     void buildsBeforeTheBetasRefuseDatabasesOfOlderVersions() {
-        // Version 1: before keyed address hashes.
-        this.read(dsl -> dsl.update(SakuraTables.META).set(SakuraTables.META.V, "1")
+        this.read(dsl -> dsl.update(SakuraTables.META).set(SakuraTables.META.V, "0")
                 .where(SakuraTables.META.K.eq(SchemaManager.VERSION_KEY))
                 .execute());
 
@@ -90,9 +89,9 @@ class SchemaManagerTest extends DatabaseTest {
             this.manager.prepare(dsl, this.schema().orElse(null));
             return null;
         })).hasCauseInstanceOf(StorageException.class)
-                .hasMessageContaining("schema version 1").hasMessageContaining("dev builds");
+                .hasMessageContaining("schema version 0").hasMessageContaining("dev builds");
         final Optional<Integer> version = this.read(this.manager::version);
-        Assertions.assertThat(version).as("left as it was").contains(1);
+        Assertions.assertThat(version).as("left as it was").contains(0);
     }
 
     @Test
