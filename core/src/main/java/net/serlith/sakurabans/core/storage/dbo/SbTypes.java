@@ -14,6 +14,7 @@ import net.serlith.sakurabans.api.template.TemplateDisplay;
 import net.serlith.sakurabans.core.model.AuditAction;
 import net.serlith.sakurabans.core.model.SubjectType;
 import net.serlith.sakurabans.core.model.TemplateKind;
+import net.serlith.sakurabans.core.storage.converter.BytesBinding;
 import net.serlith.sakurabans.core.storage.converter.DurationMillisConverter;
 import net.serlith.sakurabans.core.storage.converter.EnumCode;
 import net.serlith.sakurabans.core.storage.converter.EnumCodeConverter;
@@ -21,6 +22,8 @@ import net.serlith.sakurabans.core.storage.converter.FlagConverter;
 import net.serlith.sakurabans.core.storage.converter.InetAddressBytesConverter;
 import net.serlith.sakurabans.core.storage.converter.InstantMillisConverter;
 import net.serlith.sakurabans.core.storage.converter.UuidBytesConverter;
+import org.jooq.Converter;
+import org.jooq.Converters;
 import org.jooq.DataType;
 import org.jooq.impl.SQLDataType;
 
@@ -121,10 +124,11 @@ public final class SbTypes {
                     SubjectType.ADDRESS_HASH, 10,
                     SubjectType.VICTIM, 11));
 
+    // Binary columns go through BytesBinding, never raw SQLDataType.BINARY/VARBINARY.
     public static final DataType<UUID> UUID =
-            SQLDataType.BINARY(16).asConvertedDataType(new UuidBytesConverter());
+            bytes(SQLDataType.BINARY(16), new UuidBytesConverter());
     public static final DataType<InetAddress> INET =
-            SQLDataType.VARBINARY(16).asConvertedDataType(new InetAddressBytesConverter());
+            bytes(SQLDataType.VARBINARY(16), new InetAddressBytesConverter());
     public static final DataType<Instant> INSTANT =
             SQLDataType.BIGINT.asConvertedDataType(new InstantMillisConverter());
     public static final DataType<Duration> DURATION =
@@ -146,6 +150,19 @@ public final class SbTypes {
     public static final DataType<SubjectType> SUBJECT_TYPE = enumType(SUBJECT_TYPE_CODES);
 
     private SbTypes() {
+    }
+
+    public static DataType<byte[]> binary(final int length) {
+        return bytes(SQLDataType.BINARY(length), Converters.identity(byte[].class));
+    }
+
+    public static DataType<byte[]> varbinary(final int length) {
+        return bytes(SQLDataType.VARBINARY(length), Converters.identity(byte[].class));
+    }
+
+    private static <U> DataType<U> bytes(final DataType<byte[]> type,
+            final Converter<byte[], U> converter) {
+        return type.asConvertedDataType(new BytesBinding<>(type, converter));
     }
 
     private static <E extends Enum<E>> DataType<E> enumType(final EnumCode<E> codes) {

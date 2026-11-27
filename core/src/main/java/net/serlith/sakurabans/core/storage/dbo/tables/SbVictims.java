@@ -36,13 +36,13 @@ public final class SbVictims extends SbTable<SbVictimsRecord> {
             DSL.name("uuid"), SbTypes.UUID.nullable(false), this, "");
 
     public final TableField<SbVictimsRecord, byte[]> ADDRESS = createField(
-            DSL.name("address"), SQLDataType.VARBINARY(16).nullable(true), this, "");
+            DSL.name("address"), SbTypes.varbinary(16).nullable(true), this, "");
 
     public final TableField<SbVictimsRecord, Short> PREFIX_LENGTH = createField(
             DSL.name("prefix_length"), SQLDataType.SMALLINT.nullable(false), this, "");
 
     public final TableField<SbVictimsRecord, byte[]> ADDRESS_HASH = createField(
-            DSL.name("address_hash"), SQLDataType.BINARY(32).nullable(false), this, "");
+            DSL.name("address_hash"), SbTypes.binary(32).nullable(false), this, "");
 
     public SbVictims(final String prefix) {
         this(prefix, DSL.name(prefix + "victims"), null);

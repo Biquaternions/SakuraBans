@@ -25,7 +25,7 @@ public final class SbEditorSessions extends SbTable<SbEditorSessionsRecord> {
             DSL.name("id"), SQLDataType.VARCHAR(22).nullable(false), this, "");
 
     public final TableField<SbEditorSessionsRecord, byte[]> SECRET = createField(
-            DSL.name("secret"), SQLDataType.BINARY(32).nullable(false), this, "");
+            DSL.name("secret"), SbTypes.binary(32).nullable(false), this, "");
 
     public final TableField<SbEditorSessionsRecord, String> TOKEN = createField(
             DSL.name("token"), SQLDataType.VARCHAR(128).nullable(false), this, "");

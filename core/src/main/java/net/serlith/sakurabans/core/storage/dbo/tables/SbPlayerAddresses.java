@@ -42,7 +42,7 @@ public final class SbPlayerAddresses extends SbTable<SbPlayerAddressesRecord> {
             DSL.name("last_server"), SQLDataType.VARCHAR(64).nullable(true), this, "");
 
     public final TableField<SbPlayerAddressesRecord, byte[]> ADDRESS_HASH = createField(
-            DSL.name("address_hash"), SQLDataType.BINARY(32).nullable(false), this, "");
+            DSL.name("address_hash"), SbTypes.binary(32).nullable(false), this, "");
 
     public SbPlayerAddresses(final String prefix) {
         this(prefix, DSL.name(prefix + "player_addresses"), null);
