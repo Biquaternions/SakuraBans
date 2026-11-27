@@ -4,6 +4,8 @@ import java.nio.file.Files;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
+import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentType;
@@ -12,6 +14,8 @@ import net.serlith.sakurabans.api.punish.LadderRequest;
 import net.serlith.sakurabans.api.punish.OverridePolicy;
 import net.serlith.sakurabans.api.punish.PunishOptions;
 import net.serlith.sakurabans.api.punish.PunishResult;
+import net.serlith.sakurabans.api.punish.RevocationRequest;
+import net.serlith.sakurabans.api.punish.RevocationTarget;
 import net.serlith.sakurabans.api.template.TemplateDuration;
 import net.serlith.sakurabans.api.template.TemplateStep;
 import net.serlith.sakurabans.core.ServiceTest;
@@ -193,6 +197,122 @@ class LimitServiceTest extends ServiceTest {
         Assertions.assertThatThrownBy(() -> new Prepared.Ready(preset.punishment(),
                 Origin.PRESET, null, null))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    private void writeLimitsYaml(final String yaml) throws Exception {
+        Files.writeString(this.dir.resolve("limits.yml"), yaml);
+        Assertions.assertThat(this.config.reload()).isInstanceOf(ReloadResult.Reloaded.class);
+    }
+
+    private PunishResult punish(final PunishmentType type, final UUID victim,
+            final Actor actor) {
+        return this.service.punish(DraftPunishment.builder(type, PlayerVictim.of(victim), actor)
+                .build(), PunishOptions.builder().override(OverridePolicy.REPLACE).build())
+                .join();
+    }
+
+    @Test
+    void theRedoCooldownWaitsAfterLiftingOwnPunishmentOfThePlayer() throws Exception {
+        this.writeLimitsYaml(
+                """
+                reduce-to-limit: true
+                console-cooldown: 0s
+                groups:
+                  redo:
+                    permission: sakurabans.group.redo
+                    cooldown-redo: 10s
+                """);
+        this.mod.grant("sakurabans.group.redo");
+        punishment(this.punish(PunishmentType.BAN, STEVE, MODERATOR));
+        this.service.revoke(RevocationRequest.builder(
+                RevocationTarget.ByVictim.of(
+                        PunishmentType.BAN, PlayerVictim.of(STEVE), null), MODERATOR).build())
+                .join();
+
+        Assertions.assertThat(reason(this.punish(PunishmentType.BAN, STEVE, MODERATOR)))
+                .isEqualTo(PunishResult.Failure.Reason.COOLDOWN);
+        // Another player is not affected, nor is another punishment type... of another player.
+        Assertions.assertThat(this.punish(PunishmentType.BAN, ALEX, MODERATOR))
+                .isInstanceOf(PunishResult.Success.class);
+        this.now.set(this.now.get().plus(Duration.ofSeconds(11)));
+        Assertions.assertThat(this.punish(PunishmentType.BAN, STEVE, MODERATOR))
+                .isInstanceOf(PunishResult.Success.class);
+
+        // Lifting it again, but with the bypass permission: no wait.
+        this.service.revoke(RevocationRequest.builder(
+                RevocationTarget.ByVictim.of(
+                        PunishmentType.BAN, PlayerVictim.of(STEVE), null), MODERATOR).build())
+                .join();
+        this.mod.grant(Permissions.COOLDOWN_BYPASS);
+        Assertions.assertThat(this.punish(PunishmentType.BAN, STEVE, MODERATOR))
+                .isInstanceOf(PunishResult.Success.class);
+    }
+
+    @Test
+    void theRedoCooldownDefaultsToOneSecondAndOnlyFollowsOwnPunishments() throws Exception {
+        this.writeLimitsYaml(
+                """
+                reduce-to-limit: true
+                console-cooldown: 0s
+                groups:
+                  redo:
+                    permission: sakurabans.group.redo
+                """);
+        this.mod.grant("sakurabans.group.redo");
+        // Somebody else's ban, lifted by the moderator: no redo cooldown.
+        this.punish(PunishmentType.BAN, STEVE, CONSOLE);
+        this.service.revoke(RevocationRequest.builder(
+                RevocationTarget.ByVictim.of(
+                        PunishmentType.BAN, PlayerVictim.of(STEVE), null), MODERATOR).build())
+                .join();
+        Assertions.assertThat(this.punish(PunishmentType.BAN, STEVE, MODERATOR))
+                .isInstanceOf(PunishResult.Success.class);
+
+        this.service.revoke(RevocationRequest.builder(
+                RevocationTarget.ByVictim.of(
+                        PunishmentType.BAN, PlayerVictim.of(STEVE), null), MODERATOR).build())
+                .join();
+        Assertions.assertThat(reason(this.punish(PunishmentType.BAN, STEVE, MODERATOR)))
+                .isEqualTo(PunishResult.Failure.Reason.COOLDOWN);
+        this.now.set(this.now.get().plusMillis(1_001));
+        Assertions.assertThat(this.punish(PunishmentType.BAN, STEVE, MODERATOR))
+                .isInstanceOf(PunishResult.Success.class);
+    }
+
+    @Test
+    void theConsoleCooldownProtectsOnePlayerFromTwoPunishmentsNotManyPlayers()
+            throws Exception {
+        this.writeLimitsYaml(
+                """
+                reduce-to-limit: true
+                console-cooldown: 5s
+                groups: {}
+                """);
+
+        Assertions.assertThat(this.punish(PunishmentType.BAN, STEVE, CONSOLE))
+                .isInstanceOf(PunishResult.Success.class);
+        Assertions.assertThat(reason(this.punish(PunishmentType.BAN, STEVE, CONSOLE)))
+                .isEqualTo(PunishResult.Failure.Reason.COOLDOWN);
+        // Other players and other types go through.
+        Assertions.assertThat(this.punish(PunishmentType.BAN, ALEX, CONSOLE))
+                .isInstanceOf(PunishResult.Success.class);
+        Assertions.assertThat(this.punish(PunishmentType.MUTE, STEVE, CONSOLE))
+                .isInstanceOf(PunishResult.Success.class);
+        // The moderator isn't the console.
+        Assertions.assertThat(this.punish(PunishmentType.BAN, STEVE, MODERATOR))
+                .isInstanceOf(PunishResult.Success.class);
+        this.now.set(this.now.get().plusSeconds(6));
+        Assertions.assertThat(this.punish(PunishmentType.BAN, STEVE, CONSOLE))
+                .isInstanceOf(PunishResult.Success.class);
+
+        this.writeLimitsYaml(
+                """
+                reduce-to-limit: true
+                console-cooldown: 0s
+                groups: {}
+                """);
+        Assertions.assertThat(this.punish(PunishmentType.BAN, STEVE, CONSOLE))
+                .isInstanceOf(PunishResult.Success.class);
     }
 
     private static @Nullable Instant expiry(final Prepared prepared) {

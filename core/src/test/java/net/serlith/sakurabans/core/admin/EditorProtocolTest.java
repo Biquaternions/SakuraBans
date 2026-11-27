@@ -120,9 +120,24 @@ class EditorProtocolTest {
                         UUID.fromString("ec561538-f3fd-461d-aff5-086b22154bce"),
                         1795651200000L, List.of("settings", "messages", "templates")),
                 new EditorPayload.Settings(fields, scopes, servers), messages,
-                new EditorPayload.Templates(templates),
+                new EditorPayload.Templates(templates), recent(fixture),
                 new EditorPayload.Lookups(List.of("bedwars-1", "lobby", "skywars"),
                         List.of("minigames", "pvp"), List.of("en_US")));
+    }
+
+    private static List<EditorPayload.RecentChange> recent(final JsonObject fixture) {
+        final List<EditorPayload.RecentChange> changes = new ArrayList<>();
+        for (final JsonElement element : fixture.getAsJsonArray("recentChanges")) {
+            final JsonObject item = element.getAsJsonObject();
+            final List<String> keys = new ArrayList<>();
+            item.getAsJsonArray("keys").forEach(key -> keys.add(key.getAsString()));
+            changes.add(new EditorPayload.RecentChange(item.get("at").getAsLong(),
+                    item.get("actor").getAsString(), item.get("action").getAsString(),
+                    item.get("kind").getAsString(), item.get("scope").getAsString(),
+                    item.get("locale").isJsonNull() ? null : item.get("locale").getAsString(),
+                    item.get("target").getAsString(), keys));
+        }
+        return changes;
     }
 
     @Test
@@ -132,11 +147,37 @@ class EditorProtocolTest {
     }
 
     @Test
+    void theSealedPayloadFixtureOpensToThePayloadFixture() throws Exception {
+        final JsonObject crypto = JsonParser.parseString(fixture("crypto-v1.json"))
+                .getAsJsonObject();
+        final byte[] key = java.util.Base64.getUrlDecoder()
+                .decode(crypto.get("key").getAsString());
+        final byte[] blob = java.util.Base64.getDecoder().decode(crypto.getAsJsonObject("payload")
+                .get("blob").getAsString());
+
+        final String opened = EditorSeal.open(key, EditorSeal.Role.PAYLOAD, blob);
+
+        Assertions.assertThat(JsonParser.parseString(opened))
+                .isEqualTo(JsonParser.parseString(fixture("payload-v1.json")));
+        Assertions.assertThat(opened).contains("recentChanges");
+    }
+
+    @Test
+    void recentChangesAreLeftOutWhenThereAreNone() throws IOException {
+        final EditorPayload full = fixturePayload();
+        final JsonObject json = new EditorPayload(full.meta(), full.settings(), full.messages(),
+                full.templates(), List.of(), full.lookups()).json();
+
+        Assertions.assertThat(json.has("recentChanges")).isFalse();
+        Assertions.assertThat(fixturePayload().json().has("recentChanges")).isTrue();
+    }
+
+    @Test
     void absentSectionsAreLeftOut() throws IOException {
         final EditorPayload full = fixturePayload();
         final JsonObject json = new EditorPayload(new EditorPayload.Meta("1.0.0", "velocity", "",
                 "Console", null, 1, List.of("templates")), null, null, full.templates(),
-                full.lookups()).json();
+                List.of(), full.lookups()).json();
 
         Assertions.assertThat(json.keySet())
                 .containsExactly("format", "meta", "templates", "lookups");
@@ -173,7 +214,8 @@ class EditorProtocolTest {
         Assertions.assertThat(changes.templates()).containsExactly(
                 new EditorChanges.TemplateChange.Create("global", "advertising", map("type", "mute",
                         "reason", "Advertising", "duration", "1d",
-                        "message", "<red>No advertising.</red>", "display", "dialog")),
+                        "message", "<red>No advertising.</red>", "display", "dialog",
+                        "silent", true)),
                 new EditorChanges.TemplateChange.Update("global", "hacking", 4, map(
                         "type", "ladder",
                         "reason", "Cheating", "steps", List.of("ban 14d", "ban permanent"),

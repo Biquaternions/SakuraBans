@@ -24,10 +24,18 @@ import org.jspecify.annotations.Nullable;
 public final class StorageService {
 
     static final int CONFLICT_RETRIES = 2;
+    public static final String ADDRESS_HASH_KEY_CHECK = "address_hash_key_check";
+    static final String WRONG_KEY = "storage.yml: address-hash-key is not the key this database"
+            + " was set up with, so the addresses it stores would never match. Every server that"
+            + " uses one database needs the same key: copy the address-hash-key line from the"
+            + " storage.yml of a server that already uses this database into this server's"
+            + " storage.yml (a new server's file has a generated key of its own: replace it),"
+            + " then start again.";
 
     private final Path dataDirectory;
     private final ConfigService config;
     private final SchemaManager schema;
+    private final AddressHasher hasher;
     private final SakuraExecutors executors;
     private final ComponentLogger logger;
     private final AtomicReference<@Nullable Open> open = new AtomicReference<>();
@@ -36,11 +44,12 @@ public final class StorageService {
     }
 
     public StorageService(final Path dataDirectory, final ConfigService config,
-            final SchemaManager schema, final SakuraExecutors executors,
-            final ComponentLogger logger) {
+            final SchemaManager schema, final AddressHasher hasher,
+            final SakuraExecutors executors, final ComponentLogger logger) {
         this.dataDirectory = dataDirectory;
         this.config = config;
         this.schema = schema;
+        this.hasher = hasher;
         this.executors = executors;
         this.logger = logger;
     }
@@ -63,12 +72,34 @@ public final class StorageService {
             final DSLContext dsl = DSL.using(dataSource, HikariConfigs.dialect(settings),
                     jooqSettings(schemaName));
             this.schema.prepare(dsl, schemaName);
+            final AddressHasher candidate = AddressHasher.keyed(settings.addressHashKey());
+            checkAddressHashKey(dsl, candidate.fingerprint());
+            this.hasher.key(settings.addressHashKey());
             this.open.set(new Open(dataSource, dsl));
         } catch (final RuntimeException e) {
             dataSource.close();
             throw e;
         }
         this.logger.info("Connected to {}", describe(settings));
+    }
+
+    /** The first start against a database records the key's fingerprint; later ones match it. */
+    static void checkAddressHashKey(final DSLContext dsl, final String fingerprint) {
+        try {
+            dsl.insertInto(SakuraTables.META)
+                    .set(SakuraTables.META.K, ADDRESS_HASH_KEY_CHECK)
+                    .set(SakuraTables.META.V, fingerprint)
+                    .onConflictDoNothing()
+                    .execute();
+        } catch (final IntegrityConstraintViolationException e) {
+            // H2's emulated "do nothing" can still lose the race; the stored value decides.
+        }
+        final String stored = dsl.select(SakuraTables.META.V).from(SakuraTables.META)
+                .where(SakuraTables.META.K.eq(ADDRESS_HASH_KEY_CHECK))
+                .fetchSingle(SakuraTables.META.V);
+        if (!stored.strip().equals(fingerprint)) {
+            throw new StorageException(WRONG_KEY);
+        }
     }
 
     private static String describe(final StorageSettings settings) {

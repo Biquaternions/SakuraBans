@@ -113,9 +113,9 @@ public final class PermissionService {
     private void warnIfMissing() {
         if (!this.offline.available() && this.warned.compareAndSet(false, true)) {
             this.logger.warn("Permissions of offline players are unknown without LuckPerms:"
-                    + " the exemption of offline targets and the lockdown bypass only see online"
-                    + " players, and a staff member who isn't online (an API call on their"
-                    + " behalf) is denied every action");
+                    + " the exemption of offline targets and the lockdown and GeoIP bypasses"
+                    + " only see online players, and a staff member who isn't online (an API call"
+                    + " on their behalf) is denied every action");
         }
     }
 

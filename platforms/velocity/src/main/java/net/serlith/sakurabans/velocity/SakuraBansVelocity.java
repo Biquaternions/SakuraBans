@@ -16,6 +16,7 @@ import net.serlith.sakurabans.core.bootstrap.CoreBootstrap;
 import net.serlith.sakurabans.core.bootstrap.CoreEnvironment;
 import net.serlith.sakurabans.core.command.CommandActor;
 import net.serlith.sakurabans.core.enforce.SignedChatPolicy;
+import net.serlith.sakurabans.core.placeholder.MiniPlaceholdersBridge;
 import net.serlith.sakurabans.core.util.BuildConstants;
 import org.incendo.cloud.execution.ExecutionCoordinator;
 import org.incendo.cloud.velocity.VelocityCommandManager;
@@ -31,13 +32,16 @@ import org.incendo.cloud.velocity.VelocityCommandManager;
             // Lets mutes cancel signed chat without kicking (D29); without it, chat passes.
             @Dependency(id = SakuraBansVelocity.SIGNED_VELOCITY, optional = true),
             // Sends template dialogs (S61); without it, they are sent as chat.
-            @Dependency(id = SakuraBansVelocity.PACKET_EVENTS, optional = true)
+            @Dependency(id = SakuraBansVelocity.PACKET_EVENTS, optional = true),
+            // Placeholders (S73); without it, there are none.
+            @Dependency(id = SakuraBansVelocity.MINI_PLACEHOLDERS, optional = true)
         }
 )
 public final class SakuraBansVelocity {
 
     static final String SIGNED_VELOCITY = "signedvelocity";
     static final String PACKET_EVENTS = "packetevents";
+    static final String MINI_PLACEHOLDERS = "miniplaceholders";
 
     private final ProxyServer proxy;
     private final ComponentLogger logger;
@@ -51,7 +55,7 @@ public final class SakuraBansVelocity {
         this.logger = logger;
         this.container = container;
         this.core = CoreBootstrap.create(
-                new CoreEnvironment(dataDirectory, logger, true));
+                new CoreEnvironment(dataDirectory, logger, true, System.getenv()));
     }
 
     @Subscribe
@@ -71,6 +75,10 @@ public final class SakuraBansVelocity {
                 new VelocityLoginListener(this.proxy, this.core.loginGate()));
         this.proxy.getEventManager().register(this,
                 new VelocityChatListener(this.core.chatGate(), platform, signedChat));
+        // A lambda, so the bridge class is resolved only when MiniPlaceholders is there.
+        this.core.placeholderBridges().start("MiniPlaceholders",
+                this.proxy.getPluginManager().isLoaded(MINI_PLACEHOLDERS),
+                () -> MiniPlaceholdersBridge.register(this.core.placeholders()));
     }
 
     @Subscribe

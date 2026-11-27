@@ -24,7 +24,7 @@ class VictimRepositoryTest extends DatabaseTest {
 
     @BeforeEach
     void create() throws Exception {
-        this.victims = new VictimRepository(this.storage);
+        this.victims = new VictimRepository(this.storage, this.hasher);
         final UUID uuid = UUID.randomUUID();
         this.everyKind = List.of(
                 PlayerVictim.of(uuid),

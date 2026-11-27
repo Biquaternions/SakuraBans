@@ -100,7 +100,7 @@ class WarningsTest extends ServiceTest {
         this.loginGate.joined(STEVE);
         eventually(() -> steve.messages().size() == 2);
         Assertions.assertThat(steve.messages()).map(ServiceTest::plain).satisfiesExactly(
-                message -> Assertions.assertThat(message).contains("While you were away",
+                message -> Assertions.assertThat(message).contains("Warned while you were away",
                         "Mod", "griefing"),
                 message -> Assertions.assertThat(message).contains("spam"));
 
@@ -109,7 +109,7 @@ class WarningsTest extends ServiceTest {
         this.warn("language");
         Assertions.assertThat(steve.messages()).hasSize(3);
         Assertions.assertThat(plain(steve.messages().getLast()))
-                .contains("You were warned", "language");
+                .contains("Warned", "Staff: Mod", "Reason: language");
         this.loginGate.joined(STEVE);
         Assertions.assertThat(this.punishments.unacknowledgedWarnings(STEVE,
                 this.clock.instant()).join()).isEmpty();

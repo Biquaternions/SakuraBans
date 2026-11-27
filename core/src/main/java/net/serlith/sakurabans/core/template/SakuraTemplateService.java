@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -48,6 +49,7 @@ import net.serlith.sakurabans.core.model.SubjectType;
 import net.serlith.sakurabans.core.model.TemplateBuilder;
 import net.serlith.sakurabans.core.permission.Action;
 import net.serlith.sakurabans.core.permission.AuthorizationService;
+import net.serlith.sakurabans.core.permission.TemplateGuard;
 import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import net.serlith.sakurabans.core.platform.Platform;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
@@ -61,7 +63,7 @@ import net.serlith.sakurabans.core.sync.SyncService;
 import net.serlith.sakurabans.core.util.Scopes;
 import org.jspecify.annotations.Nullable;
 
-public final class SakuraTemplateService implements TemplateService {
+public final class SakuraTemplateService implements TemplateService, TemplateGuard {
 
     static final String SEEDED = "templates.seeded";
     static final Actor SEED_ACTOR = Actor.of(ConsoleOperator.INSTANCE, "config");
@@ -305,6 +307,33 @@ public final class SakuraTemplateService implements TemplateService {
             }
         }
         return this.find(name);
+    }
+
+    @Override
+    public Optional<String> guarding(final TemplateRef ref) {
+        final boolean guarded = this.definition(ref).map(StoredTemplate::template)
+                .filter(TemplateInfo::permissionRequired).isPresent()
+                || this.find(ref.name()).map(StoredTemplate::template)
+                        .filter(TemplateInfo::permissionRequired).isPresent();
+        return guarded ? Validator.normalizeIdentifier(ref.name()) : Optional.empty();
+    }
+
+    @Override
+    public Set<String> guardedNames() {
+        final Catalog catalog = this.catalog.get();
+        final Set<String> names = new TreeSet<>();
+        catalog.global().forEach((name, stored) -> {
+            if (stored.template().permissionRequired()) {
+                names.add(name);
+            }
+        });
+        catalog.variants().forEach((name, variants) -> {
+            if (variants.values().stream().anyMatch(
+                    stored -> stored.template().permissionRequired())) {
+                names.add(name);
+            }
+        });
+        return Set.copyOf(names);
     }
 
     /**

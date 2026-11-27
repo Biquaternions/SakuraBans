@@ -44,7 +44,9 @@
 #   scope                where it applies when the command names no scope: global,
 #                        server:<name> or category:<name>. Left out: scopes.default in
 #                        config.yml. A scope given with the command (-g, --server, ...) wins
-#   permission-required  true: using it needs sakurabans.template.<name>
+#   permission-required  true: using it needs sakurabans.template.<name>, and so does
+#                        revoking, editing, voiding, deleting or overriding a punishment made
+#                        from it (the console always may; a deleted template guards nothing)
 #   actions              console commands run every time the template is used
 #   groups               group: weight. Templates in a group share progress: every use of a
 #                        template, a preset's too, counts as its weight on the ladders of its
@@ -59,6 +61,9 @@
 #                        can be shown (a client before 1.21.6, a Velocity proxy without the
 #                        packetevents plugin) it is sent as chat. Refused chat and commands of
 #                        a muted player, and warnings shown at the next join, stay chat
+#   silent               true: its punishments are silent, as with -s: only staff who may
+#                        see silent punishments are told. A command with --hide, -S or
+#                        --quiet hides them further; revoking them is not affected
 #
 # Presets only:
 #   duration             7d, 30m, 1mo, ... or permanent. Left out: the command decides (its -d,

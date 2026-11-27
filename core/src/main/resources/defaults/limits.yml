@@ -4,8 +4,9 @@
 #
 # Staff are put in a group by its permission; the first group (in the order below) whose
 # permission a staff member has applies to them, and staff in no group have no limits. The
-# console and plugins are never limited. sakurabans.limits.unlimited ignores max-duration and
-# require-template; sakurabans.cooldown.bypass ignores cooldowns.
+# console and plugins are never limited, except by console-cooldown below.
+# sakurabans.limits.unlimited ignores max-duration and require-template;
+# sakurabans.cooldown.bypass ignores cooldowns.
 #
 # Keys of a group:
 #   permission        the permission that puts staff in the group
@@ -17,13 +18,23 @@
 #                     kick), as a duration; a ladder's step counts by its type
 #   require-template  true: punishments need a template (-t <preset>, or a ladder with
 #                     /punish); default false
+#   cooldown-redo     how long staff wait before punishing a player again after lifting their
+#                     own punishment of that player (a mistaken ban, a fixed mute); default 1s,
+#                     0 for none. sakurabans.cooldown.bypass ignores it
 #
+# console-cooldown: how long after the console punished a player (of a type) it may not punish
+# that player of that type again. It protects players from double punishments, for example a
+# script that runs twice; it never stops the console from punishing different players. Default
+# 1s, 0 for none.
+console-cooldown: 1s
+
 # For example:
 #   groups:
 #     helper:
 #       permission: sakurabans.group.helper
 #       max-duration: {ban: 3d, mute: 1d, warn: 30d}
 #       cooldown: {ban: 30s, mute: 10s, warn: 10s, kick: 10s}
+#       cooldown-redo: 5s
 #       require-template: true
 #     moderator:
 #       permission: sakurabans.group.moderator

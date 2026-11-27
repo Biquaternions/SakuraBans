@@ -17,7 +17,7 @@ public enum EndKind {
     /** Undone together with everything an operator issued ({@code /staffrollback}). */
     ROLLED_BACK,
 
-    /** Ended by {@code /prunehistory}. */
+    /** Ended in bulk by {@code /sb reset --mode deactivate}. */
     PRUNED,
 
     /** Voided: it was a mistake (see {@link Punishment#voiding()}). */

@@ -169,4 +169,66 @@ class BrigadierSuggestionsTest extends CommandTest {
         Assertions.assertThat(this.suggest(this.console, "unban Steve "))
                 .contains("--reason", "--scope");
     }
+
+    @Test
+    void theNewFlagsAreSuggestedWhereTheyBelong() {
+        final FakeCommandActor mod = FakeCommandActor.player(UUID.randomUUID(), "Mod")
+                .grant(Permissions.punish(PunishmentType.BAN),
+                        Permissions.punish(PunishmentType.KICK),
+                        Permissions.flag(PunishmentType.BAN, "quiet"));
+
+        Assertions.assertThat(this.suggest(this.console, "kick Steve "))
+                .contains("--no-record", "--quiet", "--hide", "--server-origin");
+        Assertions.assertThat(this.suggest(this.console, "ban Steve "))
+                .contains("--quiet", "--hide", "--server-origin")
+                .doesNotContain("--no-record");
+        Assertions.assertThat(this.suggest(this.console, "unban Steve "))
+                .contains("--quiet", "--hide");
+        Assertions.assertThat(this.suggest(this.console, "punish Steve toxicity "))
+                .contains("--quiet", "--server-origin");
+        // Only the flags the sender may use.
+        Assertions.assertThat(this.suggest(mod, "ban Steve ")).contains("--quiet")
+                .doesNotContain("--hide", "--server-origin");
+        Assertions.assertThat(this.suggest(mod, "kick Steve ")).doesNotContain("--no-record");
+    }
+
+    @Test
+    void resetSuggestsItsFlagsAndTheirValues() {
+        Assertions.assertThat(this.suggest(this.console, "sakurabans reset "))
+                .contains("--mode", "--scope", "--exclude", "--confirm");
+        Assertions.assertThat(this.suggest(this.console, "sakurabans reset --mode "))
+                .containsExactlyInAnyOrder("delete", "deactivate", "prune");
+        Assertions.assertThat(this.suggest(this.console, "sakurabans reset --exclude "))
+                .containsExactlyInAnyOrder("ban", "mute", "warn", "kick");
+        Assertions.assertThat(this.suggest(this.console, "sakurabans "))
+                .contains("reset", "addlogin");
+    }
+
+    @Test
+    void auditSuggestsItsFiltersAndTheirValues() {
+        this.names.put(STEVE, "Steve");
+
+        Assertions.assertThat(this.suggest(this.console, "sakurabans audit "))
+                .contains("export", "--actor", "--player", "--id", "--template", "--setting",
+                        "--action", "--since");
+        Assertions.assertThat(this.suggest(this.console, "sakurabans audit export "))
+                .containsExactlyInAnyOrder("--actor", "--player", "--id", "--template",
+                        "--setting", "--action", "--since");
+        Assertions.assertThat(this.suggest(this.console, "sakurabans audit --action "))
+                .contains("create", "update", "void");
+        Assertions.assertThat(this.suggest(this.console, "sakurabans audit export --action "))
+                .contains("update");
+        Assertions.assertThat(this.suggest(this.console, "sakurabans audit --since "))
+                .contains("1h", "7d");
+        Assertions.assertThat(this.suggest(this.console, "sakurabans audit --actor "))
+                .contains("console", "Steve");
+        Assertions.assertThat(this.suggest(this.console, "sakurabans audit --player "))
+                .contains("Steve").doesNotContain("console");
+        Assertions.assertThat(this.suggest(this.console, "sakurabans audit --template "))
+                .containsExactlyInAnyOrder("hacking", "secret", "spam");
+        Assertions.assertThat(this.suggest(this.console, "sakurabans audit --setting "))
+                .contains("reasons.default", "display.censor-ip-addresses");
+        Assertions.assertThat(this.suggest(this.console, "sakurabans audit --setting reasons.d"))
+                .contains("reasons.default");
+    }
 }

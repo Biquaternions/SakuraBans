@@ -11,5 +11,7 @@ import org.spongepowered.configurate.objectmapping.ConfigSerializable;
 public final class CommandsSection {
 
     private Map<String, List<String>> labels = new LinkedHashMap<>(Map.of(
-            "sakurabans", List.of("sakurabans", "sb")));
+            "sakurabans", List.of("sakurabans", "sb"),
+            "alts", List.of("alts", "dupeip"),
+            "warns", List.of("warns", "warnings")));
 }

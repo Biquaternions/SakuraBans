@@ -46,7 +46,7 @@ public interface PlayerDenyEvent extends Cancellable {
     Denial denial();
 
     /**
-     * The punishment that causes it. Empty for a lockdown or a failed check.
+     * The punishment that causes it. Empty for a lockdown, a failed check or a GeoIP block.
      *
      * @return the punishment, or empty
      */
@@ -83,6 +83,16 @@ public interface PlayerDenyEvent extends Cancellable {
 
         /** Joining, because of a lockdown. */
         LOGIN_LOCKDOWN,
+
+        /**
+         * Joining, because of the country of the player's address: it is on
+         * {@code geoip.blacklist}, it isn't on a non-empty {@code geoip.whitelist}, or no country
+         * is known for the address and {@code geoip.allow-unknown} is false. Checked only at login
+         * (to the proxy, or to a backend), after the ban check, on a server with
+         * {@code geoip.enabled}. It is not a punishment: there is none, and nothing is stored.
+         * Cancelling lets the player in.
+         */
+        LOGIN_GEOIP_BLOCKED,
 
         /** Switching to a server (proxy only), because of a ban in that server's scope. */
         SERVER_SWITCH_BANNED,

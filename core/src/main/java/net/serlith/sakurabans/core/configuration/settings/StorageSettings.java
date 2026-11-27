@@ -16,7 +16,8 @@ public record StorageSettings(
         @Nullable String schema,
         Map<String, String> properties,
         Pool pool,
-        Sync sync) {
+        Sync sync,
+        String addressHashKey) {
 
     public StorageSettings {
         properties = Map.copyOf(properties);
@@ -33,11 +34,12 @@ public record StorageSettings(
     public record Sync(SyncMode mode, Duration pollInterval) {
     }
 
-    // The password must never reach a log.
+    // The password and the address hash key must never reach a log.
     @Override
     public String toString() {
         return "StorageSettings[type=" + this.type + ", host=" + this.host + ", port="
                 + this.effectivePort() + ", database=" + this.database + ", username="
-                + this.username + ", password=***, tablePrefix=" + this.tablePrefix + "]";
+                + this.username + ", password=***, tablePrefix=" + this.tablePrefix
+                + ", addressHashKey=***]";
     }
 }

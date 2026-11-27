@@ -85,7 +85,7 @@ class LoginGateTest extends ServiceTest {
         Assertions.assertThat(this.mutes.loaded(STEVE)).isFalse();
         Assertions.assertThat(staff.messages()).hasSize(before + 1);
         Assertions.assertThat(plain(staff.messages().getLast()))
-                .isEqualTo("SakuraBans » Steve tried to join but is banned (permanent, by Mod):"
+                .isEqualTo("SakuraBans ...🖉 Steve tried to join but is banned (permanent, by Mod):"
                         + " cheating");
     }
 

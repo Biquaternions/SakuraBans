@@ -1,8 +1,12 @@
 package net.serlith.sakurabans.core.permission;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.CustomOperator;
@@ -17,25 +21,64 @@ public final class ExemptionService {
     private final ConfigService config;
     private final PermissionService permissions;
     private final ComponentLogger logger;
+    private final Function<UUID, Optional<String>> names;
     private final AtomicBoolean warned = new AtomicBoolean();
 
+    /** {@code names}: the name this server knows for a player (the name cache); never blocks. */
     public ExemptionService(final ConfigService config, final PermissionService permissions,
-            final ComponentLogger logger) {
+            final ComponentLogger logger, final Function<UUID, Optional<String>> names) {
         this.config = config;
         this.permissions = permissions;
         this.logger = logger;
+        this.names = names;
     }
 
     public CompletableFuture<Boolean> isExempt(final Actor actor, final UUID target,
             final PunishmentType type) {
         final Settings.Exemption exemption = this.config.settings().exemption();
-        if (exemption.provider() == ExemptionProvider.NONE || PermissionService.console(actor)
+        if (PermissionService.console(actor)
                 || actor.operator() instanceof CustomOperator custom && custom.uuid().isEmpty()
                 || actor.operator() instanceof PlayerOperator player
                         && player.uuid().equals(target)) {
             return CompletableFuture.completedFuture(false);
         }
         if (this.permissions.hasOnline(actor, Permissions.exemptBypass(type))) {
+            return CompletableFuture.completedFuture(false);
+        }
+        if (this.listed(target, type)) {
+            return CompletableFuture.completedFuture(true);
+        }
+        return this.inGroup(target, exemption).thenCompose(grouped -> grouped
+                ? CompletableFuture.completedFuture(true)
+                : this.byProvider(actor, target, type, exemption));
+    }
+
+    public boolean listed(final UUID target, final PunishmentType type) {
+        return this.config.settings().exemption().listed(target,
+                this.names.apply(target).orElse(null), type);
+    }
+
+    public CompletableFuture<Boolean> inGroup(final UUID target) {
+        return this.inGroup(target, this.config.settings().exemption());
+    }
+
+    private CompletableFuture<Boolean> inGroup(final UUID target,
+            final Settings.Exemption exemption) {
+        if (exemption.groups().isEmpty()) {
+            return CompletableFuture.completedFuture(false);
+        }
+        final List<CompletableFuture<Optional<Boolean>>> checks = new ArrayList<>();
+        for (final String group : exemption.groups()) {
+            checks.add(this.permissions.has(target, Permissions.luckPermsGroup(group)));
+        }
+        return CompletableFuture.allOf(checks.toArray(CompletableFuture[]::new))
+                .thenApply(ignored -> checks.stream()
+                        .anyMatch(check -> check.join().orElse(false)));
+    }
+
+    private CompletableFuture<Boolean> byProvider(final Actor actor, final UUID target,
+            final PunishmentType type, final Settings.Exemption exemption) {
+        if (exemption.provider() == ExemptionProvider.NONE) {
             return CompletableFuture.completedFuture(false);
         }
         if (exemption.provider() == ExemptionProvider.LUCKPERMS_WEIGHT) {

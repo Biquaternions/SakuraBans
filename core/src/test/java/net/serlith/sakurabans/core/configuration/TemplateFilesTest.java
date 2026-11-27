@@ -61,6 +61,7 @@ class TemplateFilesTest {
                 .groups(Map.of("cheating", 2))
                 .message("<red>Template</red>")
                 .display(TemplateDisplay.DIALOG)
+                .silent(true)
                 .build();
     }
 
@@ -279,6 +280,45 @@ class TemplateFilesTest {
     }
 
     @Test
+    void silentIsReadOnEveryKindAndLeftOutWhenFalse() throws Exception {
+        final TemplateFiles.Read read = this.read(
+                """
+                templates:
+                  raid:
+                    type: ban
+                    reason: Raid
+                    silent: true
+                  loud:
+                    type: kick
+                    reason: Loud
+                    silent: false
+                  ladder:
+                    type: ladder
+                    reason: Ladder
+                    steps: [warn, ban 1d]
+                    silent: true
+                  broken:
+                    type: mute
+                    reason: Broken
+                    silent: sometimes
+                """);
+
+        Assertions.assertThat(read.templates()).extracting(TemplateInfo::name,
+                        TemplateInfo::silent)
+                .containsExactly(Assertions.tuple("raid", true), Assertions.tuple("loud", false),
+                        Assertions.tuple("ladder", true));
+        Assertions.assertThat(read.errors()).extracting(ConfigIssue::path, ConfigIssue::message)
+                .containsExactly(Assertions.tuple("templates.broken.silent",
+                        "must be true or false"));
+        Assertions.assertThat(TemplateFiles.tree(read.templates().get(1)))
+                .doesNotContainKey("silent");
+        Assertions.assertThat(TemplateFiles.tree(read.templates().getFirst())).containsEntry(
+                "silent", true);
+        Assertions.assertThat(TemplateSummaries.summary(read.templates().getFirst()))
+                .endsWith(" silent=true");
+    }
+
+    @Test
     void displayIsDialogOnlyWhereTheTemplateTellsAnOnlinePlayer() throws Exception {
         final TemplateFiles.Read read = this.read(
                 """
@@ -346,7 +386,7 @@ class TemplateFilesTest {
         Assertions.assertThat(TemplateFiles.tree(read.templates().get(3)))
                 .doesNotContainKey("display");
         Assertions.assertThat(TemplateFiles.tree(ladder())
-                .keySet()).endsWith("message", "display");
+                .keySet()).endsWith("message", "display", "silent");
         Assertions.assertThat(TemplateSummaries.summary(read.templates().getFirst()))
                 .endsWith(" display=dialog");
     }

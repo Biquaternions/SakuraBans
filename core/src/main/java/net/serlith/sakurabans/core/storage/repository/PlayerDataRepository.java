@@ -13,6 +13,7 @@ import net.serlith.sakurabans.core.model.AuditAction;
 import net.serlith.sakurabans.core.model.AuditEntry;
 import net.serlith.sakurabans.core.model.SakuraPlayerData;
 import net.serlith.sakurabans.core.model.SubjectType;
+import net.serlith.sakurabans.core.storage.AddressHasher;
 import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.storage.dbo.OperatorKind;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
@@ -22,7 +23,6 @@ import net.serlith.sakurabans.core.storage.dbo.tables.SbAuditLog;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbPlayerAddresses;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbPunishments;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbVictims;
-import net.serlith.sakurabans.core.util.AddressHashes;
 import net.serlith.sakurabans.core.util.InetAddresses;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
@@ -35,10 +35,13 @@ public final class PlayerDataRepository {
     public static final String ERASED = "erased";
 
     private final StorageService storage;
+    private final AddressHasher hasher;
     private final PunishmentMapper mapper;
 
-    public PlayerDataRepository(final StorageService storage, final PunishmentMapper mapper) {
+    public PlayerDataRepository(final StorageService storage, final AddressHasher hasher,
+            final PunishmentMapper mapper) {
         this.storage = storage;
+        this.hasher = hasher;
         this.mapper = mapper;
     }
 
@@ -103,7 +106,7 @@ public final class PlayerDataRepository {
                         .where(victims.KIND.eq(VictimKind.ADDRESS))
                         .and(victims.ADDRESS.isNotNull())
                         .and(victims.ADDRESS_HASH.in(addresses.stream()
-                                .map(AddressHashes::of).toList()))
+                                .map(this.hasher::hash).toList()))
                         .andNotExists(DSL.selectOne().from(others)
                                 .where(others.ADDRESS_HASH.eq(victims.ADDRESS_HASH))
                                 .and(others.UUID.ne(uuid)))

@@ -14,7 +14,11 @@ import org.jspecify.annotations.Nullable;
 
 /** What {@code /sb editor} uploads (protocol section 5). Absent sections are null. */
 public record EditorPayload(Meta meta, @Nullable Settings settings, @Nullable Messages messages,
-        @Nullable Templates templates, Lookups lookups) {
+        @Nullable Templates templates, List<RecentChange> recentChanges, Lookups lookups) {
+
+    public EditorPayload {
+        recentChanges = List.copyOf(recentChanges);
+    }
 
     public static final int FORMAT = 1;
 
@@ -112,6 +116,14 @@ public record EditorPayload(Meta meta, @Nullable Settings settings, @Nullable Me
      */
     public record Template(String scope, String name, long version,
             Map<String, Object> definition) {
+    }
+
+    public record RecentChange(long at, String actor, String action, String kind, String scope,
+            @Nullable String locale, String target, List<String> keys) {
+
+        public RecentChange {
+            keys = List.copyOf(keys);
+        }
     }
 
     public record Lookups(List<String> servers, List<String> categories, List<String> locales) {
@@ -225,6 +237,23 @@ public record EditorPayload(Meta meta, @Nullable Settings settings, @Nullable Me
             final JsonObject templates = new JsonObject();
             templates.add("items", items);
             root.add("templates", templates);
+        }
+        if (!this.recentChanges.isEmpty()) {
+            final JsonArray recent = new JsonArray();
+            for (final RecentChange change : this.recentChanges) {
+                final JsonObject item = new JsonObject();
+                item.addProperty("at", change.at());
+                item.addProperty("actor", change.actor());
+                item.addProperty("action", change.action());
+                item.addProperty("kind", change.kind());
+                item.addProperty("scope", change.scope());
+                item.add("locale", change.locale() == null ? JsonNull.INSTANCE
+                        : new JsonPrimitive(change.locale()));
+                item.addProperty("target", change.target());
+                item.add("keys", EditorJson.json(change.keys()));
+                recent.add(item);
+            }
+            root.add("recentChanges", recent);
         }
         final JsonObject lookups = new JsonObject();
         lookups.add("servers", EditorJson.json(this.lookups.servers()));

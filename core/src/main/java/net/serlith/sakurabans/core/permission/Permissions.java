@@ -11,10 +11,11 @@ public final class Permissions {
     public static final String NOTIFY_ATTEMPT_CHAT = ROOT + "notify.attempt.chat";
     public static final String VIEW_IPS = ROOT + "viewips";
     public static final String HELP = ROOT + "help";
-    /** Applying a ladder (D37), whatever its step's type. */
     public static final String PUNISH = ROOT + "punish";
     public static final String INFO = ROOT + "info";
     public static final String LOCKDOWN_BYPASS = ROOT + "lockdown.bypass";
+    public static final String GEOIP = ROOT + "geoip";
+    public static final String GEOIP_BYPASS = ROOT + "geoip.bypass";
     public static final String ADMIN_LOCKDOWN = ROOT + "admin.lockdown";
     public static final String ADMIN_PRUNEHISTORY = ROOT + "admin.prunehistory";
     public static final String ADMIN_STATUS = ROOT + "admin.status";
@@ -35,6 +36,7 @@ public final class Permissions {
     public static final String ALTS_UNLINK = ROOT + "alts.unlink";
     public static final String ALTS_NOTIFY = ROOT + "alts.notify";
     public static final String ALTS_IPREPORT = ROOT + "alts.ipreport";
+    public static final String ALTS_VIEW_HIDDEN = ROOT + "alts.viewhidden";
     public static final String ADMIN_ALLOW = ROOT + "admin.allow";
     public static final String ADMIN_TEMPLATES = ROOT + "admin.templates";
     public static final String LIMITS_UNLIMITED = ROOT + "limits.unlimited";
@@ -46,6 +48,8 @@ public final class Permissions {
     public static final String ADMIN_AUDIT = ROOT + "admin.audit";
     public static final String EDITOR = ROOT + "editor";
     public static final String COOLDOWN_BYPASS = ROOT + "cooldown.bypass";
+    public static final String ADMIN_SERVER_ORIGIN = ROOT + "admin.serverorigin";
+    public static final String ADMIN_ADDLOGIN = ROOT + "admin.addlogin";
 
     private Permissions() {
     }
@@ -85,6 +89,10 @@ public final class Permissions {
 
     public static String exempt(final PunishmentType type) {
         return node(type, "exempt");
+    }
+
+    public static String luckPermsGroup(final String group) {
+        return "group." + group;
     }
 
     public static String exemptBypass(final PunishmentType type) {

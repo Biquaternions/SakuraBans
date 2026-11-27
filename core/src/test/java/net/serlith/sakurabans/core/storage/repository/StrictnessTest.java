@@ -83,9 +83,9 @@ class StrictnessTest extends DatabaseTest {
 
     @BeforeEach
     void fixture() throws Exception {
-        this.punishments = new PunishmentRepository(this.storage,
+        this.punishments = new PunishmentRepository(this.storage, this.hasher,
                 new PunishmentMapper(Long::toString), this.policy);
-        this.players = new PlayerRepository(this.storage);
+        this.players = new PlayerRepository(this.storage, this.hasher);
         this.a1 = InetAddress.getByName("203.0.113.1");
         this.a2 = InetAddress.getByName("203.0.113.2");
         this.a3 = InetAddress.getByName("203.0.113.3");

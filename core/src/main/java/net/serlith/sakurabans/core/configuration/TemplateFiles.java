@@ -43,7 +43,7 @@ public final class TemplateFiles {
             DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(ZoneOffset.UTC);
     private static final Set<String> KEYS = Set.of("type", "ip", "shadow", "scope", "reason",
             "duration", "steps", "expiry", "address-shared", "permission-required", "actions",
-            "groups", "message", "display");
+            "groups", "message", "display", "silent");
     private static final Set<String> STEP_KEYS = Set.of("step", "reason", "message", "actions");
     // Keys of the format before D37, with what replaced them.
     private static final Map<String, String> REPLACED = Map.of(
@@ -181,6 +181,7 @@ public final class TemplateFiles {
         final Boolean shadow = flag(node.node("shadow"), path, errors);
         final Boolean addressShared = flag(node.node("address-shared"), path, errors);
         final Boolean permissionRequired = flag(node.node("permission-required"), path, errors);
+        final Boolean silent = flag(node.node("silent"), path, errors);
         if (errors.size() > before || kind == null) {
             return Optional.empty();
         }
@@ -198,6 +199,7 @@ public final class TemplateFiles {
                 .groups(groups)
                 .message(message)
                 .display(display)
+                .silent(Boolean.TRUE.equals(silent))
                 .variant(variant);
         final List<FieldError> problems = builder.validate();
         if (!problems.isEmpty()) {
@@ -449,6 +451,9 @@ public final class TemplateFiles {
         template.message().ifPresent(text -> tree.put("message", text));
         if (template.display() != TemplateDisplay.CHAT) {
             tree.put("display", TemplateDisplays.key(template.display()));
+        }
+        if (template.silent()) {
+            tree.put("silent", true);
         }
         return tree;
     }

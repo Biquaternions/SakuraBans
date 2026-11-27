@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import net.kyori.adventure.audience.Audience;
@@ -17,12 +18,14 @@ import net.kyori.adventure.identity.Identity;
 import net.kyori.adventure.pointer.Pointers;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.AddressVictim;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
 import net.serlith.sakurabans.api.model.EndKind;
+import net.serlith.sakurabans.api.model.GlobalScope;
 import net.serlith.sakurabans.api.model.PlayerOperator;
 import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.Punishment;
@@ -57,10 +60,20 @@ class MessageServiceTest {
         Files.writeString(this.dir.resolve("config.yml"), "display:\n  timezone: UTC\n");
         final ConfigService config = new ConfigService(this.dir, this.log.logger());
         config.load();
-        this.messages = new MessageService(this.dir, config, this.log.logger());
+        this.messages = new MessageService(this.dir, config, this.log.logger(),
+                new NetworkTotals());
         this.messages.load();
         this.formats = new Formats(this.messages, config);
         this.placeholders = new Placeholders(this.messages, this.formats);
+    }
+
+    private static List<Component> leaves(final Component component) {
+        final List<Component> leaves = new ArrayList<>();
+        if (component.children().isEmpty()) {
+            leaves.add(component);
+        }
+        component.children().forEach(child -> leaves.addAll(leaves(child)));
+        return leaves;
     }
 
     private static String plain(final Component component) {
@@ -79,7 +92,78 @@ class MessageServiceTest {
     @Test
     void thePrefixIsAvailableEverywhere() {
         assertThat(plain(this.messages.render(MessageKey.ERROR_NOT_READY, Locale.US)))
-                .startsWith("SakuraBans » ").contains("still starting");
+                .startsWith("SakuraBans ...🖉 ").contains("still starting");
+    }
+
+    @Test
+    void theNameAndThePaletteAreDefinedOnceInTheLanguageFile() throws Exception {
+        final Component name = this.messages.renderText("<plugin>", Locale.US);
+        assertThat(plain(name)).isEqualTo("SakuraBans");
+        // The three-colour gradient: pink at both ends, white in the middle.
+        final List<Component> letters = leaves(name);
+        assertThat(letters.getFirst().color()).isEqualTo(TextColor.color(0xF591FF));
+        assertThat(letters.get(5).color()).isNotEqualTo(TextColor.color(0xF591FF));
+        assertThat(letters.getLast().color()).isEqualTo(TextColor.color(0xF591FF));
+        assertThat(leaves(this.messages.renderText("<main>a</main><accent>b</accent>"
+                + "<highlight>c</highlight><danger>d</danger>", Locale.US)))
+                .extracting(Component::color).containsExactly(TextColor.color(0xF591FF),
+                        TextColor.color(0xB891FF), TextColor.color(0xFF91BF), NamedTextColor.RED);
+
+        Files.writeString(this.dir.resolve("lang/de_DE.yml"),
+                """
+                plugin: '<main>Sakura</main>'
+                prefix: '[<plugin>] '
+                palette:
+                  main: dark_aqua
+                  accent: 'not a colour'
+                """);
+        this.messages.load();
+
+        final Component prefix = this.messages.render(MessageKey.ERROR_NO_PERMISSION,
+                Locale.GERMANY);
+        assertThat(plain(prefix)).startsWith("[Sakura] ");
+        assertThat(this.messages.color(MessageKey.PALETTE_MAIN, Locale.GERMANY))
+                .isEqualTo(NamedTextColor.DARK_AQUA);
+        assertThat(this.messages.color(MessageKey.PALETTE_ACCENT, Locale.GERMANY))
+                .as("not a colour: the built-in one").isEqualTo(TextColor.color(0xB891FF));
+        assertThat(this.log.entries("warn")).extracting(RecordingLogger.Entry::format)
+                .anyMatch(text -> text.contains("palette.accent") && text.contains("de_DE"));
+        assertThat(MessageService.STYLE_TAGS).allSatisfy(tag ->
+                assertThat(MiniMessage.miniMessage().tags().has(tag)).isFalse());
+    }
+
+    @Test
+    void stylesFollowReloadsAndOverrides() throws Exception {
+        // Built (and kept) for German before there is a German file.
+        assertThat(plain(this.messages.renderText("<prefix>", Locale.GERMANY)))
+                .isEqualTo("SakuraBans ...🖉 ");
+        final Component caption = MiniMessage.miniMessage().deserialize("<main>x</main>",
+                this.messages.currentStyles());
+        assertThat(leaves(caption).getFirst().color()).isEqualTo(TextColor.color(0xF591FF));
+
+        Files.writeString(this.dir.resolve("lang/de_DE.yml"),
+                "plugin: Sakura\nprefix: '[<plugin>] '\npalette:\n  main: dark_aqua\n");
+        this.messages.load();
+        assertThat(plain(this.messages.renderText("<prefix>", Locale.GERMANY)))
+                .isEqualTo("[Sakura] ");
+        assertThat(plain(this.messages.renderText("<prefix>", Locale.US)))
+                .isEqualTo("SakuraBans ...🖉 ");
+
+        this.messages.overrides(Map.of(GlobalScope.INSTANCE,
+                Map.of(Locale.GERMANY, Map.of("plugin", "Kirsche"))));
+        assertThat(plain(this.messages.renderText("<prefix>", Locale.GERMANY)))
+                .isEqualTo("[Kirsche] ");
+        this.messages.overrides(Map.of());
+        assertThat(plain(this.messages.renderText("<prefix>", Locale.GERMANY)))
+                .isEqualTo("[Sakura] ");
+
+        Files.writeString(this.dir.resolve("lang/en_US.yml"),
+                Files.readString(this.dir.resolve("lang/en_US.yml"))
+                        .replaceFirst("(?m)^  main: .*$", "  main: gold"));
+        this.messages.load();
+        final Component reloaded = MiniMessage.miniMessage().deserialize("<main>x</main>",
+                this.messages.currentStyles());
+        assertThat(leaves(reloaded).getFirst().color()).isEqualTo(NamedTextColor.GOLD);
     }
 
     @Test

@@ -49,6 +49,7 @@ public final class TemplateBuilder {
     private Map<String, Integer> groups = Map.of();
     private @Nullable String message;
     private TemplateDisplay display = TemplateDisplay.CHAT;
+    private boolean silent;
     private @Nullable Scope variant;
 
     private TemplateBuilder(final String name, final TemplateKind kind) {
@@ -80,6 +81,7 @@ public final class TemplateBuilder {
                 .groups(template.groups())
                 .message(template.message().orElse(null))
                 .display(template.display())
+                .silent(template.silent())
                 .variant(template.variant().orElse(null));
         return switch (template) {
             case PresetTemplate preset -> builder.duration(preset.duration());
@@ -151,6 +153,11 @@ public final class TemplateBuilder {
 
     public TemplateBuilder display(final TemplateDisplay display) {
         this.display = Preconditions.checkNotNull(display, "display");
+        return this;
+    }
+
+    public TemplateBuilder silent(final boolean silent) {
+        this.silent = silent;
         return this;
     }
 
@@ -236,12 +243,12 @@ public final class TemplateBuilder {
             return new SakuraLadderTemplate(normalizedName, checkedSteps, this.expiry,
                     this.addressShared, this.ip, this.shadow, checkedScope, this.reason.strip(),
                     this.permissionRequired, normalizedActions, normalizedGroups, this.message,
-                    this.display, checkedVariant);
+                    this.display, this.silent, checkedVariant);
         }
         return new SakuraPresetTemplate(normalizedName, this.kind.type().orElseThrow(),
                 this.duration, this.ip, this.shadow, checkedScope, this.reason.strip(),
                 this.permissionRequired, normalizedActions, normalizedGroups, this.message,
-                this.display, checkedVariant);
+                this.display, this.silent, checkedVariant);
     }
 
     /** Whether a punishment of this type tells the online player with a notice. */

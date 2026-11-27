@@ -1,6 +1,5 @@
 package net.serlith.sakurabans.core.sync;
 
-import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BooleanSupplier;
 
@@ -17,7 +16,7 @@ public interface SyncTransport {
     default void stop() {
     }
 
-    default CompletableFuture<Integer> cleanup(final Instant now) {
+    default CompletableFuture<Integer> cleanup() {
         return CompletableFuture.completedFuture(0);
     }
 
@@ -44,9 +43,9 @@ public interface SyncTransport {
             }
 
             @Override
-            public CompletableFuture<Integer> cleanup(final Instant now) {
+            public CompletableFuture<Integer> cleanup() {
                 return enabled.getAsBoolean()
-                        ? transport.cleanup(now)
+                        ? transport.cleanup()
                         : CompletableFuture.completedFuture(0);
             }
         };

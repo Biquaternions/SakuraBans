@@ -35,6 +35,7 @@ public final class ExpirySweeper {
     private static final int BATCH = 500;
 
     private final Lease lease;
+    private final AuditRetention retention;
     private final PunishmentRepository punishments;
     private final MuteCache mutes;
     private final Enforcer enforcer;
@@ -46,12 +47,14 @@ public final class ExpirySweeper {
     private final ComponentLogger logger;
     private final AtomicReference<@Nullable ScheduledFuture<?>> task = new AtomicReference<>();
 
-    public ExpirySweeper(final Lease lease, final PunishmentRepository punishments,
+    public ExpirySweeper(final Lease lease, final AuditRetention retention,
+            final PunishmentRepository punishments,
             final MuteCache mutes, final Enforcer enforcer, final SyncService sync,
             final SakuraEventBus events,
             final SakuraExecutors executors, final Platform platform, final InstantSource clock,
             final ComponentLogger logger) {
         this.lease = lease;
+        this.retention = retention;
         this.punishments = punishments;
         this.mutes = mutes;
         this.enforcer = enforcer;
@@ -92,8 +95,11 @@ public final class ExpirySweeper {
                 return CompletableFuture.completedFuture(0);
             }
             // Under the lease, so one instance deletes old sync messages
-            Futures.logged(this.sync.cleanup(now), this.logger, "delete old sync messages");
-            return this.punishments.expiredActive(now, BATCH).thenCompose(this::expire);
+            Futures.logged(this.sync.cleanup(), this.logger, "delete old sync messages");
+            return this.punishments.expiredActive(now, BATCH).thenCompose(this::expire)
+                    .thenCompose(ended -> Futures.logged(this.retention.pruneIfDue(),
+                            this.logger, "prune old audit entries")
+                            .handle((pruned, failure) -> ended));
         });
     }
 

@@ -15,11 +15,13 @@ import net.serlith.sakurabans.api.model.EvidenceRef;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Scope;
+import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.api.punish.EditRequest;
 import net.serlith.sakurabans.api.punish.EditResult;
 import net.serlith.sakurabans.api.punish.ExpungeResult;
 import net.serlith.sakurabans.api.punish.PunishmentEdit;
 import net.serlith.sakurabans.api.validation.ValidationException;
+import net.serlith.sakurabans.core.command.AuditLines;
 import net.serlith.sakurabans.core.command.CommandActor;
 import net.serlith.sakurabans.core.command.CommandModule;
 import net.serlith.sakurabans.core.command.CommandRegistrar;
@@ -56,6 +58,7 @@ public final class EditCommands implements CommandModule {
     private final Replies replies;
     private final Placeholders placeholders;
     private final Formats formats;
+    private final AuditLines lines;
     private final SakuraPunishmentService punishments;
     private final AuditRepository audit;
     private final DisplayIdCodec displayIds;
@@ -65,14 +68,16 @@ public final class EditCommands implements CommandModule {
 
     public EditCommands(final CommandRegistrar registrar, final CommandRunner runner,
             final Replies replies, final Placeholders placeholders, final Formats formats,
-            final SakuraPunishmentService punishments, final AuditRepository audit,
-            final DisplayIdCodec displayIds, final ScopeParser scopeParser,
-            final ConfirmationTracker confirmations, final InstantSource clock) {
+            final AuditLines lines, final SakuraPunishmentService punishments,
+            final AuditRepository audit, final DisplayIdCodec displayIds,
+            final ScopeParser scopeParser, final ConfirmationTracker confirmations,
+            final InstantSource clock) {
         this.registrar = registrar;
         this.runner = runner;
         this.replies = replies;
         this.placeholders = placeholders;
         this.formats = formats;
+        this.lines = lines;
         this.punishments = punishments;
         this.audit = audit;
         this.displayIds = displayIds;
@@ -171,10 +176,21 @@ public final class EditCommands implements CommandModule {
 
     private CompletableFuture<?> info(final CommandContext<CommandActor> context,
             final Punishment punishment) {
+        return this.replies.punishmentCounted(context.sender(), punishment,
+                MessageKey.CHECK_DETAIL).thenCompose(values -> this.info(context, punishment,
+                        values));
+    }
+
+    private CompletableFuture<?> info(final CommandContext<CommandActor> context,
+            final Punishment punishment, final TagResolver values) {
         final CommandActor actor = context.sender();
         final Locale locale = this.runner.locale(actor);
-        final TagResolver values = this.replies.punishment(actor, punishment);
-        this.runner.send(actor, MessageKey.CHECK_DETAIL, values);
+        this.runner.send(actor, MessageKey.CHECK_DETAIL, values,
+                this.replies.victimCountry(punishment));
+        if (punishment.visibility() != Visibility.NORMAL) {
+            this.runner.send(actor, MessageKey.INFO_VISIBILITY,
+                    Placeholder.unparsed("visibility", lower(punishment.visibility())));
+        }
         for (final Evidence evidence : punishment.evidence()) {
             this.runner.send(actor, MessageKey.INFO_EVIDENCE,
                     Placeholder.unparsed("uri", evidence.ref().uri()),
@@ -202,17 +218,7 @@ public final class EditCommands implements CommandModule {
                     this.runner.send(actor, MessageKey.INFO_AUDIT_HEADER);
                     for (final AuditEntry entry : entries.reversed()) {
                         this.runner.send(actor, MessageKey.INFO_AUDIT_ENTRY,
-                                Placeholder.unparsed("at", this.formats.instant(entry.at(),
-                                        locale)),
-                                Placeholder.unparsed("action", lower(entry.action())),
-                                Placeholder.unparsed("actor",
-                                        this.placeholders.operator(entry.actor().operator(),
-                                                locale)),
-                                Placeholder.unparsed("source", entry.actor().source()),
-                                Placeholder.unparsed("old", entry.oldValue() == null ? ""
-                                        : entry.oldValue() + " → "),
-                                Placeholder.unparsed("new", entry.newValue() == null ? ""
-                                        : entry.newValue()));
+                                this.lines.values(actor, entry));
                     }
                 });
     }
@@ -330,6 +336,7 @@ public final class EditCommands implements CommandModule {
             case "CANCELLED" -> MessageKey.EDIT_FAILURE_CANCELLED;
             case "EVIDENCE_ALREADY_ATTACHED" -> MessageKey.EDIT_FAILURE_EVIDENCE_ALREADY_ATTACHED;
             case "EVIDENCE_NOT_ATTACHED" -> MessageKey.EDIT_FAILURE_EVIDENCE_NOT_ATTACHED;
+            case "TEMPLATE_PROTECTED" -> MessageKey.EDIT_FAILURE_TEMPLATE_PROTECTED;
             default -> MessageKey.EDIT_FAILURE_FORBIDDEN;
         };
         this.runner.send(actor, key, this.replies.punishment(actor, punishment));

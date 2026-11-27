@@ -26,6 +26,8 @@ import net.serlith.sakurabans.core.command.Replies;
 import net.serlith.sakurabans.core.command.SakuraCommands;
 import net.serlith.sakurabans.core.command.parser.TargetParser;
 import net.serlith.sakurabans.core.configuration.ConfigService;
+import net.serlith.sakurabans.core.configuration.settings.Settings;
+import net.serlith.sakurabans.core.geoip.CountryLookup;
 import net.serlith.sakurabans.core.message.Formats;
 import net.serlith.sakurabans.core.message.MessageKey;
 import net.serlith.sakurabans.core.message.Placeholders;
@@ -54,12 +56,13 @@ public final class AltCommands implements CommandModule {
     private final AltService alts;
     private final Platform platform;
     private final ConfigService config;
+    private final CountryLookup countries;
 
     public AltCommands(final CommandRegistrar registrar, final CommandRunner runner,
             final Replies replies, final Formats formats, final TargetParser targetParser,
             final TargetResolver targets, final PlayerRepository players,
             final InstantSource clock, final AltService alts, final Platform platform,
-            final ConfigService config) {
+            final ConfigService config, final CountryLookup countries) {
         this.registrar = registrar;
         this.runner = runner;
         this.replies = replies;
@@ -71,6 +74,7 @@ public final class AltCommands implements CommandModule {
         this.alts = alts;
         this.platform = platform;
         this.config = config;
+        this.countries = countries;
     }
 
     @Override
@@ -139,7 +143,10 @@ public final class AltCommands implements CommandModule {
     private CompletableFuture<?> alts(final CommandActor actor,
             final ResolvedTarget.Player player, final AddressStrictness strictness) {
         final String name = PunishCommands.displayName(player);
-        return this.alts.alts(player.uuid(), strictness).thenAccept(alts -> {
+        return this.alts.alts(player.uuid(), strictness).thenAccept(found -> {
+            final List<AltEntry> alts = actor.hasPermission(Permissions.ALTS_VIEW_HIDDEN)
+                    ? found
+                    : AltService.visible(found, this.config.settings().alts().hiddenPlayers());
             if (alts.isEmpty()) {
                 this.runner.send(actor, MessageKey.ALTS_NONE, Placeholder.unparsed("name", name));
                 return;
@@ -158,6 +165,11 @@ public final class AltCommands implements CommandModule {
                                 .map(address -> this.replies.victim(actor,
                                         AddressVictim.of(address)))
                                 .collect(Collectors.joining(", "))),
+                        Placeholders.country(alt.sharedAddresses().stream()
+                                .map(this.countries::countryName)
+                                .flatMap(Optional::stream)
+                                .distinct()
+                                .collect(Collectors.joining(", "))),
                         Placeholder.component("punished", alt.activePunishments().isEmpty()
                                 ? Component.empty()
                                 : this.runner.render(actor, MessageKey.ALTS_PUNISHED,
@@ -174,7 +186,14 @@ public final class AltCommands implements CommandModule {
     /** Online players grouped by the address they joined from, for shared addresses only. */
     private void ipReport(final CommandActor actor) {
         final Map<InetAddress, List<String>> groups = new LinkedHashMap<>();
+        final Settings.HiddenPlayers hidden = actor.hasPermission(Permissions.ALTS_VIEW_HIDDEN)
+                ? Settings.HiddenPlayers.NONE
+                : this.config.settings().alts().hiddenPlayers();
         for (final OnlinePlayer player : this.platform.onlinePlayers()) {
+            if (hidden.hidesPlayer(player.uuid(), player.name())
+                    || hidden.hidesAddress(player.address())) {
+                continue;
+            }
             groups.computeIfAbsent(player.address(), ignored -> new ArrayList<>())
                     .add(player.name());
         }
@@ -228,7 +247,8 @@ public final class AltCommands implements CommandModule {
                                 record.firstSeen(), this.runner.locale(actor))),
                         Placeholder.unparsed("last_seen", this.formats.instant(
                                 record.lastSeen(), this.runner.locale(actor))),
-                        Placeholder.unparsed("server", record.lastServer().orElse("")));
+                        Placeholder.unparsed("server", record.lastServer().orElse("")),
+                        this.replies.country(record.address()));
             }
         });
     }

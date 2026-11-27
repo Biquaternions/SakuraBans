@@ -1,6 +1,7 @@
 package net.serlith.sakurabans.core.enforce;
 
 import java.time.Duration;
+import java.util.List;
 import net.serlith.sakurabans.api.event.PlayerDenyEvent;
 import net.serlith.sakurabans.api.event.PunishmentExpiredEvent;
 import net.serlith.sakurabans.api.model.EndKind;
@@ -83,6 +84,12 @@ class ChatGateTest extends ServiceTest {
                 .isInstanceOf(ChatDecision.Denied.class);
         Assertions.assertThat(this.chatGate.checkCommand(this.steve, "essentials:msg Alex hi"))
                 .isInstanceOf(ChatDecision.Denied.class);
+        // The shipped list names no minecraft: entries; the plain ones cover them.
+        for (final String vanilla : List.of("minecraft:me", "minecraft:say", "minecraft:tell",
+                "minecraft:msg", "minecraft:w")) {
+            Assertions.assertThat(this.chatGate.checkCommand(this.steve, "/" + vanilla + " x"))
+                    .as(vanilla).isInstanceOf(ChatDecision.Denied.class);
+        }
         Assertions.assertThat(this.chatGate.checkCommand(this.steve, "/spawn"))
                 .isInstanceOf(ChatDecision.Allowed.class);
         Assertions.assertThat(this.events(PlayerDenyEvent.class))

@@ -45,6 +45,7 @@ import net.serlith.sakurabans.core.event.SakuraPunishmentRevokedEvent;
 import net.serlith.sakurabans.core.message.Formats;
 import net.serlith.sakurabans.core.message.MessageService;
 import net.serlith.sakurabans.core.message.Placeholders;
+import net.serlith.sakurabans.core.model.ActorSources;
 import net.serlith.sakurabans.core.player.NameCache;
 import net.serlith.sakurabans.core.punish.ConsoleActions;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
@@ -96,9 +97,12 @@ public final class WebhookService {
                 .executor(this.executors.worker())
                 .build());
         this.subscriptions.add(this.events.subscribe(PunishmentCreatedEvent.class,
-                EventPriority.MONITOR, event -> this.punishment(
-                        event.punishment().type().name(), event.punishment(),
-                        event.punishment().visibility(), Map.of())));
+                EventPriority.MONITOR, event -> {
+                    if (!ActorSources.AUTO.equals(event.punishment().source())) {
+                        this.punishment(event.punishment().type().name(), event.punishment(),
+                                event.punishment().visibility(), Map.of());
+                    }
+                }));
         this.subscriptions.add(this.events.subscribe(PunishmentRevokedEvent.class,
                 EventPriority.MONITOR, event -> this.punishment(
                         "UN" + event.punishment().type().name(), event.punishment(),
@@ -131,7 +135,9 @@ public final class WebhookService {
     private void punishment(final String event, final Punishment punishment,
             final Visibility visibility, final Map<String, String> extra) {
         final WebhookSettings settings = this.config.webhooks();
-        if (visibility == Visibility.HIDDEN || punishment.visibility() == Visibility.HIDDEN
+        if (visibility == Visibility.HIDDEN || visibility == Visibility.QUIET
+                || punishment.visibility() == Visibility.HIDDEN
+                || punishment.visibility() == Visibility.QUIET
                 || visibility == Visibility.SILENT && !settings.includeSilent()) {
             return;
         }

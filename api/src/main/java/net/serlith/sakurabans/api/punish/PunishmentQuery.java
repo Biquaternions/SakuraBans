@@ -83,7 +83,8 @@ public interface PunishmentQuery {
 
     /**
      * Whether {@link net.serlith.sakurabans.api.model.Visibility#HIDDEN hidden} punishments are
-     * included.
+     * included. {@link net.serlith.sakurabans.api.model.Visibility#QUIET Quiet} punishments are
+     * always included.
      *
      * @return {@code true} by default
      */

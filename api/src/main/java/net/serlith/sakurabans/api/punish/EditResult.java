@@ -66,7 +66,13 @@ public sealed interface EditResult permits EditResult.Success, EditResult.Failur
             EVIDENCE_NOT_ATTACHED,
 
             /** The actor isn't allowed to do this (permissions or an integration's guard). */
-            FORBIDDEN
+            FORBIDDEN,
+
+            /**
+             * The punishment was made from a template with {@code permission-required}, and
+             * the actor lacks {@code sakurabans.template.<name>}.
+             */
+            TEMPLATE_PROTECTED
         }
     }
 }

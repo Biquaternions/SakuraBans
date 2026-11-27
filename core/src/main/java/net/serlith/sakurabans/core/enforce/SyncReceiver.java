@@ -22,6 +22,7 @@ import net.serlith.sakurabans.core.punish.ActiveRangeCache;
 import net.serlith.sakurabans.core.punish.Applicabilities;
 import net.serlith.sakurabans.core.punish.Enforcer;
 import net.serlith.sakurabans.core.punish.MuteCache;
+import net.serlith.sakurabans.core.punish.PunishmentCounts;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
 import net.serlith.sakurabans.core.storage.DisplayIdCodec;
 import net.serlith.sakurabans.core.storage.repository.PunishmentRepository;
@@ -37,6 +38,7 @@ public final class SyncReceiver implements SyncPacketHandler {
     private final PunishmentRepository punishments;
     private final Enforcer enforcer;
     private final MuteCache mutes;
+    private final PunishmentCounts counts;
     private final SakuraScopeService scopes;
     private final Platform platform;
     private final NotificationService notifications;
@@ -53,7 +55,8 @@ public final class SyncReceiver implements SyncPacketHandler {
     private final ComponentLogger logger;
 
     public SyncReceiver(final PunishmentRepository punishments, final Enforcer enforcer,
-            final MuteCache mutes, final SakuraScopeService scopes, final Platform platform,
+            final MuteCache mutes, final PunishmentCounts counts,
+            final SakuraScopeService scopes, final Platform platform,
             final NotificationService notifications, final ConfigService config,
             final InstantSource clock, final SakuraAllowListService allowList,
             final SakuraTemplateService templates,
@@ -64,6 +67,7 @@ public final class SyncReceiver implements SyncPacketHandler {
         this.punishments = punishments;
         this.enforcer = enforcer;
         this.mutes = mutes;
+        this.counts = counts;
         this.scopes = scopes;
         this.platform = platform;
         this.notifications = notifications;
@@ -85,6 +89,9 @@ public final class SyncReceiver implements SyncPacketHandler {
         return switch (packet) {
             case SyncPacket.PunishmentEnforcePacket enforce -> this.enforce(enforce);
             case SyncPacket.PunishmentRevokePacket revoke -> this.revoke(revoke);
+            case SyncPacket.PlayerKickedPacket kicked ->
+                    this.enforcer.kickedUnrecorded(kicked.uuid(), kicked.reason());
+            case SyncPacket.PunishmentsResetPacket _ -> this.reset();
             case SyncPacket.PunishmentEditedPacket edited -> this.edited(edited);
             case SyncPacket.PunishmentsEndedPacket ended -> this.ended(ended);
             case SyncPacket.PunishmentExpungedPacket expunged -> this.expunged(expunged);
@@ -92,6 +99,9 @@ public final class SyncReceiver implements SyncPacketHandler {
             case SyncPacket.AllowListChangedPacket _ -> this.allowList.reload();
             case SyncPacket.LockdownChangedPacket _ -> this.lockdowns.reload();
             case SyncPacket.ImportedPacket imported -> this.imported();
+            case SyncPacket.AltsAutoBannedPacket banned -> this.punishments.byId(banned.banId())
+                    .thenAccept(found -> found.ifPresent(ban ->
+                            this.notifications.altsAutoBanned(ban, banned.names())));
             case SyncPacket.EntityChangedPacket changed -> switch (changed.entity()) {
                 case TEMPLATE -> this.templates.reload();
                 case SETTINGS -> this.settings.reload();
@@ -154,9 +164,17 @@ public final class SyncReceiver implements SyncPacketHandler {
                 .toArray(CompletableFuture[]::new)));
     }
 
+    private CompletableFuture<Void> reset() {
+        return Futures.logged(CompletableFuture.allOf(this.ranges.reload(),
+                this.mutes.reloadAll(), this.counts.reloadAll()), this.logger,
+                "reload the caches after a reset");
+    }
+
     private CompletableFuture<Void> expunged(final SyncPacket.PunishmentExpungedPacket packet) {
         // The row is gone, so there is nothing to read: let the caches drop it.
         this.mutes.ended(packet.punishmentId());
+        Futures.logged(this.counts.reloadAll(), this.logger,
+                "count the punishments again after an expunge");
         return packet.range()
                 ? Futures.logged(this.ranges.reload(), this.logger, "reload the range punishments")
                 : CompletableFuture.completedFuture(null);
@@ -182,6 +200,7 @@ public final class SyncReceiver implements SyncPacketHandler {
         work.add(this.lockdowns.reload());
         work.add(this.settings.reload());
         work.add(this.messageTemplates.reload());
+        work.add(this.counts.reloadAll());
         for (final OnlinePlayer player : this.platform.onlinePlayers()) {
             work.add(this.mutes.load(player.uuid(), player.address()));
             work.add(this.punishments.activeApplicable(PunishmentType.BAN,

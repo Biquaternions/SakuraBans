@@ -1,6 +1,8 @@
 package net.serlith.sakurabans.core.message;
 
+import com.google.common.base.Preconditions;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -8,13 +10,19 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.identity.Identity;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
+import net.kyori.adventure.text.minimessage.Context;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.tag.Tag;
+import net.kyori.adventure.text.minimessage.tag.resolver.ArgumentQueue;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.serlith.sakurabans.api.model.Scope;
@@ -25,9 +33,19 @@ public final class MessageService {
 
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
 
+    private static final Map<String, MessageKey> PALETTE = Map.of(
+            "main", MessageKey.PALETTE_MAIN,
+            "accent", MessageKey.PALETTE_ACCENT,
+            "highlight", MessageKey.PALETTE_HIGHLIGHT,
+            "danger", MessageKey.PALETTE_DANGER);
+
+    public static final Set<String> STYLE_TAGS =
+            Set.of("prefix", "plugin", "main", "accent", "highlight", "danger");
+
     private final Path dataDirectory;
     private final ConfigService config;
     private final ComponentLogger logger;
+    private final NetworkTotals totals;
     private final AtomicReference<Map<Locale, Map<String, String>>> texts =
             new AtomicReference<>(Map.of(LangLoader.BASE_LOCALE, LangLoader.builtIn()));
 
@@ -36,22 +54,36 @@ public final class MessageService {
             new AtomicReference<>(Map.of());
     private final AtomicReference<Resolved> resolved =
             new AtomicReference<>(new Resolved(List.of(), Map.of()));
+    private final AtomicReference<@Nullable StyleCache> styleCache = new AtomicReference<>();
 
     /** The layers it was resolved for: a reload that changes them resolves again. */
     private record Resolved(List<Scope> layers, Map<Locale, Map<String, String>> overrides) {
     }
 
+    private record StyleCache(Map<Locale, Map<String, String>> texts,
+            Map<Locale, Map<String, String>> overrides, Locale defaultLocale,
+            ConcurrentMap<Locale, TagResolver> byLocale) {
+    }
+
     public MessageService(final Path dataDirectory, final ConfigService config,
-            final ComponentLogger logger) {
+            final ComponentLogger logger, final NetworkTotals totals) {
         this.dataDirectory = dataDirectory;
         this.config = config;
         this.logger = logger;
+        this.totals = totals;
     }
 
     public void load() {
         final LangLoader.Loaded loaded = LangLoader.load(this.dataDirectory);
         loaded.problems().forEach(problem -> this.logger.warn("Messages: {}", problem));
         this.texts.set(Map.copyOf(loaded.texts()));
+        loaded.texts().forEach((locale, values) -> PALETTE.values().forEach(key -> {
+            final String text = values.get(key.key());
+            if (text != null && parseColor(text) == null) {
+                this.logger.warn("Messages: {} in {} is not a colour (#rrggbb or a name like"
+                        + " light_purple); the built-in one is used", key.key(), locale);
+            }
+        }));
     }
 
     public void overrides(final Map<Scope, Map<Locale, Map<String, String>>> overrides) {
@@ -125,10 +157,75 @@ public final class MessageService {
     /** A text that isn't a message key (a template's message), with the same resolvers. */
     public Component renderText(final String text, final Locale locale,
             final TagResolver... resolvers) {
-        final TagResolver prefix = TagResolver.resolver("prefix", Tag.selfClosingInserting(
-                MINI_MESSAGE.deserialize(this.text(MessageKey.PREFIX, locale))));
+        final TagResolver styles = this.styles(locale);
+        // S73: the network's counts in every message.
         return MINI_MESSAGE.deserialize(text,
-                TagResolver.resolver(prefix, TagResolver.resolver(resolvers)));
+                TagResolver.resolver(styles, this.totals.tags(), TagResolver.resolver(resolvers)));
+    }
+
+    public boolean uses(final MessageKey key, final List<String> tags) {
+        final List<String> texts = new ArrayList<>();
+        this.texts.get().values().forEach(values -> texts.add(values.getOrDefault(key.key(), "")));
+        this.scoped.get().values().forEach(locales -> locales.values()
+                .forEach(values -> texts.add(values.getOrDefault(key.key(), ""))));
+        return texts.stream().anyMatch(text -> tags.stream()
+                .anyMatch(tag -> text.contains("<" + tag + ">")));
+    }
+
+    public TagResolver styles(final Locale locale) {
+        final Map<Locale, Map<String, String>> texts = this.texts.get();
+        final Map<Locale, Map<String, String>> overrides = this.overrides();
+        final Locale defaultLocale = this.defaultLocale();
+        StyleCache cache = this.styleCache.get();
+        if (cache == null || cache.texts() != texts || cache.overrides() != overrides
+                || !cache.defaultLocale().equals(defaultLocale)) {
+            cache = new StyleCache(texts, overrides, defaultLocale, new ConcurrentHashMap<>());
+            this.styleCache.set(cache);
+        }
+        return cache.byLocale().computeIfAbsent(locale, this::buildStyles);
+    }
+
+    private TagResolver buildStyles(final Locale locale) {
+        final TagResolver.Builder palette = TagResolver.builder();
+        PALETTE.forEach((name, key) -> palette.tag(name, Tag.styling(this.color(key, locale))));
+        final TagResolver colors = palette.build();
+        final TagResolver plugin = TagResolver.resolver("plugin", Tag.selfClosingInserting(
+                MINI_MESSAGE.deserialize(this.text(MessageKey.PLUGIN, locale), colors)));
+        final TagResolver prefix = TagResolver.resolver("prefix", Tag.selfClosingInserting(
+                MINI_MESSAGE.deserialize(this.text(MessageKey.PREFIX, locale), colors, plugin)));
+        return TagResolver.resolver(prefix, plugin, colors);
+    }
+
+    public TagResolver currentStyles() {
+        return new TagResolver() {
+            @Override
+            public @Nullable Tag resolve(final String name, final ArgumentQueue arguments,
+                    final Context ctx) {
+                return MessageService.this.styles(MessageService.this.defaultLocale())
+                        .resolve(name, arguments, ctx);
+            }
+
+            @Override
+            public boolean has(final String name) {
+                return STYLE_TAGS.contains(name);
+            }
+        };
+    }
+
+    /** A palette entry's colour; a text that isn't a colour gives the built-in one. */
+    public TextColor color(final MessageKey key, final Locale locale) {
+        final TextColor color = parseColor(this.text(key, locale));
+        return color != null ? color
+                : Preconditions.checkNotNull(parseColor(LangLoader.builtIn().get(key.key())));
+    }
+
+    static @Nullable TextColor parseColor(final @Nullable String text) {
+        if (text == null) {
+            return null;
+        }
+        final String value = text.strip();
+        return value.startsWith("#") ? TextColor.fromHexString(value)
+                : NamedTextColor.NAMES.value(value.toLowerCase(Locale.ROOT));
     }
 
     public String renderPlain(final MessageKey key, final Locale locale,

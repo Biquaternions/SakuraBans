@@ -7,36 +7,21 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.serlith.sakurabans.api.model.Actor;
-import net.serlith.sakurabans.api.model.AddressVictim;
-import net.serlith.sakurabans.api.model.CategoryScope;
 import net.serlith.sakurabans.api.model.CompositeVictim;
-import net.serlith.sakurabans.api.model.CustomOperator;
 import net.serlith.sakurabans.api.model.EvidenceRef;
-import net.serlith.sakurabans.api.model.GlobalScope;
-import net.serlith.sakurabans.api.model.Operator;
-import net.serlith.sakurabans.api.model.PlayerOperator;
 import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Scope;
-import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.api.punish.DraftPunishment;
-import net.serlith.sakurabans.api.punish.LadderRequest;
-import net.serlith.sakurabans.api.punish.LadderResult;
-import net.serlith.sakurabans.api.punish.OverridePolicy;
-import net.serlith.sakurabans.api.punish.PunishOptions;
-import net.serlith.sakurabans.api.punish.PunishResult;
-import net.serlith.sakurabans.api.template.LadderTemplate;
 import net.serlith.sakurabans.api.template.PresetTemplate;
 import net.serlith.sakurabans.api.template.TemplateDuration;
 import net.serlith.sakurabans.api.template.TemplateInfo;
 import net.serlith.sakurabans.api.validation.ValidationException;
-import net.serlith.sakurabans.api.validation.Validator;
 import net.serlith.sakurabans.core.command.CommandActor;
 import net.serlith.sakurabans.core.command.CommandModule;
 import net.serlith.sakurabans.core.command.CommandRegistrar;
@@ -47,10 +32,10 @@ import net.serlith.sakurabans.core.command.ScopeAccess;
 import net.serlith.sakurabans.core.command.parser.DurationParser;
 import net.serlith.sakurabans.core.command.parser.TargetParser;
 import net.serlith.sakurabans.core.configuration.ConfigService;
+import net.serlith.sakurabans.core.enforce.AltAutoBans;
 import net.serlith.sakurabans.core.message.MessageKey;
 import net.serlith.sakurabans.core.message.Placeholders;
 import net.serlith.sakurabans.core.model.ResolvedTarget;
-import net.serlith.sakurabans.core.model.SakuraPunishResult;
 import net.serlith.sakurabans.core.model.StoredTemplate;
 import net.serlith.sakurabans.core.model.TargetInput;
 import net.serlith.sakurabans.core.permission.Permissions;
@@ -59,13 +44,11 @@ import net.serlith.sakurabans.core.player.TargetResolver;
 import net.serlith.sakurabans.core.punish.SakuraPunishmentService;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
 import net.serlith.sakurabans.core.template.SakuraTemplateService;
-import net.serlith.sakurabans.core.util.Futures;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.parser.flag.CommandFlag;
 import org.incendo.cloud.parser.flag.FlagContext;
-import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.permission.Permission;
 import org.incendo.cloud.suggestion.SuggestionProvider;
 import org.jspecify.annotations.Nullable;
@@ -100,14 +83,18 @@ public final class PunishCommands implements CommandModule {
     private final SakuraPunishmentService punishments;
     private final ConfigService config;
     private final SakuraTemplateService templates;
+    private static final String CONFIRM = "confirm";
+
     private final PunishSupport support;
+    private final AltAutoBans autoBans;
 
     public PunishCommands(final CommandRegistrar registrar, final CommandRunner runner,
             final Replies replies, final PunishFlags flags, final TargetParser targetParser,
             final TargetResolver targets, final SakuraPunishmentService punishments,
             final NameCache names, final ConfigService config,
             final SakuraScopeService scopes, final ScopeAccess scopeAccess,
-            final SakuraTemplateService templates) {
+            final SakuraTemplateService templates, final AltAutoBans autoBans) {
+        this.autoBans = autoBans;
         this.registrar = registrar;
         this.runner = runner;
         this.flags = flags;
@@ -154,6 +141,8 @@ public final class PunishCommands implements CommandModule {
         final List<CommandFlag<?>> flagList = new ArrayList<>(List.of(
                 this.flags.silent(type),
                 this.flags.hide(type),
+                this.flags.quiet(type),
+                this.flags.serverOrigin(),
                 this.flags.global(),
                 this.flags.server(),
                 this.flags.category(),
@@ -168,6 +157,12 @@ public final class PunishCommands implements CommandModule {
         }
         if (type == PunishmentType.MUTE) {
             flagList.add(this.flags.shadow(type));
+        }
+        if (type == PunishmentType.KICK) {
+            flagList.add(this.flags.noRecord());
+        }
+        if (type == PunishmentType.BAN) {
+            flagList.add(CommandFlag.<CommandActor>builder(CONFIRM).build());
         }
         if (!type.instant()) {
             flagList.add(this.flags.override(type));
@@ -196,6 +191,7 @@ public final class PunishCommands implements CommandModule {
             this.runner.send(actor, MessageKey.COMMAND_SENDER_NEEDS_NAME);
             return CompletableFuture.completedFuture(null);
         }
+        final Visibility visibility = PunishSupport.visibility(flags);
         final Shortcut shortcut = this.shortcut(actor, spec, reason,
                 flags.<String>getValue(PunishFlags.TEMPLATE).orElse(null), duration != null,
                 input, scope.orElse(null), issuer);
@@ -212,6 +208,16 @@ public final class PunishCommands implements CommandModule {
         final boolean address = spec.mode() == Mode.ADDRESS || flags.isPresent(PunishFlags.IP)
                 || this.config.settings().enforcement().compositeByDefault()
                         && type != PunishmentType.KICK;
+        if (type == PunishmentType.KICK && (flags.isPresent(PunishFlags.NO_RECORD)
+                || shortcut.reason() != null && this.config.settings().enforcement()
+                        .kickReasonIgnored(shortcut.reason()))) {
+            if (scope.isPresent() || !evidence.isEmpty() || shortcut.template() != null) {
+                this.runner.send(actor, MessageKey.PUNISH_FAILURE_UNRECORDED_OPTIONS);
+                return CompletableFuture.completedFuture(null);
+            }
+            return this.targets.resolve(input).thenCompose(target ->
+                    this.kickUnrecorded(actor, issuer, target, shortcut.reason()));
+        }
         return this.targets.resolve(input).thenCompose(target -> {
             final Victim victim = this.support.victim(actor,
                     Permissions.flag(type, PunishFlags.IP), Permissions.range(type), target,
@@ -234,10 +240,53 @@ public final class PunishCommands implements CommandModule {
                 this.support.invalid(actor, e);
                 return CompletableFuture.completedFuture(null);
             }
-            return this.punishments.punish(draft, PunishSupport.options(flags))
-                    .thenAccept(result -> this.support.reply(actor, result))
-                    .exceptionally(failure -> this.support.invalidOrRethrow(actor, failure));
+            return this.confirmed(actor, flags, type, victim).thenCompose(confirmed -> !confirmed
+                    ? CompletableFuture.completedFuture(null)
+                    : this.punishments.punish(draft, PunishSupport.options(flags, visibility))
+                            .thenAccept(result -> this.support.reply(actor, result))
+                            .exceptionally(failure -> this.support.invalidOrRethrow(actor,
+                                    failure)));
         });
+    }
+
+    private CompletableFuture<Boolean> confirmed(final CommandActor actor,
+            final FlagContext flags, final PunishmentType type, final Victim victim) {
+        final UUID player = switch (victim) {
+            case PlayerVictim found -> found.uuid();
+            case CompositeVictim found -> found.uuid();
+            default -> null;
+        };
+        if (type != PunishmentType.BAN || player == null || flags.isPresent(CONFIRM)) {
+            return CompletableFuture.completedFuture(true);
+        }
+        return this.autoBans.needsConfirmation(player).thenApply(count -> {
+            if (count.isEmpty()) {
+                return true;
+            }
+            this.runner.send(actor, MessageKey.ALTS_AUTO_BAN_CONFIRM,
+                    Placeholder.unparsed("count", Integer.toString(count.getAsInt())),
+                    Placeholder.unparsed("limit", Integer.toString(
+                            this.config.settings().alts().autoBanConfirmAbove())));
+            return false;
+        });
+    }
+
+    private CompletableFuture<Void> kickUnrecorded(final CommandActor actor, final Actor issuer,
+            final ResolvedTarget target, final @Nullable String reason) {
+        if (!(target instanceof ResolvedTarget.Player player)) {
+            this.runner.send(actor, MessageKey.PUNISH_FAILURE_UNRECORDED_PLAYER);
+            return CompletableFuture.completedFuture(null);
+        }
+        return this.punishments.kickUnrecorded(issuer, player.uuid(), reason)
+                .thenAccept(failure -> {
+                    if (failure.isPresent()) {
+                        this.support.replyFailure(actor, failure.get());
+                        return;
+                    }
+                    this.runner.send(actor, MessageKey.PUNISH_KICK_UNRECORDED,
+                            Placeholder.unparsed("target", displayName(player)));
+                })
+                .exceptionally(failure -> this.support.invalidOrRethrow(actor, failure));
     }
 
     private record Shortcut(@Nullable TemplateInfo template, @Nullable String reason) {

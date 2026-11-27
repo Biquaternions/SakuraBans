@@ -11,6 +11,7 @@ import java.util.OptionalLong;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.serlith.sakurabans.api.model.Actor;
@@ -32,6 +33,7 @@ import net.serlith.sakurabans.api.punish.EditResult;
 import net.serlith.sakurabans.api.punish.ExpungeResult;
 import net.serlith.sakurabans.api.punish.LadderRequest;
 import net.serlith.sakurabans.api.punish.LadderResult;
+import net.serlith.sakurabans.api.punish.OverridePolicy;
 import net.serlith.sakurabans.api.punish.PunishOptions;
 import net.serlith.sakurabans.api.punish.PunishResult;
 import net.serlith.sakurabans.api.punish.PunishmentEdit;
@@ -46,6 +48,7 @@ import net.serlith.sakurabans.api.punish.VoidResult;
 import net.serlith.sakurabans.api.template.LadderTemplate;
 import net.serlith.sakurabans.api.template.TemplateInfo;
 import net.serlith.sakurabans.api.template.TemplateStep;
+import net.serlith.sakurabans.api.validation.Validator;
 import net.serlith.sakurabans.core.concurrent.Lifecycle;
 import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.configuration.settings.Settings;
@@ -159,6 +162,44 @@ public final class SakuraPunishmentService implements PunishmentService {
                         ? this.prepareAndStore(checkedDraft, checkedOptions)
                         : CompletableFuture.completedFuture(new SakuraPunishResult.Failure(
                                 PunishResult.Failure.Reason.FORBIDDEN)));
+    }
+
+    /**
+     * Disconnects an online player with the kick screen without storing, announcing or posting
+     * anything (S67: {@code /kick --no-record} and {@code enforcement.kick-ignored-reasons}).
+     * Not part of the API: {@link #punish} of a kick always records it. The authorization and
+     * exemption checks are those of a kick; limits, cooldowns and the create event don't apply
+     * because no punishment is made. Empty when the player was sent away (or isn't online
+     * anywhere: every instance that has them is told through sync), else why it was refused.
+     */
+    public CompletableFuture<Optional<PunishResult.Failure.Reason>> kickUnrecorded(
+            final Actor actor, final UUID victim, final @Nullable String reason) {
+        final Settings settings = this.config.settings();
+        final String given = reason == null ? "" : reason.strip();
+        if (given.isEmpty() && settings.reasons().requiredFor().contains(PunishmentType.KICK)) {
+            return CompletableFuture.completedFuture(
+                    Optional.of(PunishResult.Failure.Reason.REASON_REQUIRED));
+        }
+        final String text = given.isEmpty() ? settings.reasons().defaultReason()
+                : settings.reasons().allowNewlines() ? given : given.replaceAll("\\R+", " ");
+        Validator.create().maxLength("reason", text, Lengths.MAX_REASON).throwIfAny();
+        return this.whenRunning()
+                .thenCompose(ignored -> this.authorize(actor,
+                        new Action.Punish(PunishmentType.KICK, null, null)))
+                .thenCompose(allowed -> allowed
+                        ? this.exemption.isExempt(actor, victim, PunishmentType.KICK)
+                                .thenCompose(exempt -> exempt
+                                        ? CompletableFuture.completedFuture(Optional.of(
+                                                PunishResult.Failure.Reason.EXEMPT))
+                                        : this.disconnect(victim, text))
+                        : CompletableFuture.completedFuture(Optional.of(
+                                PunishResult.Failure.Reason.FORBIDDEN)));
+    }
+
+    private CompletableFuture<Optional<PunishResult.Failure.Reason>> disconnect(final UUID victim,
+            final String text) {
+        this.sync.publish(new SyncPacket.PlayerKickedPacket(victim, text));
+        return this.enforcer.kickedUnrecorded(victim, text).thenApply(ignored -> Optional.empty());
     }
 
     @Override
@@ -306,8 +347,9 @@ public final class SakuraPunishmentService implements PunishmentService {
 
     private CompletableFuture<Applied> storeStep(final PunishmentFactory.Prepared.Ready ready,
             final PunishOptions options, final int step, final @Nullable ExpectedStep expected) {
-        return this.punishments.insert(ready.punishment(), options.override(), ready.use(),
-                        expected)
+        return this.replaceable(ready, options)
+                .thenCompose(replaceable -> this.punishments.insert(ready.punishment(),
+                        options.override(), ready.use(), expected, replaceable))
                 .thenCompose(outcome -> {
                     if (outcome instanceof InsertOutcome.StepChanged changed) {
                         return CompletableFuture.completedFuture(new Applied.StepChanged(
@@ -349,8 +391,17 @@ public final class SakuraPunishmentService implements PunishmentService {
             return CompletableFuture.completedFuture(
                     new SakuraPunishResult.Failure(PunishResult.Failure.Reason.CANCELLED));
         }
-        return this.punishments.insert(ready.punishment(), options.override(), ready.use())
+        return this.replaceable(ready, options)
+                .thenCompose(replaceable -> this.punishments.insert(ready.punishment(),
+                        options.override(), ready.use(), null, replaceable))
                 .thenCompose(outcome -> this.stored(outcome, ready, options));
+    }
+
+    private CompletableFuture<Predicate<Punishment>> replaceable(
+            final PunishmentFactory.Prepared.Ready ready, final PunishOptions options) {
+        return options.override() == OverridePolicy.REJECT
+                ? CompletableFuture.completedFuture(existing -> true)
+                : this.authorization.replaceable(ready.punishment().actor());
     }
 
     /**
@@ -398,6 +449,9 @@ public final class SakuraPunishmentService implements PunishmentService {
             case InsertOutcome.Rejected rejected -> CompletableFuture.completedFuture(
                     new SakuraPunishResult.Failure(PunishResult.Failure.Reason.ALREADY_PUNISHED,
                             rejected.existing()));
+            case InsertOutcome.Protected protectedOne -> CompletableFuture.completedFuture(
+                    new SakuraPunishResult.Failure(
+                            PunishResult.Failure.Reason.TEMPLATE_PROTECTED));
             case InsertOutcome.Inserted inserted -> this.created(inserted, options, ready);
             case InsertOutcome.StepChanged changed ->
                     throw new IllegalStateException("no step was expected");
@@ -493,9 +547,11 @@ public final class SakuraPunishmentService implements PunishmentService {
             final Decision denied = decisions.stream().filter(decision -> !decision.allowed())
                     .findFirst().orElse(null);
             if (denied != null) {
-                return failure(denied == Decision.EXEMPT
-                        ? RevokeResult.Failure.Reason.EXEMPT
-                        : RevokeResult.Failure.Reason.FORBIDDEN);
+                return failure(switch (denied) {
+                    case EXEMPT -> RevokeResult.Failure.Reason.EXEMPT;
+                    case TEMPLATE_PROTECTED -> RevokeResult.Failure.Reason.TEMPLATE_PROTECTED;
+                    default -> RevokeResult.Failure.Reason.FORBIDDEN;
+                });
             }
             final List<Punishment> approved = new ArrayList<>();
             for (final Punishment punishment : candidates) {
@@ -525,6 +581,7 @@ public final class SakuraPunishmentService implements PunishmentService {
             }
             final List<CompletableFuture<Void>> local = new ArrayList<>();
             for (final Punishment punishment : revoked) {
+                this.limits.revoked(punishment, request.actor());
                 local.add(this.enforcer.ended(punishment));
                 this.sync.publish(new SyncPacket.PunishmentRevokePacket(punishment.id(),
                         request.visibility()));
@@ -747,9 +804,15 @@ public final class SakuraPunishmentService implements PunishmentService {
                                     new Action.ChangePunishment(operation, id))
                             .thenApply(decision -> decision.allowed()
                                     ? new Changeable.Found(found.get())
-                                    : new Changeable.Refused(decision == Decision.EXEMPT
-                                            ? "EXEMPT" : "FORBIDDEN"));
+                                    : new Changeable.Refused(refusal(decision)));
                 });
+    }
+
+    private static String refusal(final Decision decision) {
+        return switch (decision) {
+            case EXEMPT, TEMPLATE_PROTECTED -> decision.name();
+            default -> "FORBIDDEN";
+        };
     }
 
     private static EditResult editFailure(final String reason) {

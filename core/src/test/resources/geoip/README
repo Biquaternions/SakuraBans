@@ -1,0 +1,11 @@
+GeoLite2-Country-Test.mmdb is MaxMind's test database for the GeoLite2-Country format, copied
+unchanged on 2026-11-27 from
+
+  https://github.com/maxmind/MaxMind-DB/blob/main/test-data/GeoLite2-Country-Test.mmdb
+
+Its source is source-data/GeoLite2-Country-Test.json in the same repository. It holds a few
+hundred networks chosen for testing and is not a current GeoLite2 database.
+
+The MaxMind-DB repository is Copyright (c) 2013 - 2026 by MaxMind, Inc. and licensed under the
+Apache License, Version 2.0 or the MIT License, at your option (LICENSE-APACHE and LICENSE-MIT
+in that repository). Used only by the GeoIP tests (S72).

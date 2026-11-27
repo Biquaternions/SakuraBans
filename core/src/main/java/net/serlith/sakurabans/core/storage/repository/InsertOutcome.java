@@ -12,10 +12,9 @@ public sealed interface InsertOutcome {
     record Rejected(Punishment existing) implements InsertOutcome {
     }
 
-    /**
-     * Nothing stored: the ladder step the use expected (an {@link ExpectedStep}) is no longer
-     * the victim's step, which is now {@code step}.
-     */
+    record Protected(Punishment existing) implements InsertOutcome {
+    }
+
     record StepChanged(int step) implements InsertOutcome {
     }
 

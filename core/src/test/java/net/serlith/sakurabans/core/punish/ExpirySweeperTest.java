@@ -34,12 +34,15 @@ class ExpirySweeperTest extends ServiceTest {
     void onlyTheLeaseHolderSweeps() {
         this.punish(STEVE, Duration.ofMinutes(1));
         this.now.set(this.now.get().plus(Duration.ofMinutes(2)));
-        final Lease other = new Lease(this.storage, UUID.randomUUID(), this.clock);
+        final Lease other = new Lease(this.storage, UUID.randomUUID());
         Assertions.assertThat(other.tryAcquire("sweeper", Duration.ofMinutes(5)).join()).isTrue();
 
         Assertions.assertThat(this.sweeper.sweep().join()).isZero();
-
+        // The lease goes by the database's clock: a host clock past its end doesn't free it.
         this.now.set(this.now.get().plus(Duration.ofMinutes(6)));
+        Assertions.assertThat(this.sweeper.sweep().join()).isZero();
+
+        other.release("sweeper").join();
         Assertions.assertThat(this.sweeper.sweep().join()).isOne();
     }
 

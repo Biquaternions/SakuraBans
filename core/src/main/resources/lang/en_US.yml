@@ -6,13 +6,61 @@
 #
 # <prefix> inserts the prefix below into any message. Values that come from players or staff
 # (names, reasons) are always shown as plain text.
+#
+# Style tags, usable in every message (and in templates' messages):
+#   <plugin>   the plugin's name as defined by "plugin" below (a gradient by default).
+#   <prefix>   "prefix" below: <plugin> and a separator, put before the plugin's own replies.
+#   <main>...</main>, <accent>...</accent>, <highlight>...</highlight>, <danger>...</danger>
+#              the palette: colours defined once under "palette" (#rrggbb or a colour name).
+# The palette is for the plugin's own replies (command results, errors, lists, help, status):
+#   main       #F591FF  running text and labels
+#   accent     #B891FF  values: names, ids, counts, keys; and the prefix's separator
+#   highlight  #FF91BF  warnings and confirmations ("Run it again with --confirm")
+#   danger     red      errors and refusals
+# What a punished player sees and the staff notices of punishments (screen.*, victim.*,
+# dialog.*, chat.*, notify.*) use named colours instead (light_purple, red, blue, white, gray),
+# so they can be changed one by one without touching the palette. The help menu takes the
+# palette when the plugin starts (a reload doesn't recolour it).
+#
+# --- Punishment counts (S73) ------------------------------------------------------------------
+# Usable in every message (and in templates' messages), none used by the texts below:
+#   <total_bans> <total_mutes> <total_warns> <total_kicks>  every punishment of the type on the
+#              network that wasn't voided, revoked and expired ones included
+#   <active_bans> <active_mutes> <active_warns>  the ones in force now
+#   They are read again every placeholders.refresh (config.yml) and are empty until the first
+#   read after a start.
+# Usable where a message shows a punishment of a player (screen.*, victim.*, dialog.*, chat.*,
+# notify.*, check.detail, list.entry, the punish/void/delete replies), for its victim:
+#   <player_bans> <player_mutes> <player_warns> <player_kicks>  what they received, in every
+#              scope, voided ones left out
+#   <player_active_warns>  their warnings in force
+#   Empty when unknown: for an address victim, or for a player who isn't online on this server,
+#   except in staff notices, /check #id and /sb info, which read them first when the text uses
+#   them. In what the punished player is shown, <player_mutes> leaves out shadow mutes.
+#
+# --- Country (S72) ----------------------------------------------------------------------------
+#   <country>  the English name of the country of an address, from the GeoIP database (geoip in
+#              config.yml); empty while GeoIP is off on this server or the country isn't known,
+#              except in screen.geoip and notify.attempt_geoip, which show geoip.unknown_country.
+#   Usable, besides the GeoIP texts, in: notify.attempt_join and notify.alts.join (the joining
+#   player's address), alts.entry (the shared addresses), iphistory.entry (that address) and
+#   check.detail (an address punishment's address; empty for a player's). The texts below use it
+#   only in the GeoIP texts.
+# ----------------------------------------------------------------------------------------------
 
-prefix: '<#f4a7b9>SakuraBans</#f4a7b9> <dark_gray>»</dark_gray> '
+plugin: '<gradient:#F591FF:#FFFFFF:#F591FF>SakuraBans</gradient>'
+prefix: '<plugin> <accent>...🖉</accent> '
+
+palette:
+  main: '#F591FF'
+  accent: '#B891FF'
+  highlight: '#FF91BF'
+  danger: red
 
 error:
-  internal: '<prefix><red>Something went wrong. Please tell an administrator (incident <id>).</red>'
-  not_ready: '<prefix><red>SakuraBans is still starting. Try again in a moment.</red>'
-  no_permission: '<prefix><red>You don''t have permission to do that.</red>'
+  internal: '<prefix><danger>Something went wrong. Please tell an administrator (incident <id>).</danger>'
+  not_ready: '<prefix><danger><plugin> is still starting. Try again in a moment.</danger>'
+  no_permission: '<prefix><danger>You don''t have permission to do that.</danger>'
 
 operator:
   console: Console
@@ -44,61 +92,189 @@ time:
   year: '<count> year'
   years: '<count> years'
 
-# Disconnect screens. Placeholders: <reason> <operator> <duration> <remaining> <expires> <id>
-# <display_id> <scope> <type> <server>.
+# Disconnect screens. Placeholders: <victim> <created> <reason> <operator> <duration> <remaining>
+# <expires> <id> <display_id> <scope> <type> <server>. <st>  </st> (struck-through spaces) draws
+# the rules. A permanent ban shows "never" for <expires> and "permanent" for <remaining>.
 screen:
   ban: |-
-    <red><bold>You are banned.</bold></red>
+    <plugin>
+    <light_purple><st>          </st></light_purple>
 
-    <gray>Reason:</gray> <white><reason></white>
-    <gray>Banned by:</gray> <white><operator></white>
+    <light_purple>Username:</light_purple> <white><victim></white>
+    <light_purple>Issued on:</light_purple> <white><created></white>
+    <light_purple>Staff:</light_purple> <white><operator></white>
+    <light_purple>Reason:</light_purple> <red><reason></red>
 
-    <dark_gray>Punishment <display_id></dark_gray>
+    <light_purple>Expires on:</light_purple> <white><expires></white>
+    <light_purple>Expiration:</light_purple> <white><remaining></white>
+
+    <light_purple><st>          </st></light_purple>
+
+    <blue>ID:</blue> <white><display_id></white>
   ban_temporary: |-
-    <red><bold>You are banned.</bold></red>
+    <plugin>
+    <light_purple><st>          </st></light_purple>
 
-    <gray>Reason:</gray> <white><reason></white>
-    <gray>Banned by:</gray> <white><operator></white>
-    <gray>Ends in:</gray> <white><remaining></white>
+    <light_purple>Username:</light_purple> <white><victim></white>
+    <light_purple>Issued on:</light_purple> <white><created></white>
+    <light_purple>Staff:</light_purple> <white><operator></white>
+    <light_purple>Reason:</light_purple> <red><reason></red>
 
-    <dark_gray>Punishment <display_id></dark_gray>
+    <light_purple>Expires on:</light_purple> <white><expires></white>
+    <light_purple>Expiration:</light_purple> <white><remaining></white>
+
+    <light_purple><st>          </st></light_purple>
+
+    <blue>ID:</blue> <white><display_id></white>
   kick: |-
-    <red><bold>You were kicked.</bold></red>
+    <plugin>
+    <light_purple><st>          </st></light_purple>
 
-    <gray>Reason:</gray> <white><reason></white>
+    <light_purple>Username:</light_purple> <white><victim></white>
+    <light_purple>Issued on:</light_purple> <white><created></white>
+    <light_purple>Staff:</light_purple> <white><operator></white>
+    <light_purple>Reason:</light_purple> <red><reason></red>
+
+    <light_purple><st>          </st></light_purple>
+
+    <blue>ID:</blue> <white><display_id></white>
+  # A kick that leaves no record (--no-record, enforcement.kick-ignored-reasons): only the
+  # player's name and the reason are known. Placeholders: <victim> <reason>.
+  kick_unrecorded: |-
+    <plugin>
+    <light_purple><st>          </st></light_purple>
+
+    <light_purple>Username:</light_purple> <white><victim></white>
+    <light_purple>Reason:</light_purple> <red><reason></red>
+
+    <light_purple><st>          </st></light_purple>
   check_failed: |-
-    <red><bold>We couldn't check your account.</bold></red>
+    <plugin>
+    <light_purple><st>          </st></light_purple>
 
-    <gray>Please try again in a moment.</gray>
+    <red>We couldn't check your account.</red>
+    <white>Please try again in a moment.</white>
+
+    <light_purple><st>          </st></light_purple>
   lockdown: |-
-    <red><bold>This server is locked down.</bold></red>
+    <plugin>
+    <light_purple><st>          </st></light_purple>
 
-    <gray>Reason:</gray> <white><reason></white>
+    <red>This server is locked down.</red>
+    <light_purple>Reason:</light_purple> <white><reason></white>
+    <white>Please try again later.</white>
 
-    <gray>Please try again later.</gray>
+    <light_purple><st>          </st></light_purple>
+  # A login turned away by geoip.blacklist, geoip.whitelist or geoip.allow-unknown (config.yml).
+  # Placeholders: <country> (geoip.unknown_country when the country isn't known).
+  geoip: |-
+    <plugin>
+    <light_purple><st>          </st></light_purple>
 
-# Sent to the punished player.
+    <red>You can't join this server from where you are.</red>
+    <light_purple>Country:</light_purple> <white><country></white>
+
+    <light_purple><st>          </st></light_purple>
+
+# Sent to the punished player. The mute notice and the warnings are a banner: a 7x7 block of
+# squares with an exclamation mark drawn in a second colour (a space is narrower than a square
+# in Minecraft's font, so the mark can't be left blank), and the text to its right.
 victim:
   # How a punishment names an address removed by /sb gdpr erase.
   erased_address: erased address
-  muted: '<prefix><red>You were muted by <operator>: <reason></red>'
-  muted_temporary: '<prefix><red>You were muted by <operator> for <duration>: <reason></red>'
-  warned: '<prefix><red>You were warned by <operator>: <reason></red>'
-  warned_away: '<prefix><red>While you were away, <operator> warned you (<created>): <reason></red>'
+  # A banned player on a server that lets banned players in (enforcement.servers-without-login-check
+  # on a proxy, enforcement.login-check: false on a backend): when they join, and when a ban is
+  # enforced while they are there or sends them there.
+  banned_admitted: '<prefix><red>You are banned from this network by <white><operator></white>: <white><reason></white>. You can only play on the servers that let banned players in.</red>'
+  banned_admitted_temporary: '<prefix><red>You are banned from this network by <white><operator></white> for <white><remaining></white>: <white><reason></white>. You can only play on the servers that let banned players in.</red>'
+  muted: |-
+    <red>■■■■■■■</red>
+    <red>■■■<white>■</white>■■■</red>  <red><bold>Muted</bold></red>
+    <red>■■■<white>■</white>■■■</red>
+    <red>■■■<white>■</white>■■■</red>  <light_purple>Staff:</light_purple> <white><operator></white>
+    <red>■■■■■■■</red>  <light_purple>Expiration:</light_purple> <white><remaining></white>
+    <red>■■■<white>■</white>■■■</red>  <light_purple>Reason:</light_purple> <white><reason></white>
+    <red>■■■■■■■</red>
+  muted_temporary: |-
+    <red>■■■■■■■</red>
+    <red>■■■<white>■</white>■■■</red>  <red><bold>Muted</bold></red> <light_purple>for</light_purple> <white><duration></white>
+    <red>■■■<white>■</white>■■■</red>
+    <red>■■■<white>■</white>■■■</red>  <light_purple>Staff:</light_purple> <white><operator></white>
+    <red>■■■■■■■</red>  <light_purple>Expiration:</light_purple> <white><remaining></white>
+    <red>■■■<white>■</white>■■■</red>  <light_purple>Reason:</light_purple> <white><reason></white>
+    <red>■■■■■■■</red>
+  warned: |-
+    <light_purple>■■■■■■■</light_purple>
+    <light_purple>■■■<white>■</white>■■■</light_purple>  <light_purple><bold>Warned</bold></light_purple>
+    <light_purple>■■■<white>■</white>■■■</light_purple>
+    <light_purple>■■■<white>■</white>■■■</light_purple>  <light_purple>Staff:</light_purple> <white><operator></white>
+    <light_purple>■■■■■■■</light_purple>  <light_purple>Expiration:</light_purple> <white><remaining></white>
+    <light_purple>■■■<white>■</white>■■■</light_purple>  <light_purple>Reason:</light_purple> <white><reason></white>
+    <light_purple>■■■■■■■</light_purple>
+  warned_away: |-
+    <light_purple>■■■■■■■</light_purple>
+    <light_purple>■■■<white>■</white>■■■</light_purple>  <light_purple><bold>Warned while you were away</bold></light_purple>
+    <light_purple>■■■<white>■</white>■■■</light_purple>  <light_purple>Issued on:</light_purple> <white><created></white>
+    <light_purple>■■■<white>■</white>■■■</light_purple>  <light_purple>Staff:</light_purple> <white><operator></white>
+    <light_purple>■■■■■■■</light_purple>  <light_purple>Expiration:</light_purple> <white><remaining></white>
+    <light_purple>■■■<white>■</white>■■■</light_purple>  <light_purple>Reason:</light_purple> <white><reason></white>
+    <light_purple>■■■■■■■</light_purple>
 
-# A template with "display: dialog" shows the mute notice or the warning above (or the template's
-# own message) in a dialog with this title and button. Without one, it is sent as chat.
+# A template with "display: dialog" shows the mute notice or the warning in a dialog with this
+# title, the text below (or the template's own message) and this button. Where a dialog can't be
+# shown, the chat text above is sent.
 dialog:
   muted_title: '<red>You were muted</red>'
-  warned_title: '<gold>You were warned</gold>'
+  warned_title: '<light_purple>You were warned</light_purple>'
   close: 'Close'
+  # The dialog's text when the template has no message of its own (with one, the dialog shows
+  # that message, as chat would). Placeholders: those of victim.muted and victim.warned.
+  muted: |-
+    <red>■■■■■■■</red>
+    <red>■■■<white>■</white>■■■</red>
+    <red>■■■<white>■</white>■■■</red>
+    <red>■■■<white>■</white>■■■</red>
+    <red>■■■■■■■</red>
+    <red>■■■<white>■</white>■■■</red>
+    <red>■■■■■■■</red>
+
+    <red><bold>Muted</bold></red>
+    <light_purple>Staff:</light_purple> <white><operator></white>
+    <light_purple>Expiration:</light_purple> <white><remaining></white>
+    <light_purple>Reason:</light_purple> <white><reason></white>
+  muted_temporary: |-
+    <red>■■■■■■■</red>
+    <red>■■■<white>■</white>■■■</red>
+    <red>■■■<white>■</white>■■■</red>
+    <red>■■■<white>■</white>■■■</red>
+    <red>■■■■■■■</red>
+    <red>■■■<white>■</white>■■■</red>
+    <red>■■■■■■■</red>
+
+    <red><bold>Muted</bold></red> <light_purple>for</light_purple> <white><duration></white>
+    <light_purple>Staff:</light_purple> <white><operator></white>
+    <light_purple>Expiration:</light_purple> <white><remaining></white>
+    <light_purple>Reason:</light_purple> <white><reason></white>
+  warned: |-
+    <light_purple>■■■■■■■</light_purple>
+    <light_purple>■■■<white>■</white>■■■</light_purple>
+    <light_purple>■■■<white>■</white>■■■</light_purple>
+    <light_purple>■■■<white>■</white>■■■</light_purple>
+    <light_purple>■■■■■■■</light_purple>
+    <light_purple>■■■<white>■</white>■■■</light_purple>
+    <light_purple>■■■■■■■</light_purple>
+
+    <light_purple><bold>Warned</bold></light_purple>
+    <light_purple>Staff:</light_purple> <white><operator></white>
+    <light_purple>Expiration:</light_purple> <white><remaining></white>
+    <light_purple>Reason:</light_purple> <white><reason></white>
 
 # When a muted player chats or runs a blocked command.
 chat:
-  muted: '<prefix><red>You are muted: <reason></red>'
-  muted_temporary: '<prefix><red>You are muted for <remaining>: <reason></red>'
+  muted: '<prefix><red>You are muted: <white><reason></white></red>'
+  muted_temporary: '<prefix><red>You are muted for <white><remaining></white>: <white><reason></white></red>'
   command_muted: '<prefix><red>You can''t use this command while you are muted.</red>'
-  loading: '<prefix><gray>Your chat is still being checked. Try again in a moment.</gray>'
+  loading: '<prefix><light_purple>Your chat is still being checked. Try again in a moment.</light_purple>'
   # Velocity only: a shadow-muted player's chat is dropped on the proxy and this line is shown to
   # them alone, so they think it was sent. The proxy can't know the backends' chat format: make
   # this look like your servers' chat. Default: vanilla's "<Name> message".
@@ -107,17 +283,22 @@ chat:
 # Staff notices. <silent> is the silent tag below for silent punishments, else empty.
 notify:
   silent_tag: '<gray>[Silent]</gray> '
-  ban: '<prefix><silent><white><operator></white> <red>banned</red> <white><victim></white> <gray>(<duration>, <scope>):</gray> <reason>'
-  mute: '<prefix><silent><white><operator></white> <red>muted</red> <white><victim></white> <gray>(<duration>, <scope>):</gray> <reason>'
-  warn: '<prefix><silent><white><operator></white> <yellow>warned</yellow> <white><victim></white><gray>:</gray> <reason>'
-  kick: '<prefix><silent><white><operator></white> <yellow>kicked</yellow> <white><victim></white><gray>:</gray> <reason>'
-  unban: '<prefix><silent><white><revoker></white> <green>unbanned</green> <white><victim></white>'
-  unmute: '<prefix><silent><white><revoker></white> <green>unmuted</green> <white><victim></white>'
-  unwarn: '<prefix><silent><white><revoker></white> <green>removed a warning of</green> <white><victim></white>'
-  attempt_join: '<prefix><gray><name> tried to join but is banned (<duration>, by <operator>):</gray> <reason>'
-  attempt_chat: '<prefix><gray><name> tried to chat but is muted:</gray> <message>'
+  ban: '<prefix><silent><white><operator></white> <red>banned</red> <white><victim></white> <gray>(<duration>, <scope>):</gray> <light_purple><reason></light_purple>'
+  # alts.auto-ban: the linked accounts banned along with a ban, in one notice.
+  alts_auto_banned: '<prefix><silent><gray>Along with</gray> <blue>#<display_id></blue><gray>, <white><operator></white> also banned <white><count></white> linked accounts of</gray> <white><victim></white><gray>:</gray> <names>'
+  mute: '<prefix><silent><white><operator></white> <red>muted</red> <white><victim></white> <gray>(<duration>, <scope>):</gray> <light_purple><reason></light_purple>'
+  warn: '<prefix><silent><white><operator></white> <light_purple>warned</light_purple> <white><victim></white><gray>:</gray> <light_purple><reason></light_purple>'
+  kick: '<prefix><silent><white><operator></white> <light_purple>kicked</light_purple> <white><victim></white><gray>:</gray> <light_purple><reason></light_purple>'
+  unban: '<prefix><silent><white><revoker></white> <blue>unbanned</blue> <white><victim></white>'
+  unmute: '<prefix><silent><white><revoker></white> <blue>unmuted</blue> <white><victim></white>'
+  unwarn: '<prefix><silent><white><revoker></white> <blue>removed a warning of</blue> <white><victim></white>'
+  attempt_join: '<prefix><gray><white><name></white> tried to join but is banned (<duration>, by <white><operator></white>):</gray> <light_purple><reason></light_purple>'
+  attempt_chat: '<prefix><gray><white><name></white> tried to chat but is muted:</gray> <light_purple><message></light_purple>'
+  # A login turned away by the GeoIP country lists; <country> is geoip.unknown_country when it
+  # isn't known.
+  attempt_geoip: '<prefix><gray><white><name></white> tried to join from a country that isn''t allowed:</gray> <light_purple><country></light_purple>'
   alts:
-    join: '<prefix><white><name></white> <gray>joined with <count> known alts:</gray> <alts>'
+    join: '<prefix><white><name></white> <gray>joined with <white><count></white> known alts:</gray> <alts>'
     name: '<white><name></white>'
     punished_name: '<red><name></red>'
 
@@ -128,36 +309,36 @@ command:
     argument:
       parse:
         failure:
-          boolean: '<red>''<input>'' is not true or false.</red>'
-          number: '<red>''<input>'' is not a number from <min> to <max>.</red>'
-          char: '<red>''<input>'' is not a single character.</red>'
-          string: '<red>''<input>'' is not valid text here.</red>'
-          uuid: '<red>''<input>'' is not a UUID.</red>'
-          enum: '<red>''<input>'' is not one of <acceptableValues>.</red>'
-          regex: '<red>''<input>'' doesn''t match <pattern>.</red>'
+          boolean: '<danger>''<input>'' is not true or false.</danger>'
+          number: '<danger>''<input>'' is not a number from <min> to <max>.</danger>'
+          char: '<danger>''<input>'' is not a single character.</danger>'
+          string: '<danger>''<input>'' is not valid text here.</danger>'
+          uuid: '<danger>''<input>'' is not a UUID.</danger>'
+          enum: '<danger>''<input>'' is not one of <acceptableValues>.</danger>'
+          regex: '<danger>''<input>'' doesn''t match <pattern>.</danger>'
           flag:
-            unknown: '<red>Unknown flag <flag>.</red>'
-            duplicate_flag: '<red>The flag <flag> is given twice.</red>'
-            no_flag_started: '<red>''<input>'' isn''t a flag. Flags start with - or --.</red>'
-            missing_argument: '<red>The flag <flag> needs a value.</red>'
-            no_permission: '<red>You can''t use the flag <flag>.</red>'
-          color: '<red>''<input>'' is not a color.</red>'
-          duration: '<red>''<input>'' is not a duration (like 30m, 7d or 1mo).</red>'
+            unknown: '<danger>Unknown flag <flag>.</danger>'
+            duplicate_flag: '<danger>The flag <flag> is given twice.</danger>'
+            no_flag_started: '<danger>''<input>'' isn''t a flag. Flags start with - or --.</danger>'
+            missing_argument: '<danger>The flag <flag> needs a value.</danger>'
+            no_permission: '<danger>You can''t use the flag <flag>.</danger>'
+          color: '<danger>''<input>'' is not a color.</danger>'
+          duration: '<danger>''<input>'' is not a duration (like 30m, 7d or 1mo).</danger>'
           aggregate:
-            missing: '<red>Missing <component>.</red>'
-          either: '<red>''<input>'' is neither <primary> nor <fallback>.</red>'
+            missing: '<danger>Missing <component>.</danger>'
+          either: '<danger>''<input>'' is neither <primary> nor <fallback>.</danger>'
     exception:
-      unexpected: '<red>Something went wrong while running this command.</red>'
+      unexpected: '<danger>Something went wrong while running this command.</danger>'
       invalid_argument: '<cause>'
-      no_such_command: '<red>Unknown command.</red>'
-      no_permission: '<red>You don''t have permission to do that.</red>'
-      invalid_sender: '<red>Only <expected> can use this command.</red>'
-      invalid_sender_list: '<red>Only <expected> can use this command.</red>'
-      invalid_syntax: '<red>Usage: <syntax></red>'
+      no_such_command: '<danger>Unknown command.</danger>'
+      no_permission: '<danger>You don''t have permission to do that.</danger>'
+      invalid_sender: '<danger>Only <expected> can use this command.</danger>'
+      invalid_sender_list: '<danger>Only <expected> can use this command.</danger>'
+      invalid_syntax: '<danger>Usage: <syntax></danger>'
     sakurabans:
-      target: '<red>''<input>'' is not a player, UUID, address or #id.</red>'
-      duration: '<red>''<input>'' is not a duration (like 30m, 7d or 1mo).</red>'
-      scope: '<red>''<input>'' is not a scope (global, local, server:<name> or category:<name>; all only when lifting punishments).</red>'
+      target: '<danger>''<input>'' is not a player, UUID, address or #id.</danger>'
+      duration: '<danger>''<input>'' is not a duration (like 30m, 7d or 1mo).</danger>'
+      scope: '<danger>''<input>'' is not a scope (global, local, server:<name> or category:<name>; all only when lifting punishments).</danger>'
   description:
     sakurabans: 'SakuraBans help'
     ban: 'Ban a player or address'
@@ -194,6 +375,7 @@ command:
     namehistory: 'Names a player used'
     lastuuid: 'The last account that used a name'
     ipreport: 'Online players who share an address'
+    geoip: 'The country of a player or address'
     info: 'Show a punishment'
     edit: 'Change a punishment'
     delete: 'Delete a punishment from the history'
@@ -203,157 +385,184 @@ command:
     prunehistory: 'Delete a player''s ended punishments'
     status: 'SakuraBans status'
     reload: 'Reload the configuration and messages'
+    reset: 'Delete, end or prune punishments in bulk (console only)'
+    accept_alts: 'Accept automatic alt bans (alts.auto-ban; console only)'
+    addlogin: 'Record a login as if the player had joined'
     gdpr: 'Export or erase a player''s data'
+    audit: 'Show or export the audit log'
     import: 'Import punishments from another plugin or database'
-  invalid: '<prefix><red>That doesn''t work: <details></red>'
-  unknown_target: '<prefix><red>Nobody is known as <input>.</red>'
-  id_not_allowed: '<prefix><red>Name a player or an address here, not a punishment id.</red>'
-  range_no_permission: '<prefix><red>You can''t punish address ranges.</red>'
-  no_address: '<prefix><red>No address is known for <name>.</red>'
-  address_no_permission: '<prefix><red>You can''t punish addresses.</red>'
-  scope_no_permission: '<prefix><red>You can''t punish in <scope>.</red>'
-  scope_default_no_permission: '<prefix><red>Name a scope: --global, --server, --category or --scope.</red>'
-  sender_needs_name: '<prefix><red>--sender-uuid needs --sender with a name.</red>'
-  players_only: '<prefix><red>Only players can use this without naming someone.</red>'
-  player_required: '<prefix><red><input> is not a player.</red>'
-  not_an_id: '<prefix><red>''<input>'' is not a punishment id (like 12 or K7Q2M9XA).</red>'
+  invalid: '<prefix><danger>That doesn''t work: <details></danger>'
+  unknown_target: '<prefix><danger>Nobody is known as <input>.</danger>'
+  id_not_allowed: '<prefix><danger>Name a player or an address here, not a punishment id.</danger>'
+  range_no_permission: '<prefix><danger>You can''t punish address ranges.</danger>'
+  no_address: '<prefix><danger>No address is known for <name>.</danger>'
+  address_no_permission: '<prefix><danger>You can''t punish addresses.</danger>'
+  scope_no_permission: '<prefix><danger>You can''t punish in <scope>.</danger>'
+  scope_default_no_permission: '<prefix><danger>Name a scope: --global, --server, --category or --scope.</danger>'
+  sender_needs_name: '<prefix><danger>--sender-uuid needs --sender with a name.</danger>'
+  players_only: '<prefix><danger>Only players can use this without naming someone.</danger>'
+  player_required: '<prefix><danger><input> is not a player.</danger>'
+  not_an_id: '<prefix><danger>''<input>'' is not a punishment id (like 12 or K7Q2M9XA).</danger>'
 punish:
-  ban: '<prefix><green>Banned <white><victim></white> (<duration>, <scope>): <white><reason></white> <gray>#<display_id></gray></green>'
-  mute: '<prefix><green>Muted <white><victim></white> (<duration>, <scope>): <white><reason></white> <gray>#<display_id></gray></green>'
-  warn: '<prefix><green>Warned <white><victim></white>: <white><reason></white> <gray>#<display_id></gray></green>'
-  kick: '<prefix><green>Kicked <white><victim></white>: <white><reason></white></green>'
-  actions_only: '<prefix><green>Applied step <step> of <white><name></white> to <white><victim></white>: no punishment, only its actions.</green>'
+  ban: '<prefix><main>Banned <accent><victim></accent> (<duration>, <scope>): <accent><reason></accent> <main>#<display_id></main></main>'
+  mute: '<prefix><main>Muted <accent><victim></accent> (<duration>, <scope>): <accent><reason></accent> <main>#<display_id></main></main>'
+  warn: '<prefix><main>Warned <accent><victim></accent>: <accent><reason></accent> <main>#<display_id></main></main>'
+  kick: '<prefix><main>Kicked <accent><victim></accent>: <accent><reason></accent></main>'
+  kick_unrecorded: '<prefix><main>Kicked <accent><target></accent> without recording it.</main>'
+  actions_only: '<prefix><main>Applied step <step> of <accent><name></accent> to <accent><victim></accent>: no punishment, only its actions.</main>'
   failure:
-    already_punished: '<prefix><red><victim> already has an active <type> in <scope> (#<display_id>, <duration>). Use -o to replace it.</red>'
-    already_punished_generic: '<prefix><red>The victim already has an active punishment of that type there. Use -o to replace it.</red>'
-    exempt: '<prefix><red>That player can''t be punished by you.</red>'
-    cancelled: '<prefix><red>Another plugin cancelled this punishment.</red>'
-    limit_exceeded: '<prefix><red>That is longer than your limit allows.</red>'
-    cooldown: '<prefix><red>Wait a moment before punishing again.</red>'
-    reason_required: '<prefix><red>Give a reason.</red>'
-    template_required: '<prefix><red>Use a template (--template).</red>'
-    unknown_template: '<prefix><red>There is no such template.</red>'
-    template_type_mismatch: '<prefix><red>That template doesn''t fit this command.</red>'
-    no_template: '<prefix><red>There is no template or reason shortcut called <name>.</red>'
-    template_no_permission: '<prefix><red>You can''t use the template <name>.</red>'
-    template_type: '<prefix><red><name> is a <type> template; use it with /<command>.</red>'
-    template_ladder: '<prefix><red><name> is a ladder; apply it with /<command> <player> <name>.</red>'
-    template_duration: '<prefix><red>The template <name> has its own duration; use it without one: /<command> <player> -t <name>.</red>'
-    no_ladder: '<prefix><red>There is no ladder called <name>.</red>'
-    not_a_ladder: '<prefix><red><name> is a <type> template, not a ladder; use /<command> <player> -t <name>.</red>'
-    forbidden: '<prefix><red>You may not do that.</red>'
+    already_punished: '<prefix><danger><victim> already has an active <type> in <scope> (#<display_id>, <duration>). Use -o to replace it.</danger>'
+    already_punished_generic: '<prefix><danger>The victim already has an active punishment of that type there. Use -o to replace it.</danger>'
+    exempt: '<prefix><danger>That player can''t be punished by you.</danger>'
+    cancelled: '<prefix><danger>Another plugin cancelled this punishment.</danger>'
+    limit_exceeded: '<prefix><danger>That is longer than your limit allows.</danger>'
+    cooldown: '<prefix><danger>Wait a moment before punishing again.</danger>'
+    reason_required: '<prefix><danger>Give a reason.</danger>'
+    template_required: '<prefix><danger>Use a template (--template).</danger>'
+    unknown_template: '<prefix><danger>There is no such template.</danger>'
+    template_type_mismatch: '<prefix><danger>That template doesn''t fit this command.</danger>'
+    no_template: '<prefix><danger>There is no template or reason shortcut called <name>.</danger>'
+    template_no_permission: '<prefix><danger>You can''t use the template <name>.</danger>'
+    template_type: '<prefix><danger><name> is a <type> template; use it with /<command>.</danger>'
+    template_ladder: '<prefix><danger><name> is a ladder; apply it with /<command> <player> <name>.</danger>'
+    template_duration: '<prefix><danger>The template <name> has its own duration; use it without one: /<command> <player> -t <name>.</danger>'
+    no_ladder: '<prefix><danger>There is no ladder called <name>.</danger>'
+    not_a_ladder: '<prefix><danger><name> is a <type> template, not a ladder; use /<command> <player> -t <name>.</danger>'
+    forbidden: '<prefix><danger>You may not do that.</danger>'
+    template_protected: '<prefix><danger>The active punishment there was made from a template that needs its permission: you may not replace it.</danger>'
+    unrecorded_options: '<prefix><danger>A kick that leaves no record (--no-record, or a reason from enforcement.kick-ignored-reasons) can''t take a scope, evidence or a template.</danger>'
+    unrecorded_player: '<prefix><danger>A kick that leaves no record needs a player name or UUID.</danger>'
 revoke:
-  ban: '<prefix><green>Unbanned <white><target></white> (<count>).</green>'
-  mute: '<prefix><green>Unmuted <white><target></white> (<count>).</green>'
-  warn: '<prefix><green>Removed a warning of <white><target></white>.</green>'
+  ban: '<prefix><main>Unbanned <accent><target></accent> (<count>).</main>'
+  mute: '<prefix><main>Unmuted <accent><target></accent> (<count>).</main>'
+  warn: '<prefix><main>Removed a warning of <accent><target></accent>.</main>'
   failure:
-    not_found: '<prefix><red>No active punishment was found.</red>'
-    not_own: '<prefix><red>You can only lift punishments you issued.</red>'
-    exempt: '<prefix><red>You can''t lift that punishment.</red>'
-    cancelled: '<prefix><red>Another plugin cancelled this.</red>'
-    reason_required: '<prefix><red>Give a reason.</red>'
-    forbidden: '<prefix><red>You may not do that.</red>'
-    wrong_type: '<prefix><red>#<display_id> is a <type>.</red>'
-    scope_no_permission: '<prefix><red>You can''t lift punishments in <scopes>.</red>'
-  skipped_scopes: '<prefix><yellow>Not lifted in <scopes>, which you can''t use.</yellow>'
+    not_found: '<prefix><danger>No active punishment was found.</danger>'
+    not_own: '<prefix><danger>You can only lift punishments you issued.</danger>'
+    exempt: '<prefix><danger>You can''t lift that punishment.</danger>'
+    cancelled: '<prefix><danger>Another plugin cancelled this.</danger>'
+    reason_required: '<prefix><danger>Give a reason.</danger>'
+    forbidden: '<prefix><danger>You may not do that.</danger>'
+    template_protected: '<prefix><danger>That punishment was made from a template that needs its permission: you may not lift it.</danger>'
+    wrong_type: '<prefix><danger>#<display_id> is a <type>.</danger>'
+    scope_no_permission: '<prefix><danger>You can''t lift punishments in <scopes>.</danger>'
+  skipped_scopes: '<prefix><highlight>Not lifted in <scopes>, which you can''t use.</highlight>'
 check:
-  none: '<prefix><gray><name> has nothing active.</gray>'
-  header: '<prefix><white><name></white><gray>: <total> active (page <page>/<pages>)</gray>'
+  none: '<prefix><main><name> has nothing active.</main>'
+  header: '<prefix><accent><name></accent><main>: <total> active (page <page>/<pages>)</main>'
   detail: |-
-    <prefix><white>#<display_id></white> <type> of <white><victim></white> by <operator>, <created>
-    <gray>Reason:</gray> <reason>
-    <gray>Scope:</gray> <scope> <gray>Length:</gray> <duration> <gray>Expires:</gray> <expires>
+    <prefix><accent>#<display_id></accent> <main><type> of</main> <accent><victim></accent> <main>by</main> <accent><operator></accent><main>, <created></main><decayed>
+    <main>Reason:</main> <accent><reason></accent>
+    <main>Scope:</main> <accent><scope></accent> <main>Length:</main> <accent><duration></accent> <main>Expires:</main> <accent><expires></accent>
 history:
-  header: '<prefix><gray>History of</gray> <white><name></white> <gray>(<total>, page <page>/<pages>)</gray>'
+  header: '<prefix><main>History of</main> <accent><name></accent> <main>(<total>, page <page>/<pages>)</main>'
 staffhistory:
-  header: '<prefix><gray>Issued by</gray> <white><name></white> <gray>(<total>, page <page>/<pages>)</gray>'
+  header: '<prefix><main>Issued by</main> <accent><name></accent> <main>(<total>, page <page>/<pages>)</main>'
 warns:
-  header: '<prefix><gray>Warnings of</gray> <white><name></white> <gray>(<total>, page <page>/<pages>)</gray>'
+  header: '<prefix><main>Warnings of</main> <accent><name></accent> <main>(<total>, page <page>/<pages>)</main>'
 list:
   header:
-    banlist: '<prefix><gray>Active bans (<total>, page <page>/<pages>)</gray>'
-    mutelist: '<prefix><gray>Active mutes (<total>, page <page>/<pages>)</gray>'
-    warnlist: '<prefix><gray>Active warnings (<total>, page <page>/<pages>)</gray>'
-  entry: '<dark_gray>#<display_id></dark_gray> <status> <white><type></white> <victim> <gray>by</gray> <operator> <gray>(<duration>, <created>):</gray> <reason>'
-  empty: '<prefix><gray>Nothing to show.</gray>'
-  no_such_page: '<prefix><red>There are only <pages> pages.</red>'
-  footer: '<gray><previous> Page <page> of <pages> <next></gray>'
-  previous: '<white>[«]</white>'
-  next: '<white>[»]</white>'
+    banlist: '<prefix><main>Active bans (<total>, page <page>/<pages>)</main>'
+    mutelist: '<prefix><main>Active mutes (<total>, page <page>/<pages>)</main>'
+    warnlist: '<prefix><main>Active warnings (<total>, page <page>/<pages>)</main>'
+  entry: '<dark_gray>#<display_id></dark_gray> <status> <accent><type></accent> <accent><victim></accent> <main>by</main> <accent><operator></accent> <main>(<duration>, <created>):</main> <accent><reason></accent><decayed>'
+  empty: '<prefix><main>Nothing to show.</main>'
+  no_such_page: '<prefix><danger>There are only <pages> pages.</danger>'
+  footer: '<main><previous> Page <page> of <pages> <next></main>'
+  previous: '<accent>[«]</accent>'
+  next: '<accent>[»]</accent>'
   arrow_disabled: '<dark_gray>[ ]</dark_gray>'
   status:
-    active: '<red>●</red>'
-    expired: '<gray>○</gray>'
-    ended: '<green>○</green>'
-    instant: '<yellow>●</yellow>'
+    active: '<danger>●</danger>'
+    expired: '<dark_gray>○</dark_gray>'
+    ended: '<accent>○</accent>'
+    instant: '<highlight>●</highlight>'
 alts:
-  none: '<prefix><gray>No alts are known for <name>.</gray>'
-  header: '<prefix><white><name></white><gray> has <count> known alts (<strictness>):</gray>'
-  entry: '<gray> - </gray><white><name></white> <gray>(last seen <last_seen>; via <addresses>)</gray><punished>'
-  punished: ' <red>[<types>]</red>'
+  none: '<prefix><main>No alts are known for <name>.</main>'
+  # alts.auto-ban (S69): /sb accept alts, the reminder while it is pending, and /ban's check.
+  auto_ban:
+    accepted: '<prefix><main>Automatic alt bans are accepted: alts.auto-ban (<mode>) now bans linked accounts. Revoking a ban does not lift the bans it made; undo them with /staffrollback or by their source "auto".</main>'
+    already: '<prefix><main>Automatic alt bans were already accepted.</main>'
+    pending: '<prefix><highlight>alts.auto-ban is <mode> but does nothing until the console runs /sb accept alts: it bans players nobody looked at, and a shared address can link innocent accounts.</highlight>'
+    confirm: '<prefix><highlight>This ban would also ban <count> linked accounts (more than <limit>). Add --confirm to ban them all.</highlight>'
+  header: '<prefix><accent><name></accent><main> has <count> known alts (<strictness>):</main>'
+  entry: '<main> - </main><accent><name></accent> <main>(last seen <last_seen>; via <addresses>)</main><punished>'
+  punished: ' <danger>[<types>]</danger>'
 iphistory:
-  none: '<prefix><gray>No addresses are known for <name>.</gray>'
-  header: '<prefix><gray>Addresses of</gray> <white><name></white><gray>:</gray>'
-  entry: '<gray> - </gray><white><address></white> <gray>(<first_seen> to <last_seen>, <server>)</gray>'
+  none: '<prefix><main>No addresses are known for <name>.</main>'
+  header: '<prefix><main>Addresses of</main> <accent><name></accent><main>:</main>'
+  entry: '<main> - </main><accent><address></accent> <main>(<first_seen> to <last_seen>, <server>)</main>'
 namehistory:
-  none: '<prefix><gray>No names are known for <name>.</gray>'
-  header: '<prefix><gray>Names of</gray> <white><name></white><gray>:</gray>'
-  entry: '<gray> - </gray><white><name></white> <gray>(<first_seen> to <last_seen>)</gray>'
+  none: '<prefix><main>No names are known for <name>.</main>'
+  header: '<prefix><main>Names of</main> <accent><name></accent><main>:</main>'
+  entry: '<main> - </main><accent><name></accent> <main>(<first_seen> to <last_seen>)</main>'
 lastuuid:
-  result: '<prefix><white><name></white><gray> was last used by</gray> <white><uuid></white>'
-  none: '<prefix><gray>Nobody has used the name <name> here.</gray>'
+  result: '<prefix><accent><name></accent><main> was last used by</main> <accent><uuid></accent>'
+  none: '<prefix><main>Nobody has used the name <name> here.</main>'
+# /geoip. <target> is the player with their last known address, or the address (shown in full
+# only with sakurabans.viewips); <country> the country's name, <code> its ISO code.
+geoip:
+  result: '<prefix><accent><target></accent> <main>is in</main> <accent><country></accent> <main>(<code>).</main>'
+  unknown: '<prefix><main>No country is known for</main> <accent><target></accent><main>.</main>'
+  disabled: '<prefix><highlight>GeoIP is off on this server (geoip.enabled in config.yml).</highlight>'
+  # A range: /geoip takes one address.
+  target: '<prefix><danger>Name a player or an address.</danger>'
+  # Plain text: <country> in screen.geoip and notify.attempt_geoip when the country isn't known.
+  unknown_country: unknown
+  no_database: '<prefix><highlight>GeoIP has no database yet: give it your MaxMind account in config.yml (geoip), or place GeoLite2-Country.mmdb in the geoip folder.</highlight>'
 allow:
-  added: '<prefix><green>Allow-listed <white><target></white>: address punishments no longer reach it.</green>'
-  already: '<prefix><yellow><target> is already allow-listed.</yellow>'
-  removed: '<prefix><green>Removed <white><target></white> from the allow list.</green>'
-  not_listed: '<prefix><yellow><target> isn''t allow-listed.</yellow>'
-  target: '<prefix><red>Name a player or an address.</red>'
+  added: '<prefix><main>Allow-listed <accent><target></accent>: address punishments no longer reach it.</main>'
+  already: '<prefix><highlight><target> is already allow-listed.</highlight>'
+  removed: '<prefix><main>Removed <accent><target></accent> from the allow list.</main>'
+  not_listed: '<prefix><highlight><target> isn''t allow-listed.</highlight>'
+  target: '<prefix><danger>Name a player or an address.</danger>'
   list:
-    empty: '<prefix><gray>The allow list is empty.</gray>'
-    header: '<prefix><white>Allow list</white> <gray>(<count>)</gray>'
-    entry: '<gray>-</gray> <white><target></white> <gray>by <operator>, <added>: <note></gray>'
+    empty: '<prefix><main>The allow list is empty.</main>'
+    header: '<prefix><accent>Allow list</accent> <main>(<count>)</main>'
+    entry: '<main>-</main> <accent><target></accent> <main>by <operator>, <added>: <note></main>'
 unlink:
-  done: '<prefix><green>Forgot <count> address(es) of <white><name></white>.</green>'
-  none: '<prefix><yellow>No such address is recorded for <name>.</yellow>'
-  not_address: '<prefix><red>''<input>'' is not an address.</red>'
+  done: '<prefix><main>Forgot <count> address(es) of <accent><name></accent>.</main>'
+  none: '<prefix><highlight>No such address is recorded for <name>.</highlight>'
+  not_address: '<prefix><danger>''<input>'' is not an address.</danger>'
 ipreport:
-  none: '<prefix><gray>No two online players share an address.</gray>'
-  header: '<prefix><gray>Online players sharing an address (<count>):</gray>'
-  entry: '<gray> - </gray><white><address></white><gray>:</gray> <names>'
+  none: '<prefix><main>No two online players share an address.</main>'
+  header: '<prefix><main>Online players sharing an address (<count>):</main>'
+  entry: '<main> - </main><accent><address></accent><main>:</main> <names>'
 templates:
   list:
-    empty: '<prefix><gray>There are no templates.</gray>'
-    header: '<prefix><white>Templates</white> <gray>(<count>)</gray>'
-    entry: '<gray> - </gray><white><name></white> <gray><type><modifiers>:</gray> <ladder><gray>; <reason></gray>'
+    empty: '<prefix><main>There are no templates.</main>'
+    header: '<prefix><accent>Templates</accent> <main>(<count>)</main>'
+    entry: '<main> - </main><accent><name></accent> <main><type><modifiers>:</main> <highlight><ladder></highlight><main>; <reason></main>'
     ladder: 'ladder'
-    variants: '<gray>   variants: <white><scopes></white></gray>'
-    header_scope: '<prefix><white>Template variants in <scope></white> <gray>(<count>)</gray>'
-    empty_scope: '<prefix><gray>No template has a variant in <scope>.</gray>'
+    variants: '<main>   variants: <accent><scopes></accent></main>'
+    header_scope: '<prefix><accent>Template variants in <scope></accent> <main>(<count>)</main>'
+    empty_scope: '<prefix><main>No template has a variant in <scope>.</main>'
   import:
-    confirm: '<prefix><yellow>This creates or updates the templates in templates.yml (<count>) for every server. Run it again with --confirm within 30 seconds.</yellow>'
-    done: '<prefix><green>Templates imported: <created> new, <updated> updated, <unchanged> unchanged.</green>'
-    error: '<prefix><red><error></red>'
+    confirm: '<prefix><highlight>This creates or updates the templates in templates.yml (<count>) for every server. Run it again with --confirm within 30 seconds.</highlight>'
+    done: '<prefix><main>Templates imported: <created> new, <updated> updated, <unchanged> unchanged.</main>'
+    error: '<prefix><danger><error></danger>'
   export:
-    done: '<prefix><green>Exported <count> templates to <file>.</green>'
+    done: '<prefix><main>Exported <count> templates to <file>.</main>'
   reset:
-    confirm: '<prefix><yellow>This forgets <count> uses of <what> on <victims> victims (<target>, and its alts and addresses where a ladder counts them), so those ladders start over for <target>. Run it again with --confirm within 30 seconds.</yellow>'
-    done: '<prefix><green>Forgot <count> uses of <what> on <victims> victims for <target>.</green>'
+    confirm: '<prefix><highlight>This forgets <count> uses of <what> on <victims> victims (<target>, and its alts and addresses where a ladder counts them), so those ladders start over for <target>. Run it again with --confirm within 30 seconds.</highlight>'
+    done: '<prefix><main>Forgot <count> uses of <what> on <victims> victims for <target>.</main>'
     all: 'every template'
-    target: '<prefix><red>Name a player or an address to reset, not <input>.</red>'
+    target: '<prefix><danger>Name a player or an address to reset, not <input>.</danger>'
 edit:
-  done: '<prefix><green>Changed #<display_id>: <white><what></white>.</green>'
-  permanent: '<prefix><red>#<display_id> is permanent; set a duration instead.</red>'
+  done: '<prefix><main>Changed #<display_id>: <accent><what></accent>.</main>'
+  permanent: '<prefix><danger>#<display_id> is permanent; set a duration instead.</danger>'
   failure:
-    not_found: '<prefix><red>There is no such punishment.</red>'
-    not_active: '<prefix><red>That punishment isn''t active any more.</red>'
-    invalid_expiry: '<prefix><red>That would end it before now.</red>'
-    already_punished: '<prefix><red>The victim already has an active <type> there.</red>'
-    exempt: '<prefix><red>You can''t change that punishment.</red>'
-    cancelled: '<prefix><red>Another plugin cancelled this.</red>'
-    evidence_already_attached: '<prefix><yellow>That evidence is already attached.</yellow>'
-    evidence_not_attached: '<prefix><yellow>That evidence isn''t attached.</yellow>'
-    forbidden: '<prefix><red>You may not do that.</red>'
-    already_voided: '<prefix><yellow>That punishment is already voided.</yellow>'
+    not_found: '<prefix><danger>There is no such punishment.</danger>'
+    not_active: '<prefix><danger>That punishment isn''t active any more.</danger>'
+    invalid_expiry: '<prefix><danger>That would end it before now.</danger>'
+    already_punished: '<prefix><danger>The victim already has an active <type> there.</danger>'
+    exempt: '<prefix><danger>You can''t change that punishment.</danger>'
+    cancelled: '<prefix><danger>Another plugin cancelled this.</danger>'
+    evidence_already_attached: '<prefix><highlight>That evidence is already attached.</highlight>'
+    evidence_not_attached: '<prefix><highlight>That evidence isn''t attached.</highlight>'
+    forbidden: '<prefix><danger>You may not do that.</danger>'
+    template_protected: '<prefix><danger>#<display_id> was made from a template that needs its permission: you may not change, void or delete it.</danger>'
+    already_voided: '<prefix><highlight>That punishment is already voided.</highlight>'
   what:
     reason: 'reason'
     expiry: 'now <expires>'
@@ -361,155 +570,194 @@ edit:
     evidence_added: 'evidence added'
     evidence_removed: 'evidence removed'
 void:
-  done: '<prefix><green>Voided #<display_id> (<type> of <white><victim></white>).</green>'
+  done: '<prefix><main>Voided #<display_id> (<type> of <accent><victim></accent>).</main>'
 delete:
-  confirm: '<prefix><yellow>This deletes #<display_id> (<type> of <victim>) for good. Run it again with --confirm within 30 seconds.</yellow>'
-  done: '<prefix><green>Deleted #<display_id> (<type> of <white><victim></white>).</green>'
+  confirm: '<prefix><highlight>This deletes #<display_id> (<type> of <victim>) for good. Run it again with --confirm within 30 seconds.</highlight>'
+  done: '<prefix><main>Deleted #<display_id> (<type> of <accent><victim></accent>).</main>'
 info:
-  evidence: '<gray>Evidence:</gray> <white><uri></white> <dark_gray>(<added_by>, <added>)</dark_gray>'
-  ended: '<gray>Ended:</gray> <end> <dark_gray>(<at>, <revoker>)</dark_gray> <revoke_reason>'
-  voided: '<red>Voided</red> <dark_gray>(<at>, <actor>)</dark_gray> <reason>'
+  visibility: '<main>Visibility:</main> <accent><visibility></accent>'
+  # After enforcement.ip-ban-decay, in /checkban, /sb info and the lists: the address part of a
+  # ban of a player and an address no longer counts.
+  address_decayed: ' <dark_gray>(address part decayed: bans the player only)</dark_gray>'
+  evidence: '<main>Evidence:</main> <accent><uri></accent> <dark_gray>(<added_by>, <added>)</dark_gray>'
+  ended: '<main>Ended:</main> <accent><end></accent> <dark_gray>(<at>, <revoker>)</dark_gray> <accent><revoke_reason></accent>'
+  voided: '<danger>Voided</danger> <dark_gray>(<at>, <actor>)</dark_gray> <accent><reason></accent>'
   audit:
-    header: '<gray>Changes:</gray>'
-    entry: '<dark_gray><at></dark_gray> <white><action></white> <gray>by <actor> (<source>)</gray> <old><new>'
+    header: '<main>Changes:</main>'
+    entry: '<dark_gray><at></dark_gray> <accent><action></accent> <main>by <actor> (<source>)</main> <old><new>'
+audit:
+  header: '<prefix><main>Audit log (<total>, page <page>/<pages>)</main>'
+  entry: '<dark_gray><at></dark_gray> <accent><action></accent> <subject> <main>by <actor> (<source>)</main> <old><new>'
+  subject:
+    punishment: '<highlight>#<id></highlight>'
+    template: '<main>template</main> <accent><id></accent>'
+    settings: '<accent><id></accent>'
+    message: '<main>message</main> <accent><id></accent>'
+    player: '<main>player</main> <accent><id></accent>'
+    allow_list: '<main>allow list</main> <accent><id></accent>'
+    import: '<main>import</main> <accent><id></accent>'
+    address_hash: '<main>address</main> <accent><id></accent>'
+    victim: '<main>victim</main> <accent><id></accent>'
+  exported: '<prefix><main>Exported <accent><count></accent> audit entries to <file>.</main>'
+  unknown_action: '<prefix><danger>There is no audit action <input>. Use one of: <actions>.</danger>'
 lockdown:
-  started: '<prefix><green>Locked down <white><scope></white> (ends: <ends>): nobody new may join unless they have sakurabans.lockdown.bypass.</green>'
-  ended: '<prefix><green>Ended the lockdown of <white><scope></white>.</green>'
-  not_found: '<prefix><yellow><scope> isn''t locked down.</yellow>'
+  started: '<prefix><main>Locked down <accent><scope></accent> (ends: <ends>): nobody new may join unless they have sakurabans.lockdown.bypass.</main>'
+  ended: '<prefix><main>Ended the lockdown of <accent><scope></accent>.</main>'
+  not_found: '<prefix><highlight><scope> isn''t locked down.</highlight>'
   status:
-    none: '<prefix><gray>Nothing is locked down.</gray>'
-    header: '<prefix><white>Lockdowns</white> <gray>(<count>)</gray>'
-    entry: '<gray> - </gray><white><scope></white> <gray>by <actor>, <since>, until <ends>:</gray> <reason>'
+    none: '<prefix><main>Nothing is locked down.</main>'
+    header: '<prefix><accent>Lockdowns</accent> <main>(<count>)</main>'
+    entry: '<main> - </main><accent><scope></accent> <main>by <actor>, <since>, until <ends>:</main> <reason>'
 rollback:
-  confirm: '<prefix><yellow>This lifts <count> active punishments <name> issued since <since>. Run it again with --confirm within 30 seconds.</yellow>'
-  done: '<prefix><green>Lifted <count> punishments issued by <white><name></white>.</green>'
-  none: '<prefix><gray><name> issued nothing that is still active since <since>.</gray>'
+  confirm: '<prefix><highlight>This lifts <count> active punishments <name> issued since <since>. Run it again with --confirm within 30 seconds.</highlight>'
+  done: '<prefix><main>Lifted <count> punishments issued by <accent><name></accent>.</main>'
+  none: '<prefix><main><name> issued nothing that is still active since <since>.</main>'
   failure:
-    reason_required: '<prefix><red>Give a reason.</red>'
-    forbidden: '<prefix><red>You may not do that.</red>'
+    reason_required: '<prefix><danger>Give a reason.</danger>'
+    forbidden: '<prefix><danger>You may not do that.</danger>'
+reset:
+  confirm: '<prefix><highlight>This will <action> <count> punishments (<active> active, <ended> ended) in <scope>, types: <types>. Run it again with --confirm within 30 seconds.</highlight>'
+  none: '<prefix><main>Nothing matches: no punishments would be touched.</main>'
+  no_mode: '<prefix><danger>Choose a mode with --mode delete, deactivate or prune.</danger>'
+  console_only: '<prefix><danger>Only the console may run this.</danger>'
+  action:
+    delete: 'delete (with their history)'
+    deactivate: 'end (keeping their history)'
+    prune: 'delete the ended ones among'
+  done:
+    delete: '<prefix><main>Deleted <count> punishments.</main>'
+    deactivate: '<prefix><main>Ended <count> active punishments.</main>'
+    prune: '<prefix><main>Deleted <count> ended punishments.</main>'
+addlogin:
+  done: '<prefix><main>Recorded a login of <accent><name></accent> (<uuid>).</main>'
+  invalid_name: '<prefix><danger>''<input>'' is not a player name (1-16 characters of a-z, A-Z, 0-9 and _).</danger>'
+  invalid_address: '<prefix><danger>''<input>'' is not an IP address.</danger>'
 prune:
-  confirm: '<prefix><yellow>This deletes <count> ended punishments of <name> for good. Run it again with --confirm within 30 seconds.</yellow>'
-  done: '<prefix><green>Deleted <count> of <total> ended punishments of <white><name></white>.</green>'
-  none: '<prefix><gray><name> has no ended punishments to delete.</gray>'
+  confirm: '<prefix><highlight>This deletes <count> ended punishments of <name> for good. Run it again with --confirm within 30 seconds.</highlight>'
+  done: '<prefix><main>Deleted <count> of <total> ended punishments of <accent><name></accent>.</main>'
+  none: '<prefix><main><name> has no ended punishments to delete.</main>'
 status:
   body: |-
-    <prefix><white>SakuraBans <version></white> <gray>(<commit>)</gray>
-    <gray>Platform:</gray> <white><platform></white>
-    <gray>Server:</gray> <white><server></white>
-    <gray>Storage:</gray> <white><storage></white> <gray>Sync:</gray> <white><sync></white>
-    <gray>Active punishments:</gray> <white><active></white> <gray>Lockdowns:</gray> <white><lockdowns></white>
-  instances: '<prefix><gray>Servers on this database: <white><count></white></gray>'
-  instance: '<prefix><gray>- <white><name></white> (<platform>, <version>), last seen <seen></gray>'
+    <prefix><plugin> <accent><version></accent> <main>(<commit>)</main>
+    <main>Platform:</main> <accent><platform></accent>
+    <main>Server:</main> <accent><server></accent>
+    <main>Storage:</main> <accent><storage></accent> <main>Sync:</main> <accent><sync></accent>
+    <main>Active punishments:</main> <accent><active></accent> <main>Lockdowns:</main> <accent><lockdowns></accent>
+  instances: '<prefix><main>Servers on this database: <accent><count></accent></main>'
+  instance: '<prefix><main>- <accent><name></accent> (<platform>, <version>), last seen <seen></main>'
 reload:
-  done: '<prefix><green>Reloaded the configuration and messages.</green>'
-  restart: '<prefix><yellow>Changes in <files> need a restart.</yellow>'
-  error: '<prefix><red><error></red>'
-  failed: '<prefix><red>The configuration has errors; the old settings stay active.</red>'
-  overrides: '<prefix><yellow><settings> settings (<scopes>) and <messages> messages (<message_scopes>) are overridden in the database for this server; see /sb settings list and /sb messages list.</yellow>'
+  done: '<prefix><main>Reloaded the configuration and messages.</main>'
+  restart: '<prefix><highlight>Changes in <files> need a restart.</highlight>'
+  error: '<prefix><danger><error></danger>'
+  failed: '<prefix><danger>The configuration has errors; the old settings stay active.</danger>'
+  overrides: '<prefix><highlight><settings> settings (<scopes>) and <messages> messages (<message_scopes>) are overridden in the database for this server; see /sb settings list and /sb messages list.</highlight>'
 settings:
   list:
-    empty: '<prefix><gray>No setting is overridden in <scope>.</gray>'
-    header: '<prefix><white>Settings overridden in <scope></white> <gray>(<count>; they win over the layers below and config.yml)</gray>'
-    entry: '<gray> - </gray><white><key></white><gray>: this server''s file</gray> <white><file></white><gray>, override</gray> <white><database></white>'
+    empty: '<prefix><main>No setting is overridden in <scope>.</main>'
+    header: '<prefix><accent>Settings overridden in <scope></accent> <main>(<count>; they win over the layers below and config.yml)</main>'
+    entry: '<main> - </main><accent><key></accent><main>: this server''s file</main> <accent><file></accent><main>, override</main> <accent><database></accent>'
   effective:
-    header: '<prefix><white>This server''s settings</white> <gray>(layers: <scopes>, then config.yml)</gray>'
-    entry: '<gray> - </gray><white><key></white><gray>:</gray> <white><value></white> <gray>(<layer>)</gray>'
+    header: '<prefix><accent>This server''s settings</accent> <main>(layers: <scopes>, then config.yml)</main>'
+    entry: '<main> - </main><accent><key></accent><main>:</main> <accent><value></accent> <main>(<layer>)</main>'
+    environment:
+      header: '<prefix><accent>Set by the environment</accent> <main>(<count>; file-level settings, they win over config.yml and storage.yml)</main>'
+      entry: '<main> - </main><accent><source></accent><main> sets</main> <accent><key></accent><main>:</main> <accent><value></accent>'
   reset:
-    done: '<prefix><green>Removed the override of <white><key></white> in <scope>; the next layer applies again.</green>'
-    all_done: '<prefix><green>Removed every setting override of <scope> (<count>).</green>'
-    confirm: '<prefix><yellow>This removes every setting override of <scope> (<count>), for every server it reaches. Run it again with --confirm within 30 seconds.</yellow>'
+    done: '<prefix><main>Removed the override of <accent><key></accent> in <scope>; the next layer applies again.</main>'
+    all_done: '<prefix><main>Removed every setting override of <scope> (<count>).</main>'
+    confirm: '<prefix><highlight>This removes every setting override of <scope> (<count>), for every server it reaches. Run it again with --confirm within 30 seconds.</highlight>'
   publish:
-    unnamed: '<prefix><red>This server has no name (server.name in config.yml), so its files can''t be published.</red>'
-    none: '<prefix><gray>The files of <server> give the same values as the global layer.</gray>'
-    header: '<prefix><white>Publishing the files of <server> as global overrides would change <count> settings:</white>'
-    entry: '<gray> - </gray><white><key></white><gray>:</gray> <before> <gray>→</gray> <white><after></white>'
-    confirm: '<prefix><yellow>Run it again with --confirm within 30 seconds to publish these.</yellow>'
-    done: '<prefix><green>Published <count> settings of <server> as global overrides.</green>'
+    unnamed: '<prefix><danger>This server has no name (server.name in config.yml), so its files can''t be published.</danger>'
+    none: '<prefix><main>The files of <server> give the same values as the global layer.</main>'
+    header: '<prefix><accent>Publishing the files of <server> as global overrides would change <count> settings:</accent>'
+    entry: '<main> - </main><accent><key></accent><main>:</main> <main><before></main> <main>→</main> <accent><after></accent>'
+    confirm: '<prefix><highlight>Run it again with --confirm within 30 seconds to publish these.</highlight>'
+    done: '<prefix><main>Published <count> settings of <server> as global overrides.</main>'
   secret:
     set: '<italic>(set, hidden)</italic>'
     empty: '<italic>(empty)</italic>'
-  not_overridden: '<prefix><yellow><key> isn''t overridden in <scope>.</yellow>'
+  not_overridden: '<prefix><highlight><key> isn''t overridden in <scope>.</highlight>'
 messages:
   list:
-    empty: '<prefix><gray>No message is overridden in <scope>.</gray>'
-    header: '<prefix><white>Messages of <locale> overridden in <scope></white> <gray>(<count>; they win over the layers below and the language file)</gray>'
-    entry: '<gray> - </gray><white><key></white>'
+    empty: '<prefix><main>No message is overridden in <scope>.</main>'
+    header: '<prefix><accent>Messages of <locale> overridden in <scope></accent> <main>(<count>; they win over the layers below and the language file)</main>'
+    entry: '<main> - </main><accent><key></accent>'
   reset:
-    done: '<prefix><green>Removed the override of <white><key></white> (<locale>) in <scope>; the next layer applies again.</green>'
-    all_done: '<prefix><green>Removed every message override of <locale> in <scope> (<count>).</green>'
-    confirm: '<prefix><yellow>This removes every message override of <locale> in <scope> (<count>), for every server it reaches. Run it again with --confirm within 30 seconds.</yellow>'
-  not_overridden: '<prefix><yellow>Nothing of <locale> matching <key> is overridden in <scope>.</yellow>'
+    done: '<prefix><main>Removed the override of <accent><key></accent> (<locale>) in <scope>; the next layer applies again.</main>'
+    all_done: '<prefix><main>Removed every message override of <locale> in <scope> (<count>).</main>'
+    confirm: '<prefix><highlight>This removes every message override of <locale> in <scope> (<count>), for every server it reaches. Run it again with --confirm within 30 seconds.</highlight>'
+  not_overridden: '<prefix><highlight>Nothing of <locale> matching <key> is overridden in <scope>.</highlight>'
 overrides:
-  invalid: '<prefix><red>Couldn''t remove it: <details></red>'
-  forbidden: '<prefix><red>You don''t have permission to do that.</red>'
-  conflict: '<prefix><red>Someone else changed the overrides meanwhile; try again.</red>'
+  invalid: '<prefix><danger>Couldn''t remove it: <details></danger>'
+  forbidden: '<prefix><danger>You don''t have permission to do that.</danger>'
+  conflict: '<prefix><danger>Someone else changed the overrides meanwhile; try again.</danger>'
 editor:
-  not_set_up: '<prefix><yellow>The web editor isn''t set up: set web.url in config.yml. Until then, edit config.yml, the lang files and templates.yml, and see the overrides with /sb settings list and /sb messages list.</yellow>'
-  no_sections: '<prefix><red>You may not edit settings, messages or templates.</red>'
-  unknown_section: '<prefix><red>''<input>'' is not a section; choose <sections>.</red>'
-  opening: '<prefix><gray>Uploading to the web editor...</gray>'
-  ready: '<prefix><green>Open the editor: <white><link></white> (valid for <lifetime>). When you save, the page shows the /sb applyedits command to run.</green>'
-  live: '<prefix><gray>While the editor stays open, what you save there applies here by itself.</gray>'
-  applied_by: '<prefix><aqua><name> applied changes from the editor session you opened:</aqua>'
-  applied_live: '<prefix><aqua>Applied changes saved in the editor session you opened:</aqua>'
+  not_set_up: '<prefix><highlight>The web editor isn''t set up: set web.url in config.yml. Until then, edit config.yml, the lang files and templates.yml, and see the overrides with /sb settings list and /sb messages list.</highlight>'
+  no_sections: '<prefix><danger>You may not edit settings, messages or templates.</danger>'
+  unknown_section: '<prefix><danger>''<input>'' is not a section; choose <sections>.</danger>'
+  opening: '<prefix><main>Uploading to the web editor...</main>'
+  ready: '<prefix><main>Open the editor: <accent><link></accent> (valid for <lifetime>). When you save, the page shows the /sb applyedits command to run.</main>'
+  live: '<prefix><main>While the editor stays open, what you save there applies here by itself.</main>'
+  applied_by: '<prefix><highlight><name> applied changes from the editor session you opened:</highlight>'
+  applied_live: '<prefix><highlight>Applied changes saved in the editor session you opened:</highlight>'
   failed:
-    unreachable: '<prefix><red>The web editor can''t be reached right now; try again later.</red>'
-    unauthorized: '<prefix><red>The web editor refused the upload: check web.token in config.yml.</red>'
-    too_large: '<prefix><red>That is too much for the web editor; open fewer sections, for example /sb editor templates.</red>'
-    rate_limited: '<prefix><red>The web editor gets too many uploads from this server; try again in a few minutes.</red>'
-    unexpected: '<prefix><red>The web editor answered something unexpected (see the console).</red>'
+    unreachable: '<prefix><danger>The web editor can''t be reached right now; try again later.</danger>'
+    unauthorized: '<prefix><danger>The web editor refused the upload: check web.token in config.yml.</danger>'
+    too_large: '<prefix><danger>That is too much for the web editor; open fewer sections, for example /sb editor templates.</danger>'
+    rate_limited: '<prefix><danger>The web editor gets too many uploads from this server; try again in a few minutes.</danger>'
+    unexpected: '<prefix><danger>The web editor answered something unexpected (see the console).</danger>'
   apply:
-    code_unknown: '<prefix><red>There are no saved changes with that code; they last an hour. Save again in the editor.</red>'
-    session_unknown: '<prefix><red>Those changes belong to an editor session this network doesn''t know (or one older than a day). Open a new one with /sb editor.</red>'
-    unreadable: '<prefix><red>Those changes can''t be read; nothing was changed.</red>'
-    other_format: '<prefix><red>Those changes are in format <format>, which this SakuraBans version doesn''t read; nothing was changed.</red>'
-    invalid: '<prefix><red>Nothing was changed; the changes have <count> errors:</red>'
-    invalid_entry: '<prefix><gray>- <white><path></white>: <message></gray>'
-    forbidden: '<prefix><red>Nothing was changed: you may not change <sections>.</red>'
-    in_scope: ' in <white><scope></white>'
-    setting_set: '<prefix><gray>Setting <white><key></white><where>: <before> → <white><after></white></gray>'
-    setting_reset: '<prefix><gray>Setting <white><key></white><where>: reset, now <white><value></white></gray>'
-    setting_published: '<prefix><gray>Setting <white><key></white>: published from <white><server></white> (<before> → <white><after></white>)</gray>'
-    setting_set_secret: '<prefix><gray>Setting <white><key></white><where>: set <italic>(hidden)</italic></gray>'
-    setting_reset_secret: '<prefix><gray>Setting <white><key></white><where>: reset <italic>(hidden)</italic></gray>'
-    setting_published_secret: '<prefix><gray>Setting <white><key></white>: published from <white><server></white> <italic>(hidden)</italic></gray>'
-    message_set: '<prefix><gray>Message <white><key></white> (<locale>)<where>: set to <white><text></white></gray>'
-    message_reset: '<prefix><gray>Message <white><key></white> (<locale>)<where>: reset</gray>'
-    template_created: '<prefix><gray>Template <white><name></white><where>: created</gray>'
-    template_updated: '<prefix><gray>Template <white><name></white><where>: changed <fields></gray>'
-    template_field: '<white><field></white>'
-    template_field_values: '<white><field></white> (<before> → <after>)'
-    template_deleted: '<prefix><gray>Template <white><name></white><where>: deleted</gray>'
-    unchanged: '<prefix><gray>Unchanged: <section> <target><where></gray>'
-    conflict: '<prefix><yellow>Conflict: <section> <target><where> changed meanwhile; not applied.</yellow>'
-    failed: '<prefix><red>Not applied: <section> <target><where>: <details></red>'
-    failed_forbidden: '<prefix><red>Not applied: <section> <target><where>: you may no longer change it.</red>'
-    replayed: '<prefix><yellow>These changes were already applied; save again in the editor to send new ones.</yellow>'
-    summary: '<prefix><green>Applied <applied>, unchanged <unchanged>, conflicts <conflicts>.</green>'
-    conflict_hint: '<prefix><yellow>Open a new session with /sb editor to see what changed meanwhile.</yellow>'
+    code_unknown: '<prefix><danger>There are no saved changes with that code; they last an hour. Save again in the editor.</danger>'
+    session_unknown: '<prefix><danger>Those changes belong to an editor session this network doesn''t know (or one older than a day). Open a new one with /sb editor.</danger>'
+    unreadable: '<prefix><danger>Those changes can''t be read; nothing was changed.</danger>'
+    other_format: '<prefix><danger>Those changes are in format <format>, which this SakuraBans version doesn''t read; nothing was changed.</danger>'
+    invalid: '<prefix><danger>Nothing was changed; the changes have <count> errors:</danger>'
+    invalid_entry: '<prefix><main>- <accent><path></accent>: <message></main>'
+    forbidden: '<prefix><danger>Nothing was changed: you may not change <sections>.</danger>'
+    in_scope: ' in <accent><scope></accent>'
+    setting_set: '<prefix><main>Setting <accent><key></accent><where>: <before> → <accent><after></accent></main>'
+    setting_reset: '<prefix><main>Setting <accent><key></accent><where>: reset, now <accent><value></accent></main>'
+    setting_published: '<prefix><main>Setting <accent><key></accent>: published from <accent><server></accent> (<before> → <accent><after></accent>)</main>'
+    setting_set_secret: '<prefix><main>Setting <accent><key></accent><where>: set <italic>(hidden)</italic></main>'
+    setting_reset_secret: '<prefix><main>Setting <accent><key></accent><where>: reset <italic>(hidden)</italic></main>'
+    setting_published_secret: '<prefix><main>Setting <accent><key></accent>: published from <accent><server></accent> <italic>(hidden)</italic></main>'
+    message_set: '<prefix><main>Message <accent><key></accent> (<locale>)<where>: set to <accent><text></accent></main>'
+    message_reset: '<prefix><main>Message <accent><key></accent> (<locale>)<where>: reset</main>'
+    template_created: '<prefix><main>Template <accent><name></accent><where>: created</main>'
+    template_updated: '<prefix><main>Template <accent><name></accent><where>: changed <fields></main>'
+    template_field: '<accent><field></accent>'
+    template_field_values: '<accent><field></accent> (<before> → <after>)'
+    template_deleted: '<prefix><main>Template <accent><name></accent><where>: deleted</main>'
+    unchanged: '<prefix><main>Unchanged: <section> <target><where></main>'
+    conflict: '<prefix><highlight>Conflict: <section> <target><where> changed meanwhile; not applied.</highlight>'
+    failed: '<prefix><danger>Not applied: <section> <target><where>: <details></danger>'
+    failed_forbidden: '<prefix><danger>Not applied: <section> <target><where>: you may no longer change it.</danger>'
+    replayed: '<prefix><highlight>These changes were already applied; save again in the editor to send new ones.</highlight>'
+    summary: '<prefix><main>Applied <applied>, unchanged <unchanged>, conflicts <conflicts>.</main>'
+    conflict_hint: '<prefix><highlight>Open a new session with /sb editor to see what changed meanwhile.</highlight>'
 gdpr:
-  exported: '<prefix><green>Exported the data of <white><name></white> to <file>: <received> punishments received, <issued> issued.</green>'
+  exported: '<prefix><main>Exported the data of <accent><name></accent> to <file>: <received> punishments received, <issued> issued.</main>'
   erase:
-    confirm: '<prefix><yellow>This erases the names and addresses SakuraBans knows of <name> (<uuid>). Punishments stay in force; banned addresses are kept only as hashes. It can''t be undone. Run it again with --confirm within 30 seconds.</yellow>'
-  erased: '<prefix><green>Erased <white><name></white>: <names> names, <addresses> addresses and <allowed> allow-list addresses removed, <cleared> punished addresses reduced to hashes, <evidence> evidence links removed, <redacted> staff name records redacted. <kept> punishments kept.</green>'
+    confirm: '<prefix><highlight>This erases the names and addresses SakuraBans knows of <name> (<uuid>). Punishments stay in force; banned addresses are kept only as hashes. It can''t be undone. Run it again with --confirm within 30 seconds.</highlight>'
+  erased: '<prefix><main>Erased <accent><name></accent>: <names> names, <addresses> addresses and <allowed> allow-list addresses removed, <cleared> punished addresses reduced to hashes, <evidence> evidence links removed, <redacted> staff name records redacted. <kept> punishments kept.</main>'
   failure:
-    forbidden: '<prefix><red>You may not do that.</red>'
+    forbidden: '<prefix><danger>You may not do that.</danger>'
 import:
-  unknown_source: '<prefix><red>There is no import source <source>. Use one of: <sources>.</red>'
-  confirm: '<prefix><yellow>The import from <source> reads <rows>. Run it again with --confirm within 30 seconds to import, or with --dry-run to only check it.</yellow>'
-  started: '<prefix><gray>Importing from <source>; the report follows when it is done, progress is logged in the console.</gray>'
-  started_dry_run: '<prefix><gray>Checking what an import from <source> would do; nothing is stored. The report follows when it is done.</gray>'
-  busy: '<prefix><red>An import is already running on the network; try again when it is done.</red>'
-  not_configured: '<prefix><red>Set <details>.jdbc-url in import.yml first.</red>'
-  config_invalid: '<prefix><red>import.yml has errors: <details></red>'
-  unreachable: '<prefix><red>Can''t open the <source> database: <details></red>'
-  unreadable: '<prefix><red>Can''t read from <source>: <details></red>'
-  not_sakurabans: '<prefix><red>That database has no SakuraBans tables with the prefix "<details>".</red>'
-  other_version: '<prefix><red>That SakuraBans database has schema version <details>; update both servers to the same SakuraBans version first.</red>'
-  target_not_empty: '<prefix><red>This database already holds data (<details>); a self import only goes into an empty one.</red>'
-  failed: '<prefix><red>The import from <source> stopped: <details>. What it stored so far stays; running it again goes on where it stopped.</red>'
+  unknown_source: '<prefix><danger>There is no import source <source>. Use one of: <sources>.</danger>'
+  confirm: '<prefix><highlight>The import from <source> reads <rows>. Run it again with --confirm within 30 seconds to import, or with --dry-run to only check it.</highlight>'
+  started: '<prefix><main>Importing from <source>; the report follows when it is done, progress is logged in the console.</main>'
+  started_dry_run: '<prefix><main>Checking what an import from <source> would do; nothing is stored. The report follows when it is done.</main>'
+  busy: '<prefix><danger>An import is already running on the network; try again when it is done.</danger>'
+  not_configured: '<prefix><danger>Set <details>.jdbc-url in import.yml first.</danger>'
+  config_invalid: '<prefix><danger>import.yml has errors: <details></danger>'
+  unreachable: '<prefix><danger>Can''t open the <source> database: <details></danger>'
+  unreadable: '<prefix><danger>Can''t read from <source>: <details></danger>'
+  not_sakurabans: '<prefix><danger>That database has no SakuraBans tables with the prefix "<details>".</danger>'
+  other_version: '<prefix><danger>That SakuraBans database has schema version <details>; update both servers to the same SakuraBans version first.</danger>'
+  target_not_empty: '<prefix><danger>This database already holds data (<details>); a self import only goes into an empty one.</danger>'
+  failed: '<prefix><danger>The import from <source> stopped: <details>. What it stored so far stays; running it again goes on where it stopped.</danger>'
   report:
-    done: '<prefix><green>Import from <source> done: <imported> punishments imported, <skipped> already there, <failed> failed, <players> players merged, <superseded> superseded, <truncated> texts shortened.</green>'
-    dry_run: '<prefix><yellow>Dry run of <source>: <imported> punishments would be imported, <skipped> are already there, <failed> fail, <players> players read. Nothing was stored.</yellow>'
-    tables: '<prefix><gray>Rows: <tables></gray>'
-    failure: '<prefix><gray>Not imported: <id>: <errors></gray>'
+    done: '<prefix><main>Import from <source> done: <imported> punishments imported, <skipped> already there, <failed> failed, <players> players merged, <superseded> superseded, <truncated> texts shortened.</main>'
+    dry_run: '<prefix><highlight>Dry run of <source>: <imported> punishments would be imported, <skipped> are already there, <failed> fail, <players> players read. Nothing was stored.</highlight>'
+    tables: '<prefix><main>Rows: <tables></main>'
+    failure: '<prefix><main>Not imported: <id>: <errors></main>'

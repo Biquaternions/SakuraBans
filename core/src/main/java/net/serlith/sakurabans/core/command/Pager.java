@@ -33,6 +33,12 @@ public final class Pager {
     public <T> void send(final CommandActor actor, final MessageKey header,
             final TagResolver headerTags, final Page<T> page, final String command,
             final Function<T, Component> line) {
+        this.send(actor, header, headerTags, page, command, "", line);
+    }
+
+    public <T> void send(final CommandActor actor, final MessageKey header,
+            final TagResolver headerTags, final Page<T> page, final String command,
+            final String suffix, final Function<T, Component> line) {
         if (page.total() == 0) {
             this.runner.send(actor, MessageKey.LIST_EMPTY);
             return;
@@ -51,19 +57,19 @@ public final class Pager {
         if (page.pageCount() > 1) {
             this.runner.send(actor, MessageKey.LIST_FOOTER, counts,
                     Placeholder.component("previous", this.arrow(actor, page.page() > 1,
-                            MessageKey.LIST_PREVIOUS, command, page.page() - 1)),
+                            MessageKey.LIST_PREVIOUS, command, page.page() - 1, suffix)),
                     Placeholder.component("next", this.arrow(actor, page.hasNext(),
-                            MessageKey.LIST_NEXT, command, page.page() + 1)));
+                            MessageKey.LIST_NEXT, command, page.page() + 1, suffix)));
         }
     }
 
     private Component arrow(final CommandActor actor, final boolean enabled,
-            final MessageKey key, final String command, final int target) {
+            final MessageKey key, final String command, final int target, final String suffix) {
         if (!enabled) {
             return this.runner.render(actor, MessageKey.LIST_ARROW_DISABLED);
         }
         return this.runner.render(actor, key)
-                .clickEvent(ClickEvent.runCommand("/" + command + " " + target));
+                .clickEvent(ClickEvent.runCommand("/" + command + " " + target + suffix));
     }
 
     private Component status(final CommandActor actor, final Punishment punishment) {

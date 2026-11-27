@@ -21,11 +21,16 @@ gson = "2.15.0"
 cloud-core = "2.1.0"
 cloud-minecraft = "2.0.1"
 luckperms = "5.5"
+# GeoIP (S72): reads GeoLite2-Country; no runtime dependencies. Paper library, Velocity shaded.
+maxmind-db = "4.2.0"
 
 paper = "26.3.build.+"
 velocity = "4.3.1"
 # Velocity only, compile-only: dialogs where the proxy has the packetevents plugin (S61).
 packetevents = "2.14.0"
+# Soft dependencies, compile-only, never shaded (S73): placeholders where the plugin is installed.
+miniplaceholders = "3.2.0"
+placeholderapi = "2.12.3"
 adventure = "5.2.0"
 slf4j = "2.0.17"
 
@@ -60,9 +65,12 @@ cloud-velocity = { module = "org.incendo:cloud-velocity", version.ref = "cloud-m
 cloud-brigadier = { module = "org.incendo:cloud-brigadier", version.ref = "cloud-minecraft" }
 brigadier = { module = "com.mojang:brigadier", version = "1.3.11" }
 luckperms-api = { module = "net.luckperms:api", version.ref = "luckperms" }
+maxmind-db = { module = "com.maxmind.db:maxmind-db", version.ref = "maxmind-db" }
 
 paper-api = { module = "io.papermc.paper:paper-api", version.ref = "paper" }
 velocity-api = { module = "com.velocitypowered:velocity-api", version.ref = "velocity" }
+miniplaceholders-api = { module = "io.github.miniplaceholders:miniplaceholders-api", version.ref = "miniplaceholders" }
+placeholderapi = { module = "me.clip:placeholderapi", version.ref = "placeholderapi" }
 packetevents-api = { module = "com.github.retrooper:packetevents-api", version.ref = "packetevents" }
 adventure-bom = { module = "net.kyori:adventure-bom", version.ref = "adventure" }
 adventure-api = { module = "net.kyori:adventure-api" }

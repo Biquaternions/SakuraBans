@@ -46,7 +46,7 @@ class HistoryCommandsTest extends CommandTest {
         this.run(this.console, "history Steve");
 
         Assertions.assertThat(this.console.texts()).containsExactly(
-                "SakuraBans » Nothing to show.");
+                "SakuraBans ...🖉 Nothing to show.");
     }
 
     @Test

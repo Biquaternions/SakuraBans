@@ -9,6 +9,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import net.serlith.sakurabans.api.model.AddressStrictness;
 import net.serlith.sakurabans.api.model.CategoryScope;
 import net.serlith.sakurabans.api.model.PunishmentType;
@@ -29,6 +31,11 @@ class ConfigServiceTest {
 
     @TempDir
     private Path dir;
+
+    private static final String KEY = "config-test-address-hash-key-0123456789";
+    private static final String KEY_LINE = "address-hash-key: '" + KEY + "'\n";
+    private static final Pattern GENERATED =
+            Pattern.compile("\naddress-hash-key: '([A-Za-z0-9_-]{43})'\n");
 
     private final RecordingLogger log = new RecordingLogger();
 
@@ -54,15 +61,25 @@ class ConfigServiceTest {
         for (final String name : List.of(ConfigFiles.CONFIG, ConfigFiles.STORAGE,
                 ConfigFiles.LIMITS, ConfigFiles.WEBHOOKS)) {
             try (InputStream shipped = ConfigFiles.defaultResource(name)) {
-                assertThat(Files.readAllBytes(this.dir.resolve(name)))
-                        .isEqualTo(shipped.readAllBytes());
+                final String copied = Files.readString(this.dir.resolve(name));
+                // storage.yml gets a generated address-hash-key, and only that changes.
+                assertThat(GENERATED.matcher(copied).replaceFirst(
+                        "\n" + AddressHashKeys.EMPTY_LINE + "\n"))
+                        .isEqualTo(new String(shipped.readAllBytes(), StandardCharsets.UTF_8));
             }
         }
         assertThat(this.log.entries("warn")).as("no unknown or missing keys").isEmpty();
         assertThat(service.settings())
                 .isEqualTo(SettingsMapper.settings(new MainConfig()).value());
-        assertThat(service.storage())
-                .isEqualTo(SettingsMapper.storage(new StorageConfig()).value());
+        assertThat(SettingsMapper.storage(new StorageConfig()).errors())
+                .extracting(ConfigIssue::path).containsExactly("address-hash-key");
+        final Path keyOnly = this.dir.resolve("key-only");
+        Files.createDirectories(keyOnly);
+        Files.writeString(keyOnly.resolve(ConfigFiles.STORAGE), KEY_LINE);
+        final ConfigService defaults = new ConfigService(keyOnly, new RecordingLogger().logger());
+        defaults.load();
+        assertThat(service.storage()).usingRecursiveComparison().ignoringFields("addressHashKey")
+                .isEqualTo(defaults.storage());
         assertThat(service.limits())
                 .isEqualTo(SettingsMapper.limits(new LimitsConfig()).value());
         assertThat(service.webhooks())
@@ -102,7 +119,8 @@ class ConfigServiceTest {
                 .isEqualTo(new Settings.DefaultScope.Fixed(CategoryScope.of("survival")));
         assertThat(settings.enforcement().addressStrictness()).isEqualTo(AddressStrictness.STERN);
         assertThat(settings.enforcement().loginCheckTimeout()).isEqualTo(Duration.ofSeconds(2));
-        assertThat(settings.enforcement().muteCommandBlacklist()).containsOnly("msg", "tell");
+        assertThat(settings.enforcement().muteCommandBlacklist().entries())
+                .containsOnly("msg", "tell");
         assertThat(settings.reasons().requiredFor()).containsExactly(PunishmentType.BAN);
         assertThat(settings.warnings().expireAfter()).isNull();
         assertThat(Files.readString(this.dir.resolve(ConfigFiles.CONFIG))).isEqualTo(yaml);
@@ -200,6 +218,59 @@ class ConfigServiceTest {
     }
 
     @Test
+    void policyListsAreParsedAndBadEntriesNamed() throws Exception {
+        this.write(ConfigFiles.CONFIG,
+                """
+                enforcement:
+                  servers-without-login-check: [Limbo, appeal]
+                  network-kick: true
+                alts:
+                  hidden-players: [Notch, 069a79f4-44e9-4726-a5be-fca90e38aaf5, 203.0.113.7,
+                    10.0.0.0/8]
+                exemption:
+                  players: [Steve:mute, 069a79f444e94726a5befca90e38aaf5]
+                  groups: [Admin]
+                """);
+        final ConfigService service = this.service();
+        service.load();
+        final Settings settings = service.settings();
+        assertThat(settings.enforcement().serversWithoutLoginCheck())
+                .containsExactly("limbo", "appeal");
+        assertThat(settings.enforcement().loginCheck()).isTrue();
+        assertThat(settings.enforcement().networkKick()).isTrue();
+        final Settings.HiddenPlayers hidden = settings.alts().hiddenPlayers();
+        assertThat(hidden.hidesPlayer(java.util.UUID.randomUUID(), "notch")).isTrue();
+        assertThat(hidden.hidesPlayer(java.util.UUID.fromString(
+                "069a79f4-44e9-4726-a5be-fca90e38aaf5"), "x")).isTrue();
+        assertThat(hidden.hidesAddress(java.net.InetAddress.getByName("10.1.2.3"))).isTrue();
+        assertThat(hidden.hidesAddress(java.net.InetAddress.getByName("203.0.113.7"))).isTrue();
+        assertThat(hidden.hidesAddress(java.net.InetAddress.getByName("203.0.113.8"))).isFalse();
+        assertThat(settings.exemption().players()).hasSize(2);
+        assertThat(settings.exemption().groups()).containsExactly("admin");
+
+        this.write(ConfigFiles.CONFIG,
+                """
+                enforcement:
+                  servers-without-login-check: [not a server]
+                alts:
+                  hidden-players: [not a name or address]
+                exemption:
+                  players: [Steve:forever, "two words"]
+                  groups: ["bad group"]
+                """);
+        assertThatThrownBy(this.service()::load)
+                .isInstanceOfSatisfying(ConfigException.class, e -> {
+                    assertThat(e.errors()).extracting(ConfigIssue::path)
+                            .containsExactlyInAnyOrder(
+                                    "enforcement.servers-without-login-check",
+                                    "alts.hidden-players", "exemption.players",
+                                    "exemption.players", "exemption.groups");
+                    assertThat(errorsOf(e)).as("a hidden entry may be an address")
+                            .doesNotContain("not a name or address");
+                });
+    }
+
+    @Test
     void malformedFileRefusesToLoadAndIsLeftAlone() throws Exception {
         final String broken = "server: [unclosed\n  name: lobby\n";
         this.write(ConfigFiles.CONFIG, broken);
@@ -227,19 +298,51 @@ class ConfigServiceTest {
     }
 
     @Test
-    void addressHashesNeedNoKey() throws Exception {
-        try (InputStream shipped = ConfigFiles.defaultResource(ConfigFiles.STORAGE)) {
-            assertThat(new String(shipped.readAllBytes(), StandardCharsets.UTF_8))
-                    .doesNotContain("address-hash-key");
-        }
-        this.write(ConfigFiles.STORAGE, "address-hash-key: secret\n");
+    void freshInstallsGetGeneratedAddressHashKeysThatAreNeverLogged() throws Exception {
         final ConfigService service = this.service();
 
         service.load();
 
-        assertThat(this.log.entries("warn")).extracting(RecordingLogger.Entry::format)
-                .anyMatch(text -> text.contains("address-hash-key")
-                        && text.contains("unknown key"));
+        final Matcher generated = GENERATED.matcher(
+                Files.readString(this.dir.resolve(ConfigFiles.STORAGE)));
+        assertThat(generated.find()).isTrue();
+        final String key = generated.group(1);
+        assertThat(service.storage().addressHashKey()).isEqualTo(key);
+        assertThat(service.storage().toString()).doesNotContain(key);
+        assertThat(this.log.entries("info")).extracting(RecordingLogger.Entry::format)
+                .anyMatch(text -> text.contains("new address-hash-key")
+                        && text.contains("copy that line"));
+        assertThat(java.util.stream.Stream.of("trace", "debug", "info", "warn", "error")
+                .flatMap(level -> this.log.entries(level).stream())
+                .map(RecordingLogger.Entry::format)).noneMatch(text -> text.contains(key));
+
+        final Path other = this.dir.resolve("other");
+        final ConfigService second = new ConfigService(other, this.log.logger());
+        second.load();
+        assertThat(second.storage().addressHashKey()).as("each install its own")
+                .isNotEqualTo(key).hasSize(43);
+    }
+
+    @Test
+    void existingFilesWithoutKeysAreErrorsAndAreNotRewritten() throws Exception {
+        this.write(ConfigFiles.STORAGE, "type: H2\n");
+
+        assertThatThrownBy(this.service()::load)
+                .isInstanceOfSatisfying(ConfigException.class, e -> assertThat(e.errors())
+                        .singleElement().satisfies(issue -> {
+                            assertThat(issue.path()).isEqualTo("address-hash-key");
+                            assertThat(issue.message()).contains("must be set",
+                                    "copy address-hash-key from the storage.yml of a server",
+                                    "at least 32 characters");
+                        }));
+        assertThat(Files.readString(this.dir.resolve(ConfigFiles.STORAGE)))
+                .isEqualTo("type: H2\n");
+
+        this.write(ConfigFiles.STORAGE, "address-hash-key: too-short\n");
+        assertThatThrownBy(this.service()::load)
+                .isInstanceOfSatisfying(ConfigException.class, e -> assertThat(errorsOf(e))
+                        .contains("address-hash-key", "at least 32 characters")
+                        .doesNotContain("too-short"));
     }
 
     @Test
@@ -261,7 +364,7 @@ class ConfigServiceTest {
     void storageChangesWaitForRestart() throws Exception {
         final ConfigService service = this.service();
         service.load();
-        this.write(ConfigFiles.STORAGE, "type: POSTGRESQL\nreasons: {}\n");
+        this.write(ConfigFiles.STORAGE, "type: POSTGRESQL\nreasons: {}\n" + KEY_LINE);
         this.write(ConfigFiles.CONFIG, "reasons:\n  default: Rule breaking\n");
 
         final ReloadResult result = service.reload();
@@ -290,6 +393,25 @@ class ConfigServiceTest {
     }
 
     @Test
+    void placeholderRefreshHasFloor() throws Exception {
+        final ConfigService service = this.service();
+        service.load();
+        assertThat(service.settings().placeholders().refresh()).isEqualTo(Duration.ofMinutes(2));
+
+        this.write(ConfigFiles.CONFIG, "placeholders:\n  refresh: 30s\n");
+        service.reload();
+        assertThat(service.settings().placeholders().refresh())
+                .isEqualTo(Duration.ofSeconds(30));
+
+        this.write(ConfigFiles.CONFIG, "placeholders:\n  refresh: 10s\n");
+        assertThat(service.reload()).isInstanceOfSatisfying(ReloadResult.Failed.class,
+                failed -> assertThat(failed.errors()).extracting(ConfigIssue::path)
+                        .containsExactly("placeholders.refresh"));
+        assertThat(service.settings().placeholders().refresh())
+                .as("the old settings stay").isEqualTo(Duration.ofSeconds(30));
+    }
+
+    @Test
     void theAttemptThrottleMayBeZeroButNothingElseMay() throws Exception {
         final ConfigService service = this.service();
         service.load();
@@ -311,13 +433,13 @@ class ConfigServiceTest {
 
     @Test
     void theStoragePasswordNeverReachesToString() throws Exception {
-        this.write(ConfigFiles.STORAGE, "password: hunter2\n");
+        this.write(ConfigFiles.STORAGE, "password: hunter2\n" + KEY_LINE);
         final ConfigService service = this.service();
 
         service.load();
 
         assertThat(service.storage().password()).isEqualTo("hunter2");
-        assertThat(service.storage().toString()).doesNotContain("hunter2");
+        assertThat(service.storage().toString()).doesNotContain("hunter2").doesNotContain(KEY);
     }
 
     @Test
@@ -370,4 +492,105 @@ class ConfigServiceTest {
     void settingsAreUnavailableBeforeLoading() {
         assertThatThrownBy(this.service()::settings).isInstanceOf(IllegalStateException.class);
     }
+
+    @Test
+    void altsAndWarnsAnswerToTheirLiteBansNamesUnlessTheFileListsTheirLabels()
+            throws Exception {
+        final ConfigService fresh = this.service();
+        fresh.load();
+        assertThat(fresh.settings().commands().labels("alts")).containsExactly("alts", "dupeip");
+        assertThat(fresh.settings().commands().labels("warns"))
+                .containsExactly("warns", "warnings");
+        assertThat(fresh.settings().commands().labels("ban")).containsExactly("ban");
+
+        // An older file that doesn't list them still gets the aliases.
+        this.write(ConfigFiles.CONFIG, "commands:\n  labels:\n    sakurabans: [sb]\n");
+        final ConfigService older = this.service();
+        older.load();
+        assertThat(older.settings().commands().labels("alts")).containsExactly("alts", "dupeip");
+        assertThat(older.settings().commands().labels("sakurabans")).containsExactly("sb");
+
+        // Listing a command replaces its labels, and [] turns it off.
+        this.write(ConfigFiles.CONFIG,
+                "commands:\n  labels:\n    alts: [alts]\n    warns: []\n");
+        final ConfigService listed = this.service();
+        listed.load();
+        assertThat(listed.settings().commands().labels("alts")).containsExactly("alts");
+        assertThat(listed.settings().commands().labels("warns")).isEmpty();
+    }
+
+    @Test
+    void kickIgnoredReasonsAreCaseInsensitiveSubstringsAndNeverEmpty() throws Exception {
+        final ConfigService defaults = this.service();
+        defaults.load();
+        final Settings.Enforcement shipped = defaults.settings().enforcement();
+        assertThat(shipped.kickIgnoredReasons()).containsExactly("restarting", "afk");
+        assertThat(shipped.kickReasonIgnored("Server RESTARTING soon")).isTrue();
+        assertThat(shipped.kickReasonIgnored("Away from keyboard (AFK)")).isTrue();
+        assertThat(shipped.kickReasonIgnored("griefing")).isFalse();
+
+        this.write(ConfigFiles.CONFIG, "enforcement:\n  kick-ignored-reasons: [' Lag ']\n");
+        final ConfigService custom = this.service();
+        custom.load();
+        assertThat(custom.settings().enforcement().kickReasonIgnored("so much LAG")).isTrue();
+        assertThat(custom.settings().enforcement().kickReasonIgnored("afk")).isFalse();
+
+        this.write(ConfigFiles.CONFIG, "enforcement:\n  kick-ignored-reasons: [afk, ' ']\n");
+        assertThatThrownBy(this.service()::load)
+                .isInstanceOfSatisfying(ConfigException.class, e -> assertThat(e.errors())
+                        .extracting(issue -> issue.path())
+                        .containsExactly("enforcement.kick-ignored-reasons"));
+    }
+
+    @Test
+    void blacklistEntriesAreOneLabelWithOptionalWildcards() throws Exception {
+        this.write(ConfigFiles.CONFIG,
+                "enforcement:\n  mute-command-blacklist: ['me you', 'ok']\n");
+
+        assertThatThrownBy(this.service()::load)
+                .isInstanceOfSatisfying(ConfigException.class, e -> assertThat(e.errors())
+                        .extracting(issue -> issue.path())
+                        .containsExactly("enforcement.mute-command-blacklist"));
+    }
+
+    @Test
+    void thereIsNoUpdateCheck() {
+        // Removed on 2026-11-27 (S68, the user's decision): no updates.* keys of any kind.
+        assertThat(SettingsSchema.ENTRIES).extracting(SettingsSchema.Entry::key)
+                .noneMatch(key -> key.startsWith("updates."));
+    }
+
+    @Test
+    void theCooldownsOfTheLimitsFileDefaultToOneSecondAndMayBeZero() throws Exception {
+        final ConfigService fresh = this.service();
+        fresh.load();
+        assertThat(fresh.limits().consoleCooldown()).isEqualTo(Duration.ofSeconds(1));
+
+        this.write(ConfigFiles.LIMITS,
+                """
+                reduce-to-limit: true
+                console-cooldown: 0
+                groups:
+                  a:
+                    permission: x.a
+                  b:
+                    permission: x.b
+                    cooldown-redo: 0s
+                  c:
+                    permission: x.c
+                    cooldown-redo: 20s
+                """);
+        final ConfigService custom = this.service();
+        custom.load();
+        assertThat(custom.limits().consoleCooldown()).isEqualTo(Duration.ZERO);
+        assertThat(custom.limits().groups()).extracting(group -> group.cooldownRedo())
+                .containsExactly(Duration.ofSeconds(1), Duration.ZERO, Duration.ofSeconds(20));
+
+        this.write(ConfigFiles.LIMITS,
+                "reduce-to-limit: true\nconsole-cooldown: soon\ngroups: {}\n");
+        assertThatThrownBy(this.service()::load)
+                .isInstanceOfSatisfying(ConfigException.class, e -> assertThat(e.errors())
+                        .extracting(issue -> issue.path()).containsExactly("console-cooldown"));
+    }
+
 }

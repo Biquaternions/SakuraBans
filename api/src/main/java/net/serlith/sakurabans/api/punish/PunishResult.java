@@ -84,7 +84,14 @@ public sealed interface PunishResult permits PunishResult.Success, PunishResult.
             TEMPLATE_TYPE_MISMATCH,
 
             /** The actor isn't allowed to do this (permissions or an integration's guard). */
-            FORBIDDEN
+            FORBIDDEN,
+
+            /**
+             * An override policy would end a punishment made from a template with
+             * {@code permission-required}, and the actor lacks
+             * {@code sakurabans.template.<name>}; nothing was changed.
+             */
+            TEMPLATE_PROTECTED
         }
     }
 }

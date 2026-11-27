@@ -26,6 +26,7 @@ public final class FakeOnlinePlayer implements OnlinePlayer {
     private final List<Notice> notices = new CopyOnWriteArrayList<>();
     private volatile boolean dialogs;
     private final AtomicReference<@Nullable Component> disconnectReason = new AtomicReference<>();
+    private volatile boolean networkKicked;
     private final FakePlatform platform;
 
     FakeOnlinePlayer(final FakePlatform platform, final UUID uuid, final String name,
@@ -75,6 +76,16 @@ public final class FakeOnlinePlayer implements OnlinePlayer {
             this.disconnectReason.set(reason);
             this.platform.leave(this.uuid);
         });
+    }
+
+    @Override
+    public void disconnectFromNetwork(final Component reason) {
+        this.networkKicked = true;
+        this.disconnect(reason);
+    }
+
+    public boolean networkKicked() {
+        return this.networkKicked;
     }
 
     @Override

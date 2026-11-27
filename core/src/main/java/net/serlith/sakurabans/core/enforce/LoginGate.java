@@ -20,18 +20,25 @@ import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Scope;
 import net.serlith.sakurabans.api.model.ServerScope;
+import net.serlith.sakurabans.api.player.AltEntry;
 import net.serlith.sakurabans.core.alts.AltService;
+import net.serlith.sakurabans.core.alts.SakuraAllowListService;
 import net.serlith.sakurabans.core.concurrent.Lifecycle;
 import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.configuration.settings.Settings;
 import net.serlith.sakurabans.core.event.SakuraEventBus;
 import net.serlith.sakurabans.core.event.SakuraPlayerDenyEvent;
+import net.serlith.sakurabans.core.geoip.Country;
+import net.serlith.sakurabans.core.geoip.CountryLookup;
 import net.serlith.sakurabans.core.model.LoginAttempt;
 import net.serlith.sakurabans.core.notify.NotificationService;
+import net.serlith.sakurabans.core.permission.PermissionService;
+import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.player.NameCache;
 import net.serlith.sakurabans.core.punish.ActiveRangeCache;
 import net.serlith.sakurabans.core.punish.Applicabilities;
 import net.serlith.sakurabans.core.punish.MuteCache;
+import net.serlith.sakurabans.core.punish.PunishmentCounts;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
 import net.serlith.sakurabans.core.storage.repository.PlayerRepository;
 import net.serlith.sakurabans.core.storage.repository.PunishmentRepository;
@@ -55,6 +62,11 @@ public final class LoginGate {
     private final ActiveRangeCache ranges;
     private final LocalEnforcer enforcer;
     private final LockdownService lockdowns;
+    private final AltAutoBans autoBans;
+    private final PunishmentCounts counts;
+    private final CountryLookup countries;
+    private final SakuraAllowListService allowList;
+    private final PermissionService permissions;
     private final ComponentLogger logger;
 
     public LoginGate(final Lifecycle lifecycle, final ConfigService config,
@@ -63,7 +75,10 @@ public final class LoginGate {
             final EnforcementMessages messages, final NotificationService notifications,
             final SakuraEventBus events, final InstantSource clock, final AltService alts,
             final ActiveRangeCache ranges, final LocalEnforcer enforcer,
-            final LockdownService lockdowns, final ComponentLogger logger) {
+            final LockdownService lockdowns,
+            final AltAutoBans autoBans, final PunishmentCounts counts,
+            final CountryLookup countries, final SakuraAllowListService allowList,
+            final PermissionService permissions, final ComponentLogger logger) {
         this.lifecycle = lifecycle;
         this.config = config;
         this.scopes = scopes;
@@ -79,6 +94,11 @@ public final class LoginGate {
         this.ranges = ranges;
         this.enforcer = enforcer;
         this.lockdowns = lockdowns;
+        this.autoBans = autoBans;
+        this.counts = counts;
+        this.countries = countries;
+        this.allowList = allowList;
+        this.permissions = permissions;
         this.logger = logger;
     }
 
@@ -91,6 +111,8 @@ public final class LoginGate {
         this.names.put(attempt.uuid(), attempt.name());
         Futures.logged(this.mutes.load(attempt.uuid(), attempt.address()), this.logger,
                 "load the mutes of " + attempt.name());
+        Futures.logged(this.counts.load(attempt.uuid()), this.logger,
+                "count the punishments of " + attempt.name());
         return this.bounded(attempt, Denial.LOGIN_CHECK_FAILED, this.locked(attempt,
                         this.scopes.localScopes(), Denial.LOGIN_LOCKDOWN)
                 .thenCompose(locked -> {
@@ -100,16 +122,95 @@ public final class LoginGate {
                     // A proxy records the address when the player reaches a server.
                     this.record(attempt, settings, !this.scopes.proxy());
                     return this.bans(attempt, settings, this.scopes.localScopes())
-                            .thenApply(bans -> this.decide(attempt, bans, Denial.LOGIN_BANNED,
-                                    null));
+                            .thenApply(bans -> this.admitted(bans, settings)
+                                    .orElseGet(() -> {
+                                        final LoginDecision decision = this.decide(attempt,
+                                                bans, Denial.LOGIN_BANNED, null, true);
+                                        if (decision instanceof LoginDecision.Denied) {
+                                            this.autoBans.joined(attempt, bans);
+                                        }
+                                        return decision;
+                                    }))
+                            .thenCompose(decision -> this.geoip(attempt, decision));
                 }))
                 .whenComplete((decision, ignored) -> {
                     if (decision instanceof LoginDecision.Denied) {
                         this.mutes.invalidate(attempt.uuid());
+                        this.counts.forget(attempt.uuid());
                     } else if (decision != null) {
                         this.noticeAlts(attempt);
                     }
                 });
+    }
+
+    // S68: a proxy with servers that let banned players in admits them (the server checks keep
+    // them there); a backend with login-check: false admits them. Told once they are in; staff
+    // hear nothing, since nothing was refused.
+    private Optional<LoginDecision> admitted(final List<Punishment> bans,
+            final Settings settings) {
+        if (bans.isEmpty()) {
+            return Optional.empty();
+        }
+        final Settings.Enforcement enforcement = settings.enforcement();
+        final boolean admits = this.scopes.proxy()
+                ? !enforcement.serversWithoutLoginCheck().isEmpty()
+                : !enforcement.loginCheck();
+        if (!admits) {
+            return Optional.empty();
+        }
+        return Optional.of(new LoginDecision.Allowed(this.messages.bannedAdmitted(bans.getFirst(),
+                this.messages.defaultLocale())));
+    }
+
+    /**
+     * S72: the country lists, for a login the ban check let through (one S68 admits too: GeoIP
+     * is not a ban). Only here, at login; a proxy's server switch doesn't check it. Off, or with
+     * both lists empty, nothing is looked up and nothing changes.
+     */
+    private CompletableFuture<LoginDecision> geoip(final LoginAttempt attempt,
+            final LoginDecision decision) {
+        final Settings.GeoIp geoip = this.config.settings().geoip();
+        if (!(decision instanceof LoginDecision.Allowed)
+                || geoip.blacklist().isEmpty() && geoip.whitelist().isEmpty()
+                || this.countries.state() == CountryLookup.State.DISABLED
+                || this.allowList.isAllowed(attempt.uuid())
+                || this.allowList.isAllowed(attempt.address())) {
+            return CompletableFuture.completedFuture(decision);
+        }
+        final Country country = this.countries.country(attempt.address()).orElse(null);
+        if (!blocked(geoip, country)) {
+            return CompletableFuture.completedFuture(decision);
+        }
+        // Asked only of those the lists turn away. Not online yet: the bypass comes from
+        // LuckPerms (D38), as the lockdown's does; without it, nobody has it at login.
+        return this.permissions.has(attempt.uuid(), Permissions.GEOIP_BYPASS)
+                .thenApply(bypass -> bypass.orElse(false) ? decision
+                        : this.geoipDenied(attempt, country, decision));
+    }
+
+    /** {@code country} null: unknown. A non-empty whitelist wins over the blacklist. */
+    static boolean blocked(final Settings.GeoIp geoip, final @Nullable Country country) {
+        if (country == null) {
+            return !geoip.allowUnknown();
+        }
+        if (!geoip.whitelist().isEmpty()) {
+            return !geoip.whitelist().contains(country.code());
+        }
+        return geoip.blacklist().contains(country.code());
+    }
+
+    // Not a punishment: nothing is stored or audited, and no webhook is posted.
+    private LoginDecision geoipDenied(final LoginAttempt attempt, final @Nullable Country country,
+            final LoginDecision allowed) {
+        final SakuraPlayerDenyEvent event = this.events.post(new SakuraPlayerDenyEvent(
+                attempt.uuid(), attempt.name(), attempt.address(), Denial.LOGIN_GEOIP_BLOCKED,
+                null, this.messages.geoipScreen(country, this.messages.defaultLocale())));
+        if (event.cancelled()) {
+            return allowed;
+        }
+        this.notifications.attemptedGeoIp(attempt.name(),
+                country == null ? null : country.name());
+        return new LoginDecision.Denied(event.message(), Denial.LOGIN_GEOIP_BLOCKED, null);
     }
 
     private CompletableFuture<Optional<LoginDecision>> locked(final LoginAttempt attempt,
@@ -127,12 +228,26 @@ public final class LoginGate {
         }
         Futures.logged(this.alts.alts(attempt.uuid(), settings.enforcement().addressStrictness())
                 .thenAccept(found -> {
-                    if (found.size() >= join.threshold()
-                            && (!join.onlyIfPunished() || AltService.anyPunished(found))) {
-                        this.notifications.joinedWithAlts(attempt.uuid(), attempt.name(), found,
-                                join.limit());
+                    if (!notable(found, join)) {
+                        return;
                     }
+                    // Staff without viewhidden hear only of visible alts, and nothing
+                    // when the joining player is hidden.
+                    final Settings.HiddenPlayers hidden = settings.alts().hiddenPlayers();
+                    final List<AltEntry> visible = hidden.hidesPlayer(attempt.uuid(),
+                            attempt.name()) || hidden.hidesAddress(attempt.address())
+                            ? List.of()
+                            : AltService.visible(found, hidden);
+                    this.notifications.joinedWithAlts(attempt.uuid(), attempt.name(), found,
+                            notable(visible, join) ? visible : null, join.limit(),
+                            this.countries.countryName(attempt.address()).orElse(null));
                 }), this.logger, "look up the alts of " + attempt.name());
+    }
+
+    private static boolean notable(final List<AltEntry> alts,
+            final Settings.JoinNotification join) {
+        return alts.size() >= join.threshold()
+                && (!join.onlyIfPunished() || AltService.anyPunished(alts));
     }
 
     public void connected(final LoginAttempt attempt) {
@@ -143,17 +258,46 @@ public final class LoginGate {
 
     public CompletableFuture<LoginDecision> checkServer(final LoginAttempt attempt,
             final String server) {
+        return this.checkServer(attempt, server, false);
+    }
+
+    /**
+     * A proxy's check before a player connects to {@code server}. {@code initial}: the first
+     * server after the login; a banned player let in (S68) is sent on to a server without a
+     * login check then, and staff aren't told of it. A non-empty
+     * {@code servers-without-login-check} checks every connection, whatever
+     * {@code enforce-server-switch} says, since it is what keeps banned players there.
+     */
+    public CompletableFuture<LoginDecision> checkServer(final LoginAttempt attempt,
+            final String server, final boolean initial) {
         final Settings settings = this.config.settings();
-        if (!settings.enforcement().enforceServerSwitch()) {
+        final Settings.Enforcement enforcement = settings.enforcement();
+        final boolean listed = !enforcement.serversWithoutLoginCheck().isEmpty();
+        if (!enforcement.enforceServerSwitch() && !listed) {
             return CompletableFuture.completedFuture(new LoginDecision.Allowed());
         }
         if (!this.lifecycle.running()) {
             return CompletableFuture.completedFuture(this.unchecked(attempt,
                     Denial.SERVER_SWITCH_CHECK_FAILED));
         }
-        final List<String> fallbacks = this.scopes.fallbackServers().stream()
+        if (enforcement.withoutLoginCheck(server)) {
+            // Lockdowns still close it; bans don't.
+            return this.bounded(attempt, Denial.SERVER_SWITCH_CHECK_FAILED,
+                    this.locked(attempt, this.scopes.scopesOn(server),
+                                    Denial.SERVER_SWITCH_LOCKDOWN)
+                            .thenApply(locked -> locked.orElseGet(LoginDecision.Allowed::new)));
+        }
+        // Servers without a login check first, in their order, then the proxy's own.
+        final List<String> fallbacks = new ArrayList<>();
+        for (final String candidate : enforcement.serversWithoutLoginCheck()) {
+            if (!candidate.equalsIgnoreCase(server)) {
+                fallbacks.add(candidate);
+            }
+        }
+        this.scopes.fallbackServers().stream()
                 .filter(fallback -> !fallback.equalsIgnoreCase(server))
-                .toList();
+                .filter(fallback -> fallbacks.stream().noneMatch(fallback::equalsIgnoreCase))
+                .forEach(fallbacks::add);
         final Set<Scope> scopes = new HashSet<>(this.scopes.scopesOn(server));
         fallbacks.forEach(fallback -> scopes.addAll(this.scopes.scopesOn(fallback)));
         return this.bounded(attempt, Denial.SERVER_SWITCH_CHECK_FAILED,
@@ -164,10 +308,16 @@ public final class LoginGate {
                 .thenApply(bans -> {
                     final List<Punishment> here = this.on(server, bans);
                     final String fallback = fallbacks.stream()
-                            .filter(candidate -> this.on(candidate, bans).isEmpty())
+                            .filter(candidate -> enforcement.withoutLoginCheck(candidate)
+                                    || this.on(candidate, bans).isEmpty())
                             .findFirst()
                             .orElse(null);
-                    return this.decide(attempt, here, Denial.SERVER_SWITCH_BANNED, fallback);
+                    // A banned player let in at login is on the way to a server that takes
+                    // them: nothing was refused that staff need to hear of.
+                    final boolean notify = !(initial && listed && fallback != null
+                            && enforcement.withoutLoginCheck(fallback));
+                    return this.decide(attempt, here, Denial.SERVER_SWITCH_BANNED, fallback,
+                            notify);
                 })));
     }
 
@@ -214,6 +364,7 @@ public final class LoginGate {
 
     public void quit(final UUID uuid) {
         this.mutes.invalidate(uuid);
+        this.counts.forget(uuid);
     }
 
     private CompletableFuture<LoginDecision> bounded(final LoginAttempt attempt,
@@ -250,7 +401,7 @@ public final class LoginGate {
     }
 
     private LoginDecision decide(final LoginAttempt attempt, final List<Punishment> bans,
-            final Denial denial, final @Nullable String fallback) {
+            final Denial denial, final @Nullable String fallback, final boolean notify) {
         if (bans.isEmpty()) {
             return new LoginDecision.Allowed();
         }
@@ -261,7 +412,10 @@ public final class LoginGate {
         if (event.cancelled()) {
             return new LoginDecision.Allowed();
         }
-        this.notifications.attemptedJoin(attempt.name(), ban);
+        if (notify) {
+            this.notifications.attemptedJoin(attempt.name(), ban,
+                    this.countries.countryName(attempt.address()).orElse(null));
+        }
         return new LoginDecision.Denied(event.message(), denial, ban, fallback);
     }
 

@@ -4,6 +4,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.time.InstantSource;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -36,6 +37,8 @@ public abstract class DatabaseTest {
     protected final AtomicReference<Instant> now =
             new AtomicReference<>(Instant.parse("2026-11-19T12:00:00Z"));
     protected final InstantSource clock = () -> this.now.get();
+    /** Keyed by {@link StorageService#start} with the test's {@code address-hash-key}. */
+    protected final AddressHasher hasher = new AddressHasher();
     protected ConfigService config;
     protected StorageService storage;
 
@@ -46,6 +49,11 @@ public abstract class DatabaseTest {
     /** The {@code config.yml} for the test; keys it leaves out keep their defaults. */
     protected String configYaml() {
         return "";
+    }
+
+    /** The process environment the configuration reads (S71); none by default. */
+    protected Map<String, String> environment() {
+        return Map.of();
     }
 
     /** Written before {@link #configYaml()}, for keys a whole family of tests shares. */
@@ -60,9 +68,9 @@ public abstract class DatabaseTest {
             Files.writeString(this.dir.resolve("storage.yml"), yaml.get());
         }
         this.config = TestConfig.load(this.dir, this.baseConfigYaml() + this.configYaml(),
-                this.log);
+                this.log, this.environment());
         this.storage = new StorageService(this.dir, this.config,
-                new SchemaManager(this.log.logger(), ReleaseChannel.current()),
+                new SchemaManager(this.log.logger(), ReleaseChannel.current()), this.hasher,
                 this.executors, this.log.logger());
         this.storage.start();
     }

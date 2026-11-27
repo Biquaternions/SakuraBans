@@ -518,6 +518,12 @@
           javax.inject"/>
     </module>
 
+    <!-- SakuraBans: only geoip.MaxMindCountryDatabase names MaxMind's reader (S72). -->
+    <module name="IllegalImport">
+      <property name="id" value="maxmindImports"/>
+      <property name="illegalPkgs" value="com.maxmind"/>
+    </module>
+
     <!-- SakuraBans: the public API exposes only records, Adventure and jspecify (plan 4.3). -->
     <module name="IllegalImport">
       <property name="id" value="apiImports"/>

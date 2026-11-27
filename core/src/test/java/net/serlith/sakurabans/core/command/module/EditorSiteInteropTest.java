@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.util.Base64;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -212,10 +213,11 @@ class EditorSiteInteropTest extends CommandTest {
     void uploadLiveApplyCommandApplyAndReplay() throws Exception {
         // a. The upload: the browser opens what the plugin built.
         final Session session = this.open(this.alex);
+        final Set<EditorService.Section> opened = EnumSet.of(
+                EditorService.Section.MESSAGES, EditorService.Section.TEMPLATES);
         Assertions.assertThat(JsonParser.parseString(this.payload(session))).isEqualTo(
-                this.editor.payload(PlayerOperator.of(MOD, "Mod"), EnumSet.of(
-                        EditorService.Section.MESSAGES, EditorService.Section.TEMPLATES),
-                        this.now.get()).json());
+                this.editor.payload(PlayerOperator.of(MOD, "Mod"), opened, this.now.get(),
+                        this.editor.recentChanges(opened).join()).json());
 
         // b. Both sockets: the browser hears that the plugin is there.
         waitFor("the plugin connects", () -> this.connects.get() == 1);

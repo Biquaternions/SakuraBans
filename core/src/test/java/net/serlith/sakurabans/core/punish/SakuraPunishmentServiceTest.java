@@ -81,7 +81,8 @@ class SakuraPunishmentServiceTest extends ServiceTest {
         Assertions.assertThat(ban.source()).isEqualTo("in-game");
         Assertions.assertThat(this.service.byId(ban.id()).join()).contains(ban);
         Assertions.assertThat(steve.disconnectReason()).hasValueSatisfying(screen ->
-                Assertions.assertThat(plain(screen)).contains("You are banned", "Mod"));
+                Assertions.assertThat(plain(screen))
+                        .contains("Staff: Mod", "Expiration: permanent"));
         Assertions.assertThat(this.published)
                 .containsExactly(SyncPacket.PunishmentEnforcePacket.of(ban.id()));
         Assertions.assertThat(this.events).hasSize(2);

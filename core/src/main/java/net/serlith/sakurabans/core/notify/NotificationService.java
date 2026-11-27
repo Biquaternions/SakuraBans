@@ -1,16 +1,20 @@
 package net.serlith.sakurabans.core.notify;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.function.Consumer;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.JoinConfiguration;
+import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.serlith.sakurabans.api.event.EventPriority;
@@ -27,10 +31,14 @@ import net.serlith.sakurabans.core.event.SakuraPunishmentRevokedEvent;
 import net.serlith.sakurabans.core.message.MessageKey;
 import net.serlith.sakurabans.core.message.MessageService;
 import net.serlith.sakurabans.core.message.Placeholders;
+import net.serlith.sakurabans.core.model.ActorSources;
+import net.serlith.sakurabans.core.model.PlayerCounts;
 import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import net.serlith.sakurabans.core.platform.Platform;
 import net.serlith.sakurabans.core.player.NameCache;
+import net.serlith.sakurabans.core.punish.PunishmentCounts;
+import net.serlith.sakurabans.core.util.Futures;
 import org.jspecify.annotations.Nullable;
 
 public final class NotificationService {
@@ -46,12 +54,15 @@ public final class NotificationService {
     private final Throttle throttle;
     private final Executor worker;
     private final InstantSource clock;
+    private final PunishmentCounts counts;
+    private final ComponentLogger logger;
     private final List<Subscription> subscriptions = new ArrayList<>();
 
     public NotificationService(final Platform platform, final MessageService messages,
             final Placeholders placeholders, final NameCache names, final ConfigService config,
             final SakuraEventBus events, final Throttle throttle, final Executor worker,
-            final InstantSource clock) {
+            final InstantSource clock, final PunishmentCounts counts,
+            final ComponentLogger logger) {
         this.platform = platform;
         this.messages = messages;
         this.placeholders = placeholders;
@@ -61,6 +72,8 @@ public final class NotificationService {
         this.throttle = throttle;
         this.worker = worker;
         this.clock = clock;
+        this.counts = counts;
+        this.logger = logger;
     }
 
     public void start() {
@@ -79,6 +92,10 @@ public final class NotificationService {
     }
 
     public void created(final Punishment punishment) {
+        if (punishment.visibility() == Visibility.QUIET
+                || ActorSources.AUTO.equals(punishment.source())) {
+            return;
+        }
         final PunishmentType type = punishment.type();
         final MessageKey key = switch (type) {
             case BAN -> MessageKey.NOTIFY_BAN;
@@ -89,11 +106,38 @@ public final class NotificationService {
         this.announce(punishment, key, punishment.visibility(), switch (punishment.visibility()) {
             case NORMAL -> List.of(Permissions.notify(type));
             case SILENT -> List.of(Permissions.notifySilent(type));
-            case HIDDEN -> null;
+            case HIDDEN, QUIET -> null;
+        });
+    }
+
+    public void altsAutoBanned(final Punishment ban, final List<String> names) {
+        if (ban.visibility() == Visibility.QUIET || names.isEmpty()) {
+            return;
+        }
+        this.withCounts(ban, MessageKey.NOTIFY_ALTS_AUTO_BANNED, counts -> {
+            final Renderer renderer = (locale, showAddresses) -> this.messages.render(
+                    MessageKey.NOTIFY_ALTS_AUTO_BANNED, locale,
+                    this.punishmentTags(ban, counts, locale, showAddresses),
+                    Placeholder.unparsed("count", Integer.toString(names.size())),
+                    Placeholder.unparsed("names", String.join(", ", names)),
+                    Placeholder.component("silent", ban.visibility() == Visibility.NORMAL
+                            ? Component.empty()
+                            : this.messages.render(MessageKey.NOTIFY_SILENT_TAG, locale)));
+            this.async(() -> {
+                switch (ban.visibility()) {
+                    case NORMAL -> this.send(Permissions.notify(PunishmentType.BAN), renderer);
+                    case SILENT ->
+                            this.send(Permissions.notifySilent(PunishmentType.BAN), renderer);
+                    default -> this.toConsole(renderer);
+                }
+            });
         });
     }
 
     public void revoked(final Punishment punishment, final Visibility visibility) {
+        if (visibility == Visibility.QUIET) {
+            return;
+        }
         final PunishmentType type = punishment.type();
         final MessageKey key = switch (type) {
             case BAN -> MessageKey.NOTIFY_UNBAN;
@@ -104,27 +148,70 @@ public final class NotificationService {
         this.announce(punishment, key, visibility, switch (visibility) {
             case NORMAL -> List.of(Permissions.notifyRevoke(type));
             case SILENT -> List.of(Permissions.notifyRevoke(type), Permissions.notifySilent(type));
-            case HIDDEN -> null;
+            case HIDDEN, QUIET -> null;
         });
     }
 
-    public void attemptedJoin(final String name, final Punishment ban) {
-        if (!this.throttle.tryAcquire("join:" + name.toLowerCase(Locale.ROOT),
-                this.config.settings().notifications().attemptThrottle())) {
+    public void attemptedJoin(final String name, final Punishment ban,
+            final @Nullable String country) {
+        if (!this.joinNoticeDue(name)) {
+            return;
+        }
+        this.withCounts(ban, MessageKey.NOTIFY_ATTEMPT_JOIN, counts -> this.async(() ->
+                this.send(Permissions.NOTIFY_ATTEMPT_JOIN, (locale, showAddresses) ->
+                        this.messages.render(MessageKey.NOTIFY_ATTEMPT_JOIN, locale,
+                                this.punishmentTags(ban, counts, locale, showAddresses),
+                                Placeholder.unparsed("name", name),
+                                Placeholders.country(country)))));
+    }
+
+    public void attemptedGeoIp(final String name, final @Nullable String country) {
+        if (!this.joinNoticeDue(name)) {
             return;
         }
         this.async(() -> this.send(Permissions.NOTIFY_ATTEMPT_JOIN, (locale, showAddresses) ->
-                this.messages.render(MessageKey.NOTIFY_ATTEMPT_JOIN, locale,
-                        this.punishmentTags(ban, locale, showAddresses),
-                        Placeholder.unparsed("name", name))));
+                this.messages.render(MessageKey.NOTIFY_ATTEMPT_GEOIP, locale,
+                        Placeholder.unparsed("name", name), Placeholders.country(country != null
+                                ? country
+                                : this.messages.renderPlain(MessageKey.GEOIP_UNKNOWN_COUNTRY,
+                                        locale)))));
+    }
+
+    private boolean joinNoticeDue(final String name) {
+        return this.throttle.tryAcquire("join:" + name.toLowerCase(Locale.ROOT),
+                this.config.settings().notifications().attemptThrottle());
     }
 
     public void joinedWithAlts(final UUID uuid, final String name, final List<AltEntry> alts,
-            final int limit) {
+            final @Nullable List<AltEntry> visible, final int limit,
+            final @Nullable String country) {
         if (!this.throttle.tryAcquire("alts:" + uuid, ALT_NOTICE_REPEAT)) {
             return;
         }
-        this.async(() -> this.send(Permissions.ALTS_NOTIFY, (locale, showAddresses) -> {
+        this.async(() -> {
+            final Renderer all = this.altsNotice(name, alts, limit, country);
+            final Renderer shown = visible == null ? null
+                    : this.altsNotice(name, visible, limit, country);
+            final boolean censor = this.config.settings().display().censorIpAddresses();
+            for (final OnlinePlayer player : this.platform.onlinePlayers()) {
+                if (!player.hasPermission(Permissions.ALTS_NOTIFY)) {
+                    continue;
+                }
+                final Renderer renderer = player.hasPermission(Permissions.ALTS_VIEW_HIDDEN)
+                        ? all : shown;
+                if (renderer != null) {
+                    player.sendMessage(renderer.render(
+                            player.locale().orElseGet(this.messages::defaultLocale),
+                            !censor || player.hasPermission(Permissions.VIEW_IPS)));
+                }
+            }
+            this.toConsole(all);
+        });
+    }
+
+    private Renderer altsNotice(final String name, final List<AltEntry> alts, final int limit,
+            final @Nullable String country) {
+        return (locale, showAddresses) -> {
             final List<Component> names = new ArrayList<>();
             for (final AltEntry alt : alts.subList(0, Math.min(limit, alts.size()))) {
                 names.add(this.messages.render(alt.activePunishments().isEmpty()
@@ -136,8 +223,9 @@ public final class NotificationService {
                     Placeholder.unparsed("name", name),
                     Placeholder.unparsed("count", Integer.toString(alts.size())),
                     Placeholder.component("alts", Component.join(JoinConfiguration.commas(true),
-                            names)));
-        }));
+                            names)),
+                    Placeholders.country(country));
+        };
     }
 
     public void attemptedChat(final OnlinePlayer player, final Punishment mute,
@@ -148,7 +236,8 @@ public final class NotificationService {
         }
         this.async(() -> this.send(Permissions.NOTIFY_ATTEMPT_CHAT, (locale, showAddresses) ->
                 this.messages.render(MessageKey.NOTIFY_ATTEMPT_CHAT, locale,
-                        this.punishmentTags(mute, locale, showAddresses),
+                        this.punishmentTags(mute, this.counts.cached(player.uuid())
+                                .orElse(null), locale, showAddresses),
                         Placeholder.unparsed("name", player.name()),
                         Placeholder.unparsed("message", message))));
     }
@@ -160,16 +249,32 @@ public final class NotificationService {
 
     private void announce(final Punishment punishment, final MessageKey key,
             final Visibility visibility, final @Nullable List<String> permissions) {
-        final Renderer renderer = (locale, showAddresses) -> this.messages.render(key, locale,
-                this.punishmentTags(punishment, locale, showAddresses),
-                Placeholder.component("silent", visibility == Visibility.NORMAL
-                        ? Component.empty()
-                        : this.messages.render(MessageKey.NOTIFY_SILENT_TAG, locale)));
-        if (permissions == null) {
-            this.toConsole(renderer);
-        } else {
-            this.send(permissions, renderer);
+        this.withCounts(punishment, key, counts -> {
+            final Renderer renderer = (locale, showAddresses) -> this.messages.render(key,
+                    locale, this.punishmentTags(punishment, counts, locale, showAddresses),
+                    Placeholder.component("silent", visibility == Visibility.NORMAL
+                            ? Component.empty()
+                            : this.messages.render(MessageKey.NOTIFY_SILENT_TAG, locale)));
+            if (permissions == null) {
+                this.toConsole(renderer);
+            } else {
+                this.send(permissions, renderer);
+            }
+        });
+    }
+
+    private void withCounts(final Punishment punishment, final MessageKey key,
+            final Consumer<@Nullable PlayerCounts> then) {
+        final Optional<UUID> player = Placeholders.countedPlayer(punishment);
+        final Optional<PlayerCounts> cached = player.flatMap(this.counts::cached);
+        if (player.isEmpty() || cached.isPresent()
+                || !this.messages.uses(key, Placeholders.PLAYER_COUNT_TAGS)) {
+            then.accept(cached.orElse(null));
+            return;
         }
+        Futures.logged(this.counts.fetch(player.get())
+                .thenAccept(found -> then.accept(found.orElse(null))), this.logger,
+                "notify of punishment " + punishment.id());
     }
 
     private void send(final String permission, final Renderer renderer) {
@@ -193,10 +298,13 @@ public final class NotificationService {
         console.sendMessage(renderer.render(this.messages.defaultLocale(), true));
     }
 
-    private TagResolver punishmentTags(final Punishment punishment, final Locale locale,
+    private TagResolver punishmentTags(final Punishment punishment,
+            final @Nullable PlayerCounts counts, final Locale locale,
             final boolean showAddresses) {
-        return this.placeholders.punishment(punishment, locale, this.clock.instant(),
-                this.names::name, showAddresses);
+        final Instant now = this.clock.instant();
+        return TagResolver.resolver(this.placeholders.punishment(punishment, locale, now,
+                this.names::name, showAddresses),
+                this.placeholders.playerCounts(counts, true, now));
     }
 
     private void async(final Runnable task) {

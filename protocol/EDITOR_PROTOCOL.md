@@ -106,6 +106,7 @@ meta              pluginVersion, platform ("paper" | "velocity"), server (may be
 settings          fields[], scopes[], servers[]
 messages          fields[], locales[], scopes[]
 templates         items[]
+recentChanges     (optional) up to 20 entries, newest first: who changed what, never a value
 lookups           servers[], categories[], locales[]
 ```
 
@@ -205,7 +206,10 @@ variant (from the global definition once the variant is deleted).
   punished player is shown, instead of the network's message for that type) and `display`
   (`chat`, the default, or `dialog`: the mute notice and the warning shown to an online
   player as a dialog, with chat as the fallback where the platform can't show one; only on
-  a mute or warn preset that isn't a shadow mute, or a ladder with a mute or warn step).
+  a mute or warn preset that isn't a shadow mute, or a ladder with a mute or warn step) and
+  `silent` (`true`: its punishments are silent, as with `-s`, unless the command asks for
+  `--hide` or `--quiet`; `false`, the default, is left out). `permission-required` also
+  guards revoking, editing, voiding, deleting and overriding the template's punishments.
 - presets only: `duration`, a duration (`7d`) or `permanent`; left out, the command decides.
   A kick has none. Every duration in a definition (`duration`, a step's, `expiry`) is whole
   seconds, at least one (`90s`, not `1500ms`).
@@ -227,6 +231,27 @@ are refused with an error that names the new key.
 
 Names for suggestions only: `servers` and `categories` the network knows, `locales` that have
 a language file or overrides. The editor accepts values outside them.
+
+### 5.6 Recent changes
+
+An optional, read-only list of the last 20 changes to settings, messages and templates (S70),
+newest first, for the editor's "Recent changes" panel. It is **absent** when there is nothing
+to list, and a client that doesn't know it **must ignore it**; a client must also work when it
+is missing. It only holds entries of the sections the uploader may edit (`meta.sections`), so
+a snapshot never shows what the uploader couldn't open.
+
+Each item: `at` (epoch ms), `actor` (the name the audit log holds: a player's name at the
+time, `Console` or a plugin's name; the editor session's holder already has an admin
+permission, so the name is shown; no UUID and no source travel), `action` (`update`,
+`create`, `delete`, ... as the audit log names it, lower case), `kind` (`settings`,
+`messages` or `templates`), `scope` (`global`, `server:<id>` or `category:<id>`), `locale`
+(a message's locale as `en_US`, else null), `target` (a template's name or a message's key;
+`""` for settings) and `keys` (settings only: up to 10 changed keys that exist in the
+schema; else empty).
+
+**Never a value**: no old or new text, so no secret and no long message can leak through it.
+The list is read when the payload is built, so a fresh payload (section 10) shows the changes
+just applied.
 
 ## 6. Change set (`fixtures/changes-v1.json`)
 

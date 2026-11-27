@@ -17,25 +17,32 @@ import net.serlith.sakurabans.core.concurrent.LifecycleState;
 import net.serlith.sakurabans.core.concurrent.SakuraExecutors;
 import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.configuration.ReloadResult;
+import net.serlith.sakurabans.core.enforce.AltAutoBans;
 import net.serlith.sakurabans.core.enforce.ChatGate;
 import net.serlith.sakurabans.core.enforce.LockdownService;
 import net.serlith.sakurabans.core.enforce.LoginGate;
 import net.serlith.sakurabans.core.enforce.SyncReceiver;
+import net.serlith.sakurabans.core.geoip.GeoIpService;
 import net.serlith.sakurabans.core.message.MessageService;
 import net.serlith.sakurabans.core.notify.NotificationService;
 import net.serlith.sakurabans.core.notify.WebhookService;
+import net.serlith.sakurabans.core.placeholder.PlaceholderBridges;
+import net.serlith.sakurabans.core.placeholder.PlaceholderValues;
 import net.serlith.sakurabans.core.platform.LatePlatform;
 import net.serlith.sakurabans.core.platform.Platform;
 import net.serlith.sakurabans.core.punish.ActiveRangeCache;
 import net.serlith.sakurabans.core.punish.ExpirySweeper;
+import net.serlith.sakurabans.core.punish.PunishmentCounts;
 import net.serlith.sakurabans.core.punish.SakuraPunishmentService;
 import net.serlith.sakurabans.core.punish.WarningActions;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
+import net.serlith.sakurabans.core.storage.DatabaseClock;
 import net.serlith.sakurabans.core.storage.DisplayIdCodec;
 import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.sync.SyncService;
 import net.serlith.sakurabans.core.template.SakuraTemplateService;
 import net.serlith.sakurabans.core.util.BuildConstants;
+import net.serlith.sakurabans.core.util.Futures;
 import net.serlith.sakurabans.core.util.ReleaseChannel;
 
 public final class SakuraBansCore {
@@ -49,6 +56,7 @@ public final class SakuraBansCore {
     private final ConfigService config;
     private final MessageService messages;
     private final StorageService storage;
+    private final DatabaseClock databaseClock;
     private final Services services;
 
     public record Services(NotificationService notifications, ExpirySweeper sweeper,
@@ -61,13 +69,16 @@ public final class SakuraBansCore {
             DisplayIdCodec displayIds, LockdownService lockdowns, WebhookService webhooks,
             SakuraSettingsService settings, SakuraMessageTemplateService messageTemplates,
             EditorClient editorClient, EditorWatcher editorWatcher, InstanceRegistry registry,
-            SakuraApi api) {
+            SakuraApi api, AltAutoBans altAutoBans, PunishmentCounts counts,
+            PlaceholderValues placeholders, PlaceholderBridges placeholderBridges,
+            GeoIpService geoip) {
     }
 
     public SakuraBansCore(final ComponentLogger logger, final Lifecycle lifecycle,
             final LatePlatform platform, final SakuraExecutors executors,
             final ConfigService config, final MessageService messages,
-            final StorageService storage, final Services services) {
+            final StorageService storage, final DatabaseClock databaseClock,
+            final Services services) {
         this.logger = logger;
         this.lifecycle = lifecycle;
         this.platform = platform;
@@ -75,6 +86,7 @@ public final class SakuraBansCore {
         this.config = config;
         this.messages = messages;
         this.storage = storage;
+        this.databaseClock = databaseClock;
         this.services = services;
     }
 
@@ -83,6 +95,9 @@ public final class SakuraBansCore {
         try {
             this.platform.bind(platform);
             this.storage.start();
+            Futures.logged(this.databaseClock.checkHostClock(), this.logger,
+                    "compare this server's clock with the database's").exceptionally(
+                            failure -> Duration.ZERO).join();
             this.services.displayIds().load().join();
             this.services.settings().reload().join();
             this.services.messageTemplates().reload().join();
@@ -95,8 +110,11 @@ public final class SakuraBansCore {
             this.services.warningActions().start();
             this.services.sync().start(this.services.syncReceiver());
             this.services.notifications().start();
+            this.services.altAutoBans().start();
             this.services.webhooks().start();
             this.services.sweeper().start();
+            this.services.counts().start();
+            this.services.geoip().start();
             this.services.editorWatcher().start();
             this.services.registry().start().join();
             SakuraBans.register(this.services.api());
@@ -115,6 +133,14 @@ public final class SakuraBansCore {
                             : " Its database isn't updated by later builds; it has to be"
                                     + " dropped when the schema changes.");
         }
+        Futures.logged(this.services.altAutoBans().pending().thenAccept(pending -> {
+            if (pending) {
+                this.logger.warn("alts.auto-ban is {} but does nothing until the console runs"
+                        + " /sb accept alts once (it bans accounts nobody looked at, and a shared"
+                        + " address can link innocent players)",
+                        this.config.settings().alts().autoBan());
+            }
+        }), this.logger, "check whether automatic alt bans were accepted");
     }
 
     public ReloadResult reload() {
@@ -134,10 +160,14 @@ public final class SakuraBansCore {
             return;
         }
         SakuraBans.unregister(this.services.api());
+        this.services.placeholderBridges().stop();
+        this.services.counts().stop();
+        this.services.geoip().stop();
         this.services.lockdowns().stop();
         this.services.sync().stop();
         this.services.sweeper().stop();
         this.services.notifications().stop();
+        this.services.altAutoBans().stop();
         this.services.webhooks().stop();
         this.services.editorWatcher().stop();
         this.services.registry().stop();
@@ -175,5 +205,13 @@ public final class SakuraBansCore {
 
     public SakuraBansApi api() {
         return this.services.api();
+    }
+
+    public PlaceholderValues placeholders() {
+        return this.services.placeholders();
+    }
+
+    public PlaceholderBridges placeholderBridges() {
+        return this.services.placeholderBridges();
     }
 }

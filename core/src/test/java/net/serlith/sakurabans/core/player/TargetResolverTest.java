@@ -29,7 +29,7 @@ class TargetResolverTest extends DatabaseTest {
     @BeforeEach
     void create() throws Exception {
         this.home = InetAddress.getByName("203.0.113.7");
-        this.players = new PlayerRepository(this.storage);
+        this.players = new PlayerRepository(this.storage, this.hasher);
         this.platform.profiles(name -> CompletableFuture.completedFuture(
                 name.equalsIgnoreCase("Notch") ? Optional.of(NOTCH) : Optional.empty()));
         this.resolver = new TargetResolver(this.platform, this.names, this.players,

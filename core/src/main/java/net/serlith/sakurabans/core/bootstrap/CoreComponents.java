@@ -14,6 +14,7 @@ import net.serlith.sakurabans.core.admin.SakuraMessageTemplateService;
 import net.serlith.sakurabans.core.admin.SakuraSettingsService;
 import net.serlith.sakurabans.core.alts.AltService;
 import net.serlith.sakurabans.core.alts.SakuraAllowListService;
+import net.serlith.sakurabans.core.command.AuditLines;
 import net.serlith.sakurabans.core.command.CommandRegistrar;
 import net.serlith.sakurabans.core.command.CommandRunner;
 import net.serlith.sakurabans.core.command.ConfirmationTracker;
@@ -25,13 +26,16 @@ import net.serlith.sakurabans.core.command.ScopeAccess;
 import net.serlith.sakurabans.core.command.module.AdminCommands;
 import net.serlith.sakurabans.core.command.module.AllowCommands;
 import net.serlith.sakurabans.core.command.module.AltCommands;
+import net.serlith.sakurabans.core.command.module.AuditCommands;
 import net.serlith.sakurabans.core.command.module.CheckCommands;
 import net.serlith.sakurabans.core.command.module.EditCommands;
 import net.serlith.sakurabans.core.command.module.EditorCommands;
 import net.serlith.sakurabans.core.command.module.GdprCommands;
+import net.serlith.sakurabans.core.command.module.GeoIpCommands;
 import net.serlith.sakurabans.core.command.module.HistoryCommands;
 import net.serlith.sakurabans.core.command.module.ImportCommands;
 import net.serlith.sakurabans.core.command.module.LadderCommands;
+import net.serlith.sakurabans.core.command.module.MaintenanceCommands;
 import net.serlith.sakurabans.core.command.module.OverrideCommands;
 import net.serlith.sakurabans.core.command.module.PunishCommands;
 import net.serlith.sakurabans.core.command.module.RevokeCommands;
@@ -44,6 +48,7 @@ import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.configuration.TemplateFiles;
 import net.serlith.sakurabans.core.configuration.settings.SyncMode;
 import net.serlith.sakurabans.core.data.SakuraPlayerDataService;
+import net.serlith.sakurabans.core.enforce.AltAutoBans;
 import net.serlith.sakurabans.core.enforce.ChatGate;
 import net.serlith.sakurabans.core.enforce.CommandBlacklist;
 import net.serlith.sakurabans.core.enforce.EnforcementMessages;
@@ -53,6 +58,9 @@ import net.serlith.sakurabans.core.enforce.LoginGate;
 import net.serlith.sakurabans.core.enforce.SakuraMessageFormatter;
 import net.serlith.sakurabans.core.enforce.SyncReceiver;
 import net.serlith.sakurabans.core.event.SakuraEventBus;
+import net.serlith.sakurabans.core.geoip.GeoIpDownloader;
+import net.serlith.sakurabans.core.geoip.GeoIpService;
+import net.serlith.sakurabans.core.geoip.MaxMindCountryDatabase;
 import net.serlith.sakurabans.core.importer.ImportJobs;
 import net.serlith.sakurabans.core.importer.ImportRunner;
 import net.serlith.sakurabans.core.importer.ImportSources;
@@ -61,6 +69,7 @@ import net.serlith.sakurabans.core.limit.CooldownTracker;
 import net.serlith.sakurabans.core.limit.LimitService;
 import net.serlith.sakurabans.core.message.Formats;
 import net.serlith.sakurabans.core.message.MessageService;
+import net.serlith.sakurabans.core.message.NetworkTotals;
 import net.serlith.sakurabans.core.message.Placeholders;
 import net.serlith.sakurabans.core.model.StoredTemplate;
 import net.serlith.sakurabans.core.notify.NotificationService;
@@ -70,19 +79,27 @@ import net.serlith.sakurabans.core.permission.AuthorizationService;
 import net.serlith.sakurabans.core.permission.ExemptionService;
 import net.serlith.sakurabans.core.permission.LuckPermsBridge;
 import net.serlith.sakurabans.core.permission.PermissionService;
+import net.serlith.sakurabans.core.permission.TemplateGuard;
+import net.serlith.sakurabans.core.placeholder.PlaceholderBridges;
+import net.serlith.sakurabans.core.placeholder.PlaceholderValues;
 import net.serlith.sakurabans.core.platform.LatePlatform;
 import net.serlith.sakurabans.core.player.NameCache;
 import net.serlith.sakurabans.core.player.SakuraIntegrationRegistry;
 import net.serlith.sakurabans.core.player.TargetResolver;
 import net.serlith.sakurabans.core.player.UuidResolver;
 import net.serlith.sakurabans.core.punish.ActiveRangeCache;
+import net.serlith.sakurabans.core.punish.AuditRetention;
 import net.serlith.sakurabans.core.punish.ExpirySweeper;
 import net.serlith.sakurabans.core.punish.MuteCache;
+import net.serlith.sakurabans.core.punish.PunishmentCounts;
 import net.serlith.sakurabans.core.punish.PunishmentFactory;
+import net.serlith.sakurabans.core.punish.ResetService;
 import net.serlith.sakurabans.core.punish.SakuraPunishmentService;
 import net.serlith.sakurabans.core.punish.TemplateActions;
 import net.serlith.sakurabans.core.punish.WarningActions;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
+import net.serlith.sakurabans.core.storage.AddressHasher;
+import net.serlith.sakurabans.core.storage.DatabaseClock;
 import net.serlith.sakurabans.core.storage.DisplayIdCodec;
 import net.serlith.sakurabans.core.storage.Lease;
 import net.serlith.sakurabans.core.storage.SchemaManager;
@@ -99,6 +116,7 @@ import net.serlith.sakurabans.core.storage.repository.PlayerDataRepository;
 import net.serlith.sakurabans.core.storage.repository.PlayerRepository;
 import net.serlith.sakurabans.core.storage.repository.PunishmentMapper;
 import net.serlith.sakurabans.core.storage.repository.PunishmentRepository;
+import net.serlith.sakurabans.core.storage.repository.PunishmentResetRepository;
 import net.serlith.sakurabans.core.storage.repository.ScopeRepository;
 import net.serlith.sakurabans.core.storage.repository.TemplateRepository;
 import net.serlith.sakurabans.core.sync.PacketCodec;
@@ -106,6 +124,7 @@ import net.serlith.sakurabans.core.sync.SqlPollingTransport;
 import net.serlith.sakurabans.core.sync.SyncService;
 import net.serlith.sakurabans.core.sync.SyncTransport;
 import net.serlith.sakurabans.core.template.SakuraTemplateService;
+import net.serlith.sakurabans.core.util.BuildConstants;
 import net.serlith.sakurabans.core.util.ReleaseChannel;
 
 final class CoreComponents {
@@ -120,7 +139,9 @@ final class CoreComponents {
     // Layer 1
     private final ConfigService config;
     private final MessageService messages;
+    private final AddressHasher hasher;
     private final StorageService storage;
+    private final DatabaseClock databaseClock;
     private final MetaRepository meta;
     private final DisplayIdCodec displayIds;
     private final PlayerRepository players;
@@ -129,6 +150,8 @@ final class CoreComponents {
     private final TemplateRepository templateRepository;
     private final Formats formats;
     private final Placeholders placeholders;
+    private final PunishmentCounts counts;
+    private final GeoIpService geoip;
 
     // Layer 2
     private final SakuraIntegrationRegistry integrations;
@@ -149,6 +172,7 @@ final class CoreComponents {
     private final SakuraTemplateService templates;
     private final WarningActions warningActions;
     private final NotificationService notifications;
+    private final AltAutoBans altAutoBans;
     private final LockdownService lockdowns;
     private final WebhookService webhooks;
     private final SakuraSettingsService settingsService;
@@ -164,10 +188,13 @@ final class CoreComponents {
     private final EnforcementMessages enforcementMessages;
     private final LocalEnforcer enforcer;
     private final SakuraPunishmentService punishmentService;
+    private final ResetService resetService;
     private final ExpirySweeper sweeper;
     private final LoginGate loginGate;
     private final ChatGate chatGate;
     private final ImportJobs imports;
+    private final PlaceholderValues placeholderValues;
+    private final PlaceholderBridges placeholderBridges;
 
     // Layer 5
     private final SakuraCommands commands;
@@ -181,33 +208,46 @@ final class CoreComponents {
         this.executors = new SakuraExecutors(
                 failure -> environment.logger().error("A background task failed", failure));
 
-        this.config = new ConfigService(environment.dataDirectory(), environment.logger());
-        this.messages =
-                new MessageService(environment.dataDirectory(), this.config, environment.logger());
+        this.config = new ConfigService(environment.dataDirectory(), environment.logger(),
+                environment.environment());
+        final NetworkTotals totals = new NetworkTotals();
+        this.messages = new MessageService(environment.dataDirectory(), this.config,
+                environment.logger(), totals);
+        this.hasher = new AddressHasher();
         this.storage = new StorageService(environment.dataDirectory(), this.config,
-                new SchemaManager(environment.logger(), ReleaseChannel.current()),
+                new SchemaManager(environment.logger(), ReleaseChannel.current()), this.hasher,
                 this.executors, environment.logger());
-        final Lease lease = new Lease(this.storage, instanceId, clock);
+        this.databaseClock = new DatabaseClock(this.storage, clock, environment.logger());
+        final Lease lease = new Lease(this.storage, instanceId);
         this.meta = new MetaRepository(this.storage);
-        this.players = new PlayerRepository(this.storage);
+        this.players = new PlayerRepository(this.storage, this.hasher);
         this.displayIds = new DisplayIdCodec(this.meta, this.config);
         this.scopes = new ScopeRepository(this.storage);
         this.sync = new SyncService(SyncTransport.enabledWhen(
                 () -> this.config.storage().sync().mode() == SyncMode.SQL,
                 new SqlPollingTransport(this.storage,
                         new PacketCodec(instanceId, environment.logger()), this.executors,
-                        this.config, clock, environment.logger())),
+                        this.config, this.databaseClock, environment.logger())),
                 environment.logger());
         this.events = new SakuraEventBus(environment.logger());
         this.allowList = new SakuraAllowListService(new AllowListRepository(this.storage),
                 this.sync, this.config, clock);
-        this.punishments = new PunishmentRepository(this.storage,
+        this.punishments = new PunishmentRepository(this.storage, this.hasher,
                 new PunishmentMapper(this.displayIds::display), this.allowList);
+        this.counts = new PunishmentCounts(this.punishments, totals, this.events, this.config,
+                this.executors, clock, environment.logger());
         final AuditRepository audit = new AuditRepository(this.storage);
-        this.templateRepository = new TemplateRepository(this.storage, this.allowList);
+        this.templateRepository = new TemplateRepository(this.storage, this.hasher,
+                this.allowList);
         final TemplateFiles templateFiles = new TemplateFiles(environment.dataDirectory());
         this.formats = new Formats(this.messages, this.config);
         this.placeholders = new Placeholders(this.messages, this.formats);
+        // A lambda, not a method reference: MaxMind's reader is only loaded when it runs, which
+        // is only where geoip.enabled is true.
+        this.geoip = new GeoIpService(environment.dataDirectory(), this.config, this.executors,
+                file -> MaxMindCountryDatabase.open(file),
+                new GeoIpDownloader(GeoIpDownloader.MAXMIND, this.executors.worker()), clock,
+                environment.logger());
 
         this.integrations = new SakuraIntegrationRegistry();
         this.names = new NameCache();
@@ -228,9 +268,10 @@ final class CoreComponents {
                 LuckPermsBridge.detect(environment.logger()), this.executors.worker(),
                 environment.logger());
         this.exemption = new ExemptionService(this.config, this.permissions,
-                environment.logger());
+                environment.logger(), this.names::name);
         final AuthorizationService authorization = new AuthorizationService(
-                this.permissions, this.exemption, this.punishments, this.config);
+                this.permissions, this.exemption, this.punishments, this.config,
+                TemplateGuard.lazy(this::templateGuard));
         this.limits = new LimitService(this.config, this.permissions, new CooldownTracker(),
                 clock);
         this.templates = new SakuraTemplateService(this.templateRepository, this.meta,
@@ -254,7 +295,8 @@ final class CoreComponents {
         this.editorClient = new EditorClient(this.config, this.executors.worker(),
                 environment.logger());
         this.editor = new EditorService(this.config, this.settingsService, this.messageTemplates,
-                this.templates, new EditorSessionRepository(this.storage), this.editorClient,
+                this.templates, new EditorSessionRepository(this.storage), audit,
+                this.editorClient,
                 new EditorSeal(new SecureRandom()), this.platform, this.registry, clock,
                 environment.logger());
         this.editorLines = new EditorLines(this.messages, this.platform);
@@ -266,14 +308,14 @@ final class CoreComponents {
                 environment.logger());
         this.notifications = new NotificationService(this.platform, this.messages,
                 this.placeholders, this.names, this.config, this.events, new Throttle(clock),
-                this.executors.worker(), clock);
+                this.executors.worker(), clock, this.counts, environment.logger());
 
         this.enforcementMessages =
                 new EnforcementMessages(this.messages, this.placeholders, this.names,
                         ref -> this.templates.definition(ref).map(StoredTemplate::template),
-                        clock);
+                        clock, this.counts, this.geoip);
         this.enforcer = new LocalEnforcer(this.platform, this.scopeService, this.punishments,
-                mutes, this.enforcementMessages, this.config, clock, this.ranges,
+                mutes, this.enforcementMessages, this.config, clock, this.ranges, this.counts,
                 environment.logger());
         this.punishmentService = new SakuraPunishmentService(this.lifecycle,
                 this.executors.worker(), clock, this.config, this.scopeService, this.punishments,
@@ -283,37 +325,50 @@ final class CoreComponents {
                 this.events, this.sync, this.displayIds, this.templates,
                 this.templateRepository, templateActions, environment.logger());
         this.playerData = new SakuraPlayerDataService(new PlayerDataRepository(this.storage,
-                new PunishmentMapper(this.displayIds::display)), this.players, audit,
-                this.allowList, mutes, this.names, authorization, this.sync,
+                this.hasher, new PunishmentMapper(this.displayIds::display)), this.players, audit,
+                this.allowList, mutes, this.counts, this.names, authorization, this.sync,
                 this.events, clock);
-        this.syncReceiver = new SyncReceiver(this.punishments, this.enforcer, mutes,
+        this.resetService = new ResetService(new PunishmentResetRepository(this.storage), mutes,
+                this.ranges, this.counts, this.sync, clock, environment.logger());
+        this.syncReceiver = new SyncReceiver(this.punishments, this.enforcer, mutes, this.counts,
                 this.scopeService, this.platform, this.notifications, this.config, clock,
                 this.allowList, this.templates, this.lockdowns,
                 this.settingsService, this.messageTemplates,
                 this.playerData, this.ranges, this.displayIds, environment.logger());
-        this.sweeper = new ExpirySweeper(lease, this.punishments, mutes, this.enforcer,
+        this.sweeper = new ExpirySweeper(lease,
+                new AuditRetention(audit, this.config, clock, environment.logger()),
+                this.punishments, mutes, this.enforcer,
                 this.sync, this.events, this.executors, this.platform, clock,
                 environment.logger());
+        this.altAutoBans = new AltAutoBans(this.config, this.altService, this.allowList,
+                this.punishmentService, this.exemption, this.meta, this.events,
+                this.notifications, this.sync, clock, environment.logger());
         this.loginGate = new LoginGate(this.lifecycle, this.config, this.scopeService,
                 this.punishments, this.players, this.names, mutes, this.enforcementMessages,
                 this.notifications, this.events, clock, this.altService, this.ranges,
-                this.enforcer, this.lockdowns, environment.logger());
+                this.enforcer, this.lockdowns, this.altAutoBans, this.counts, this.geoip,
+                this.allowList, this.permissions, environment.logger());
         this.chatGate = new ChatGate(mutes, new CommandBlacklist(this.config),
                 this.enforcementMessages, this.notifications, this.events, clock,
                 environment.logger());
 
-        final ImportRepository importRepository = new ImportRepository(this.storage);
+        final ImportRepository importRepository = new ImportRepository(this.storage, this.hasher);
         this.imports = new ImportJobs(ImportSources.standard(),
                 new ImportRunner(importRepository, clock, environment.logger()),
                 new SelfImport(importRepository, environment.logger()), importRepository,
                 lease, this.config, this.sync, this.syncReceiver, this.executors.worker(),
                 clock, environment.logger());
 
+        this.placeholderValues = new PlaceholderValues(mutes, this.counts, this.formats,
+                this.messages, this.platform, clock);
+        this.placeholderBridges = new PlaceholderBridges(environment.logger());
+
         final CommandRegistrar registrar = new CommandRegistrar(this.config, this.messages);
         final CommandRunner runner =
                 new CommandRunner(this.lifecycle, this.messages, environment.logger());
         final Replies replies =
-                new Replies(runner, this.placeholders, this.names, this.config, clock);
+                new Replies(runner, this.placeholders, this.names, this.config, clock,
+                        this.messages, this.counts, this.geoip);
         final TargetParser targetParser =
                 new TargetParser(this.platform, this.names, this.lifecycle, this.displayIds);
         final ScopeParser scopeParser = new ScopeParser(this.scopeService);
@@ -321,10 +376,12 @@ final class CoreComponents {
         final ConfirmationTracker confirmations = new ConfirmationTracker(clock);
         final ScopeAccess scopeAccess = new ScopeAccess(this.config);
         final Pager pager = new Pager(runner, replies, clock);
+        final AuditLines auditLines = new AuditLines(registrar, runner, replies,
+                this.placeholders, this.formats, this.displayIds, this.names);
         this.commands = new SakuraCommands(List.of(
                 new PunishCommands(registrar, runner, replies, flags, targetParser,
                         targets, this.punishmentService, this.names, this.config,
-                        this.scopeService, scopeAccess, this.templates),
+                        this.scopeService, scopeAccess, this.templates, this.altAutoBans),
                 new LadderCommands(registrar, runner, replies, flags, targetParser,
                         targets, this.punishmentService, this.names, this.scopeService,
                         scopeAccess, this.templates),
@@ -336,15 +393,20 @@ final class CoreComponents {
                         this.punishmentService),
                 new AltCommands(registrar, runner, replies, this.formats, targetParser,
                         targets, this.players, clock, this.altService, this.platform,
-                        this.config),
+                        this.config, this.geoip),
+                new GeoIpCommands(registrar, runner, replies, targetParser, targets,
+                        this.geoip),
                 new AllowCommands(registrar, runner, replies, this.formats, targetParser,
                         targets, this.allowList, this.names, this.placeholders),
                 new TemplateCommands(registrar, runner, this.templates, templateFiles,
                         confirmations, this.executors.worker(), clock, targetParser, targets,
                         scopeParser),
                 new EditCommands(registrar, runner, replies, this.placeholders, this.formats,
-                        this.punishmentService, audit, this.displayIds, scopeParser,
+                        auditLines, this.punishmentService, audit, this.displayIds, scopeParser,
                         confirmations, clock),
+                new AuditCommands(registrar, runner, replies, auditLines, pager, targetParser,
+                        targets, audit, this.displayIds, this.templates,
+                        environment.dataDirectory(), this.executors.worker(), clock),
                 new GdprCommands(registrar, runner, targetParser, targets, this.playerData,
                         confirmations, environment.dataDirectory(), this.executors.worker(),
                         clock),
@@ -353,13 +415,15 @@ final class CoreComponents {
                         this.punishments, this.lockdowns, this.scopeService, this.config,
                         this.messages, this.platform, confirmations, this.settingsService,
                         this.messageTemplates, this.registry, this.executors.worker(), clock,
-                        environment.logger()),
+                        this.altAutoBans, environment.logger()),
                 new OverrideCommands(registrar, runner, this.settingsService,
                         this.messageTemplates, confirmations, scopeParser, this.registry),
                 new EditorCommands(registrar, runner, this.editor, this.editorWatcher,
                         this.editorLines, this.formats),
                 new ImportCommands(registrar, runner, this.imports, confirmations,
-                        this.platform)),
+                        this.platform),
+                new MaintenanceCommands(registrar, runner, flags, this.resetService,
+                        this.players, this.names, this.scopeService, confirmations, clock)),
                 registrar, runner, this.messages);
     }
 
@@ -393,6 +457,14 @@ final class CoreComponents {
 
     StorageService storage() {
         return this.storage;
+    }
+
+    AddressHasher hasher() {
+        return this.hasher;
+    }
+
+    DatabaseClock databaseClock() {
+        return this.databaseClock;
     }
 
     DisplayIdCodec displayIds() {
@@ -503,6 +575,10 @@ final class CoreComponents {
         return this.notifications;
     }
 
+    AltAutoBans altAutoBans() {
+        return this.altAutoBans;
+    }
+
     SakuraPunishmentService punishmentService() {
         return this.punishmentService;
     }
@@ -522,4 +598,25 @@ final class CoreComponents {
     SakuraCommands commands() {
         return this.commands;
     }
+
+    PunishmentCounts counts() {
+        return this.counts;
+    }
+
+    PlaceholderValues placeholderValues() {
+        return this.placeholderValues;
+    }
+
+    PlaceholderBridges placeholderBridges() {
+        return this.placeholderBridges;
+    }
+
+    GeoIpService geoip() {
+        return this.geoip;
+    }
+
+    private TemplateGuard templateGuard() {
+        return this.templates;
+    }
+
 }

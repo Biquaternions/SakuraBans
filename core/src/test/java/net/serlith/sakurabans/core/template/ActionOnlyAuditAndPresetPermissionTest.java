@@ -33,7 +33,6 @@ import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import net.serlith.sakurabans.core.storage.dbo.VictimKind;
 import net.serlith.sakurabans.core.storage.repository.AuditRepository;
 import net.serlith.sakurabans.core.storage.repository.VictimRepository;
-import net.serlith.sakurabans.core.util.AddressHashes;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -104,7 +103,7 @@ class ActionOnlyAuditAndPresetPermissionTest extends ServiceTest {
     }
 
     private String hash() {
-        return HexFormat.of().formatHex(AddressHashes.of(this.home));
+        return this.hasher.hex(this.home);
     }
 
     /** No audit row holds the address as text (S64). */
@@ -153,7 +152,8 @@ class ActionOnlyAuditAndPresetPermissionTest extends ServiceTest {
         final AddressRangeVictim range = AddressRangeVictim.of(this.home, 24);
         this.apply("probation", range, CONSOLE);
 
-        final long id = new VictimRepository(this.storage).find(range).join().orElseThrow();
+        final long id = new VictimRepository(this.storage, this.hasher).find(range).join()
+                .orElseThrow();
         Assertions.assertThat(this.applies(SubjectType.VICTIM, Long.toString(id)))
                 .hasSize(1);
         final int literal = this.read(dsl -> dsl.fetchCount(SakuraTables.AUDIT_LOG,

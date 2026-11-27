@@ -38,9 +38,12 @@ import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.configuration.SettingsSchema;
 import net.serlith.sakurabans.core.configuration.TemplateFiles;
 import net.serlith.sakurabans.core.model.AdminResult;
+import net.serlith.sakurabans.core.model.AuditEntry;
 import net.serlith.sakurabans.core.model.StoredTemplate;
+import net.serlith.sakurabans.core.model.SubjectType;
 import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.platform.Platform;
+import net.serlith.sakurabans.core.storage.repository.AuditRepository;
 import net.serlith.sakurabans.core.storage.repository.EditorSessionRepository;
 import net.serlith.sakurabans.core.storage.repository.InstanceRepository;
 import net.serlith.sakurabans.core.template.SakuraTemplateService;
@@ -56,6 +59,9 @@ public final class EditorService {
     public static final String SOURCE = "web";
     private static final Pattern LOCALE = Pattern.compile("[a-z]{2,8}(_[A-Za-z0-9]{2,8})?");
     private static final String GLOBAL = "global";
+    private static final String SETTINGS_SUBJECT = "settings ";
+    private static final int RECENT_CHANGES = 20;
+    private static final int RECENT_KEYS = 10;
 
     public enum Section {
         SETTINGS("settings", Permissions.ADMIN_SETTINGS),
@@ -314,6 +320,7 @@ public final class EditorService {
     private final SakuraMessageTemplateService messages;
     private final SakuraTemplateService templates;
     private final EditorSessionRepository sessions;
+    private final AuditRepository audit;
     private final EditorClient client;
     private final EditorSeal seal;
     private final Platform platform;
@@ -323,14 +330,16 @@ public final class EditorService {
 
     public EditorService(final ConfigService config, final SakuraSettingsService settings,
             final SakuraMessageTemplateService messages, final SakuraTemplateService templates,
-            final EditorSessionRepository sessions, final EditorClient client,
-            final EditorSeal seal, final Platform platform, final InstanceRegistry registry,
-            final InstantSource clock, final ComponentLogger logger) {
+            final EditorSessionRepository sessions, final AuditRepository audit,
+            final EditorClient client, final EditorSeal seal, final Platform platform,
+            final InstanceRegistry registry, final InstantSource clock,
+            final ComponentLogger logger) {
         this.config = config;
         this.settings = settings;
         this.messages = messages;
         this.templates = templates;
         this.sessions = sessions;
+        this.audit = audit;
         this.client = client;
         this.seal = seal;
         this.platform = platform;
@@ -361,24 +370,91 @@ public final class EditorService {
             return CompletableFuture.completedFuture(new Opened.NotConfigured());
         }
         final Instant now = this.clock.instant();
-        final byte[] key = this.seal.newKey();
-        final byte[] blob = this.seal.seal(key, EditorSeal.Role.PAYLOAD,
-                EditorJson.GSON.toJson(this.payload(actor.operator(), sections, now).json()));
-        return this.client.upload(blob).thenCompose(response -> switch (response) {
-            case EditorClient.Response.Failed<EditorClient.Uploaded> failed -> CompletableFuture
-                    .completedFuture(new Opened.Failed(failed.problem()));
-            case EditorClient.Response.Ok<EditorClient.Uploaded> ok -> this.sessions.create(
-                            ok.value().id(), key, ok.value().token(), ids(sections),
-                            actor.operator(), now, now.minus(SESSION_LIFETIME))
-                    .thenApply(ignored -> new Opened.Ready(URI.create(base + "/editor/"
-                            + ok.value().id() + "#" + Base64.getUrlEncoder().withoutPadding()
-                            .encodeToString(key)), SESSION_LIFETIME, ok.value().id(),
-                            ok.value().token(), now));
+        return this.recentChanges(sections).thenCompose(recent -> {
+            final byte[] key = this.seal.newKey();
+            final byte[] blob = this.seal.seal(key, EditorSeal.Role.PAYLOAD, EditorJson.GSON
+                    .toJson(this.payload(actor.operator(), sections, now, recent).json()));
+            return this.client.upload(blob).thenCompose(response -> switch (response) {
+                case EditorClient.Response.Failed<EditorClient.Uploaded> failed ->
+                        CompletableFuture.completedFuture(new Opened.Failed(failed.problem()));
+                case EditorClient.Response.Ok<EditorClient.Uploaded> ok -> this.sessions.create(
+                                ok.value().id(), key, ok.value().token(), ids(sections),
+                                actor.operator(), now, now.minus(SESSION_LIFETIME))
+                        .thenApply(ignored -> new Opened.Ready(URI.create(base + "/editor/"
+                                + ok.value().id() + "#" + Base64.getUrlEncoder().withoutPadding()
+                                .encodeToString(key)), SESSION_LIFETIME, ok.value().id(),
+                                ok.value().token(), now));
+            });
         });
     }
 
+    public CompletableFuture<List<EditorPayload.RecentChange>> recentChanges(
+            final Set<Section> sections) {
+        final List<SubjectType> types = new ArrayList<>();
+        for (final Section section : sections) {
+            types.add(switch (section) {
+                case SETTINGS -> SubjectType.SETTINGS;
+                case MESSAGES -> SubjectType.MESSAGE;
+                case TEMPLATES -> SubjectType.TEMPLATE;
+            });
+        }
+        if (types.isEmpty()) {
+            return CompletableFuture.completedFuture(List.of());
+        }
+        return this.audit.recentChanges(types, RECENT_CHANGES)
+                .thenApply(entries -> entries.stream().map(EditorService::recent).toList());
+    }
+
+    static EditorPayload.RecentChange recent(final AuditEntry entry) {
+        final String actor = name(entry.actor().operator());
+        final String action = entry.action().name().toLowerCase(Locale.ROOT);
+        final String subject = entry.subjectId();
+        return switch (entry.subjectType()) {
+            case SETTINGS -> new EditorPayload.RecentChange(entry.at().toEpochMilli(), actor,
+                    action, Section.SETTINGS.id(), scopeOf(subject, SETTINGS_SUBJECT), null, "",
+                    changedKeys(entry.newValue()));
+            case MESSAGE -> {
+                final String rest = subject.contains(" ")
+                        ? subject.substring(subject.indexOf(' ') + 1) : subject;
+                final int colon = rest.indexOf(':');
+                yield new EditorPayload.RecentChange(entry.at().toEpochMilli(), actor, action,
+                        Section.MESSAGES.id(), subject.contains(" ")
+                        ? subject.substring(0, subject.indexOf(' ')) : GLOBAL,
+                        colon < 0 ? null : rest.substring(0, colon).replace('-', '_'),
+                        colon < 0 ? rest : rest.substring(colon + 1), List.of());
+            }
+            default -> new EditorPayload.RecentChange(entry.at().toEpochMilli(), actor, action,
+                    Section.TEMPLATES.id(), subject.contains(" ")
+                    ? subject.substring(0, subject.indexOf(' ')) : GLOBAL, null,
+                    subject.contains(" ") ? subject.substring(subject.indexOf(' ') + 1)
+                    : subject, List.of());
+        };
+    }
+
+    private static String scopeOf(final String subject, final String prefix) {
+        return subject.startsWith(prefix) ? subject.substring(prefix.length()) : GLOBAL;
+    }
+
+    /** The known keys a settings entry's values name ({@code {key=value, key=value}}). */
+    private static List<String> changedKeys(final @Nullable String values) {
+        if (values == null) {
+            return List.of();
+        }
+        final List<String> keys = new ArrayList<>();
+        for (final SettingsSchema.Entry entry : SettingsSchema.ENTRIES) {
+            if (values.contains("{" + entry.key() + "=") || values.contains(", " + entry.key()
+                    + "=")) {
+                keys.add(entry.key());
+                if (keys.size() == RECENT_KEYS) {
+                    break;
+                }
+            }
+        }
+        return keys;
+    }
+
     public EditorPayload payload(final Operator uploader, final Set<Section> sections,
-            final Instant now) {
+            final Instant now, final List<EditorPayload.RecentChange> recent) {
         final List<String> ids = new ArrayList<>();
         for (final Section section : Section.values()) {
             if (sections.contains(section)) {
@@ -394,7 +470,7 @@ public final class EditorService {
                 sections.contains(Section.SETTINGS) ? this.settingsSection() : null,
                 sections.contains(Section.MESSAGES) ? this.messagesSection() : null,
                 sections.contains(Section.TEMPLATES) ? this.templatesSection() : null,
-                this.lookups());
+                recent, this.lookups());
     }
 
     private static String name(final Operator operator) {
@@ -614,27 +690,26 @@ public final class EditorService {
     private CompletableFuture<@Nullable Long> refresh(
             final EditorSessionRepository.Session session, final Set<Section> sender) {
         final Set<Section> sections;
-        final byte[] blob;
         try {
             sections = this.creatorSections(session, sender);
-            blob = this.seal.seal(session.secret(), EditorSeal.Role.PAYLOAD,
-                    EditorJson.GSON.toJson(this.payload(session.creator(), sections,
-                            this.clock.instant()).json()));
         } catch (final RuntimeException e) {
             this.logger.debug("The fresh payload of editor session {} couldn't be built: {}",
                     session.id(), e.toString());
             return CompletableFuture.completedFuture(null);
         }
-        return this.client.replacePayload(session.id(), session.token(), blob)
-                .handle((response, failure) -> {
-                    if (response instanceof EditorClient.Response.Ok<Long> ok) {
-                        return ok.value();
-                    }
-                    this.logger.debug("The editor site didn't take the fresh payload of session"
-                            + " {}: {}", session.id(), failure != null ? failure.toString()
-                            : response);
-                    return null;
-                });
+        return this.recentChanges(sections).thenCompose(recent -> {
+            final byte[] blob = this.seal.seal(session.secret(), EditorSeal.Role.PAYLOAD,
+                    EditorJson.GSON.toJson(this.payload(session.creator(), sections,
+                            this.clock.instant(), recent).json()));
+            return this.client.replacePayload(session.id(), session.token(), blob);
+        }).handle((response, failure) -> {
+            if (response instanceof EditorClient.Response.Ok<Long> ok) {
+                return ok.value();
+            }
+            this.logger.debug("The editor site didn't take the fresh payload of session {}: {}",
+                    session.id(), failure != null ? failure.toString() : response);
+            return null;
+        });
     }
 
     private Set<Section> creatorSections(final EditorSessionRepository.Session session,
@@ -959,7 +1034,6 @@ public final class EditorService {
         return entry;
     }
 
-    /** A registry row by server name; this server's own row is built fresh. */
     private InstanceRepository.@Nullable Instance row(final String name) {
         final InstanceRepository.Instance self = this.registry.self();
         if (!name.isEmpty() && self.serverName().equals(name)) {
@@ -974,8 +1048,7 @@ public final class EditorService {
         return scope instanceof ServerScope server ? this.row(server.server()) : null;
     }
 
-    /** The value as the configuration stores it, or null after reporting why it can't be. */
-    private static @Nullable Object value(final SettingsSchema.Entry entry,
+     private static @Nullable Object value(final SettingsSchema.Entry entry,
             final @Nullable Object value, final String path, final List<FieldError> errors) {
         final Object converted = switch (entry.type()) {
             case BOOLEAN -> value instanceof Boolean ? value : null;
@@ -1032,7 +1105,6 @@ public final class EditorService {
         return FieldError.of(path, FieldError.Code.INVALID, message);
     }
 
-    /** One application, collecting its changes in change-set order. */
     private final class Run {
 
         private final Actor actor;
@@ -1209,7 +1281,6 @@ public final class EditorService {
             };
         }
 
-        /** Records a template's conflict or failure; false when the result is a success. */
         private boolean failed(final AdminResult<?> result, final String scope,
                 final String name) {
             final Failure failure = failure(result);
@@ -1261,7 +1332,6 @@ public final class EditorService {
         return fields;
     }
 
-    /** A plain tree as short text: {@code {minigames: [bedwars-1, skywars]}}. */
     public static String text(final @Nullable Object value) {
         return switch (value) {
             case null -> "";

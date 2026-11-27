@@ -192,11 +192,17 @@ final class PunishSupport {
         return Actor.of(operator, CommandActor.SOURCE_CONSOLE);
     }
 
-    static PunishOptions options(final FlagContext flags) {
+    static Visibility visibility(final FlagContext flags) {
+        return flags.isPresent(PunishFlags.QUIET) ? Visibility.QUIET
+                : flags.isPresent(PunishFlags.HIDE) ? Visibility.HIDDEN
+                : flags.isPresent(PunishFlags.SILENT) ? Visibility.SILENT
+                : Visibility.NORMAL;
+    }
+
+    static PunishOptions options(final FlagContext flags, final Visibility visibility) {
         return PunishOptions.builder()
-                .visibility(flags.isPresent(PunishFlags.HIDE) ? Visibility.HIDDEN
-                        : flags.isPresent(PunishFlags.SILENT) ? Visibility.SILENT
-                        : Visibility.NORMAL)
+                .visibility(visibility)
+                .originServer(flags.<String>getValue(PunishFlags.SERVER_ORIGIN).orElse(null))
                 .override(flags.isPresent(PunishFlags.OVERRIDE) ? OverridePolicy.REPLACE
                         : flags.isPresent(PunishFlags.IF_LONGER)
                                 ? OverridePolicy.REPLACE_IF_LONGER
@@ -241,6 +247,10 @@ final class PunishSupport {
                         .map(error -> error.path() + " " + error.message()).toList())));
     }
 
+    void replyFailure(final CommandActor actor, final PunishResult.Failure.Reason reason) {
+        this.runner.send(actor, failureKey(reason));
+    }
+
     private static MessageKey failureKey(final PunishResult.Failure.Reason reason) {
         return switch (reason) {
             // Only reached without a conflicting punishment, so the message has no placeholders.
@@ -254,6 +264,7 @@ final class PunishSupport {
             case UNKNOWN_TEMPLATE -> MessageKey.PUNISH_FAILURE_UNKNOWN_TEMPLATE;
             case TEMPLATE_TYPE_MISMATCH -> MessageKey.PUNISH_FAILURE_TEMPLATE_TYPE_MISMATCH;
             case FORBIDDEN -> MessageKey.PUNISH_FAILURE_FORBIDDEN;
+            case TEMPLATE_PROTECTED -> MessageKey.PUNISH_FAILURE_TEMPLATE_PROTECTED;
         };
     }
 }

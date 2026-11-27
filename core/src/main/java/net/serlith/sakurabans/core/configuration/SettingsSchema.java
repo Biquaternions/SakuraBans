@@ -87,6 +87,13 @@ public final class SettingsSchema {
                     "Whether staff need scope permissions", List.of(), null, null),
             entry("scopes.categories", SettingType.MAP, Level.GLOBAL,
                     "Categories and their servers", List.of(), null, null),
+            entry("web.url", SettingType.STRING, Level.FILE,
+                    "The web editor's address (empty: off)", List.of(), null, null),
+            entry("web.token", SettingType.STRING, Level.FILE,
+                    "The web editor's upload token (secret)", List.of(), null, null),
+            entry("web.live-apply", SettingType.BOOLEAN, Level.FILE,
+                    "Whether saves in an open editor apply without a command", List.of(), null,
+                    null),
             entry("enforcement.address-strictness", SettingType.ENUM, Level.GLOBAL,
                     "How far address bans reach",
                     List.of("LENIENT", "NORMAL", "STERN", "STRICT"), null, null),
@@ -94,10 +101,25 @@ public final class SettingsSchema {
                     "Whether bans also ban the current address", List.of(), null, null),
             entry("enforcement.mute-command-blacklist", SettingType.STRING_LIST, Level.SCOPED,
                     "Commands muted players can't use", List.of(), null, null),
+            entry("enforcement.kick-ignored-reasons", SettingType.STRING_LIST, Level.SCOPED,
+                    "Kick reasons that leave no record (a substring, any case)", List.of(), null,
+                    null),
             entry("enforcement.enforce-server-switch", SettingType.BOOLEAN, Level.FILE,
                     "Whether a proxy checks server scopes on switches", List.of(), null, null),
             entry("enforcement.login-check-timeout", SettingType.DURATION, Level.FILE,
                     "How long a join may wait for the ban check", List.of(), null, null),
+            entry("enforcement.servers-without-login-check", SettingType.STRING_LIST,
+                    Level.GLOBAL, "Proxy: servers banned players may still join, tried in order"
+                            + " when a ban is enforced", List.of(), null, null),
+            entry("enforcement.login-check", SettingType.BOOLEAN, Level.FILE,
+                    "Backend: whether this server turns banned players away", List.of(), null,
+                    null),
+            entry("enforcement.ip-ban-decay", SettingType.STRING, Level.GLOBAL,
+                    "After how long a ban of player and address reaches the player only (a"
+                            + " duration or never)", List.of(), null, null),
+            entry("enforcement.network-kick", SettingType.BOOLEAN, Level.SCOPED,
+                    "Backend behind a proxy: whether a ban disconnects from the whole network",
+                    List.of(), null, null),
             entry("alts.register-on-connection", SettingType.BOOLEAN, Level.GLOBAL,
                     "Whether names and addresses are recorded", List.of(), null, null),
             entry("alts.servers-without-ip-registration", SettingType.STRING_LIST, Level.GLOBAL,
@@ -112,6 +134,15 @@ public final class SettingsSchema {
                     "The fewest alts that trigger a notice", List.of(), 1.0, null),
             entry("alts.join-notification.limit", SettingType.INTEGER, Level.SCOPED,
                     "The most alts listed in a notice", List.of(), 1.0, null),
+            entry("alts.auto-ban", SettingType.ENUM, Level.GLOBAL,
+                    "Whether bans also ban linked accounts (needs /sb accept alts once)",
+                    List.of("DISABLED", "ON_BAN", "ON_JOIN"), null, null),
+            entry("alts.auto-ban-confirm-above", SettingType.INTEGER, Level.GLOBAL,
+                    "More linked accounts than this need --confirm on /ban", List.of(), 0.0,
+                    null),
+            entry("alts.hidden-players", SettingType.STRING_LIST, Level.GLOBAL,
+                    "Names, UUIDs or addresses alt listings leave out (unless viewhidden)",
+                    List.of(), null, null),
             entry("reasons.default", SettingType.STRING, Level.SCOPED,
                     "The reason used when none is given", List.of(), null, null),
             entry("reasons.require.ban", SettingType.BOOLEAN, Level.SCOPED,
@@ -135,6 +166,11 @@ public final class SettingsSchema {
                     "Whether staff may punish the same weight", List.of(), null, null),
             entry("exemption.protects-edits", SettingType.BOOLEAN, Level.GLOBAL,
                     "Whether exemption protects punishments from changes", List.of(), null, null),
+            entry("exemption.players", SettingType.STRING_LIST, Level.GLOBAL,
+                    "Players who can't be punished: name or UUID, optionally :type",
+                    List.of(), null, null),
+            entry("exemption.groups", SettingType.STRING_LIST, Level.GLOBAL,
+                    "LuckPerms groups whose members can't be punished", List.of(), null, null),
             entry("warnings.expire-after", SettingType.STRING, Level.SCOPED,
                     "How long warnings stay active (a duration or never)", List.of(), null, null),
             entry("warnings.actions", SettingType.MAP, Level.SCOPED,
@@ -156,17 +192,38 @@ public final class SettingsSchema {
                     "The shortest time between attempt notices", List.of(), null, null),
             entry("players.remote-lookup", SettingType.BOOLEAN, Level.FILE,
                     "Whether unknown names are looked up remotely", List.of(), null, null),
-            entry("web.url", SettingType.STRING, Level.FILE,
-                    "The web editor's address (empty: off)", List.of(), null, null),
-            entry("web.token", SettingType.STRING, Level.FILE,
-                    "The web editor's upload token (secret)", List.of(), null, null),
-            entry("web.live-apply", SettingType.BOOLEAN, Level.FILE,
-                    "Whether saves in an open editor apply without a command", List.of(), null,
+            entry("audit.retention", SettingType.STRING, Level.GLOBAL,
+                    "How long audit entries are kept (a duration or never)", List.of(), null,
                     null),
+            entry("placeholders.refresh", SettingType.DURATION, Level.GLOBAL,
+                    "How often the network's punishment counts are read (at least 30s)",
+                    List.of(), null, null),
+            entry("geoip.enabled", SettingType.BOOLEAN, Level.FILE,
+                    "Whether this server looks up countries (needs a restart)", List.of(), null,
+                    null),
+            entry("geoip.account-id", SettingType.STRING, Level.FILE,
+                    "The MaxMind account ID for downloads (secret)", List.of(), null, null),
+            entry("geoip.license-key", SettingType.STRING, Level.FILE,
+                    "The MaxMind licence key for downloads (secret)", List.of(), null, null),
+            entry("geoip.refresh", SettingType.STRING, Level.FILE,
+                    "How often the database is checked for a newer copy (at least 1d, or never)",
+                    List.of(), null, null),
+            entry("geoip.blacklist", SettingType.STRING_LIST, Level.GLOBAL,
+                    "Countries (ISO codes like US) whose players can't join", List.of(), null,
+                    null),
+            entry("geoip.whitelist", SettingType.STRING_LIST, Level.GLOBAL,
+                    "When not empty, the only countries (ISO codes) whose players can join",
+                    List.of(), null, null),
+            entry("geoip.allow-unknown", SettingType.BOOLEAN, Level.GLOBAL,
+                    "Whether players whose country isn't known may join while a list is set",
+                    List.of(), null, null),
             entry("commands.labels", SettingType.MAP, Level.FILE,
                     "Command names and aliases", List.of(), null, null),
             entry("limits:reduce-to-limit", SettingType.BOOLEAN, Level.SCOPED,
                     "Whether a punishment over the limit is shortened instead of refused",
+                    List.of(), null, null),
+            entry("limits:console-cooldown", SettingType.DURATION, Level.SCOPED,
+                    "How long the console may not punish the same player again (0 for none)",
                     List.of(), null, null),
             entry("limits:groups", SettingType.MAP, Level.SCOPED,
                     "Staff groups and their limits", List.of(), null, null),
@@ -185,7 +242,10 @@ public final class SettingsSchema {
 
     public static final List<Entry> ENTRIES = withRoutes();
 
-    /** Never shown, logged or uploaded: the secret entries and the editor's upload token. */
+    /**
+     * Never shown, logged or uploaded: the secret entries, the editor's upload token and the
+     * MaxMind account.
+     */
     public static final Set<String> SECRET = secrets();
 
     private static final Map<String, Entry> BY_KEY = ENTRIES.stream()
@@ -205,7 +265,8 @@ public final class SettingsSchema {
     }
 
     private static Set<String> secrets() {
-        final Set<String> secrets = new HashSet<>(Set.of("web.token"));
+        final Set<String> secrets = new HashSet<>(Set.of("web.token", "geoip.account-id",
+                "geoip.license-key"));
         ENTRIES.stream().filter(Entry::secret).forEach(entry -> secrets.add(entry.key()));
         return Set.copyOf(secrets);
     }

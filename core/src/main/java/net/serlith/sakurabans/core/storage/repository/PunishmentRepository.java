@@ -5,9 +5,9 @@ import java.net.InetAddress;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -15,6 +15,7 @@ import java.util.OptionalInt;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Predicate;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.EndKind;
 import net.serlith.sakurabans.api.model.ErasedAddressVictim;
@@ -33,8 +34,11 @@ import net.serlith.sakurabans.api.punish.PunishmentQuery;
 import net.serlith.sakurabans.api.punish.PunishmentQuery.Applicability;
 import net.serlith.sakurabans.core.model.AuditAction;
 import net.serlith.sakurabans.core.model.EndKinds;
+import net.serlith.sakurabans.core.model.PlayerCounts;
+import net.serlith.sakurabans.core.model.PunishmentTotals;
 import net.serlith.sakurabans.core.model.SakuraPage;
 import net.serlith.sakurabans.core.model.SubjectType;
+import net.serlith.sakurabans.core.storage.AddressHasher;
 import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import net.serlith.sakurabans.core.storage.dbo.VictimKind;
@@ -43,7 +47,6 @@ import net.serlith.sakurabans.core.storage.dbo.records.SbPunishmentsRecord;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbActivePunishments;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbPunishments;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbVictims;
-import net.serlith.sakurabans.core.util.AddressHashes;
 import net.serlith.sakurabans.core.util.Scopes;
 import net.serlith.sakurabans.core.util.Uuids;
 import org.jooq.Condition;
@@ -57,16 +60,19 @@ import org.jspecify.annotations.Nullable;
 public final class PunishmentRepository {
 
     private final StorageService storage;
+    private final AddressHasher hasher;
     private final PunishmentMapper mapper;
     private final AltPolicy policy;
 
-    public PunishmentRepository(final StorageService storage, final PunishmentMapper mapper) {
-        this(storage, mapper, AltPolicy.NONE);
+    public PunishmentRepository(final StorageService storage, final AddressHasher hasher,
+            final PunishmentMapper mapper) {
+        this(storage, hasher, mapper, AltPolicy.NONE);
     }
 
-    public PunishmentRepository(final StorageService storage, final PunishmentMapper mapper,
-            final AltPolicy policy) {
+    public PunishmentRepository(final StorageService storage, final AddressHasher hasher,
+            final PunishmentMapper mapper, final AltPolicy policy) {
         this.storage = storage;
+        this.hasher = hasher;
         this.mapper = mapper;
         this.policy = policy;
     }
@@ -91,29 +97,36 @@ public final class PunishmentRepository {
     public CompletableFuture<InsertOutcome> insert(final NewPunishment punishment,
             final OverridePolicy policy, final @Nullable NewTemplateUse use,
             final @Nullable ExpectedStep expected) {
+        return this.insert(punishment, policy, use, expected, existing -> true);
+    }
+
+    public CompletableFuture<InsertOutcome> insert(final NewPunishment punishment,
+            final OverridePolicy policy, final @Nullable NewTemplateUse use,
+            final @Nullable ExpectedStep expected, final Predicate<Punishment> replaceable) {
         Preconditions.checkArgument(expected == null || use != null,
                 "an expected step needs its use");
         return this.storage.writeRetryingConflicts(configuration -> {
             final DSLContext dsl = configuration.dsl();
             if (expected != null) {
                 final OptionalInt changed = TemplateRepository.changedStep(dsl, use.victim(),
-                        expected, this.policy);
+                        expected, this.policy, this.hasher);
                 if (changed.isPresent()) {
                     return new InsertOutcome.StepChanged(changed.getAsInt());
                 }
             }
-            final InsertOutcome outcome = this.insert(dsl, punishment, policy);
+            final InsertOutcome outcome = this.insert(dsl, punishment, policy, replaceable);
             if (use != null && outcome instanceof InsertOutcome.Inserted inserted) {
-                TemplateRepository.insertUse(dsl, use, inserted.punishment().id());
+                TemplateRepository.insertUse(dsl, this.hasher, use,
+                        inserted.punishment().id());
             }
             return outcome;
         });
     }
 
     private InsertOutcome insert(final DSLContext dsl, final NewPunishment punishment,
-            final OverridePolicy policy) {
+            final OverridePolicy policy, final Predicate<Punishment> replaceable) {
         final SbActivePunishments active = SakuraTables.ACTIVE_PUNISHMENTS;
-        final long victimId = VictimRepository.resolve(dsl, punishment.victim());
+        final long victimId = VictimRepository.resolve(dsl, this.hasher, punishment.victim());
         final int scopeId = ScopeRepository.resolve(dsl, punishment.scope());
         final PunishmentType type = punishment.type();
         Punishment superseded = null;
@@ -134,6 +147,11 @@ public final class PunishmentRepository {
                     return new InsertOutcome.Rejected(
                             this.fetch(dsl, occupant.punishmentId()).orElseThrow());
                 } else {
+                    final Punishment existing =
+                            this.fetch(dsl, occupant.punishmentId()).orElseThrow();
+                    if (!replaceable.test(existing)) {
+                        return new InsertOutcome.Protected(existing);
+                    }
                     endInTransaction(dsl, occupant.punishmentId(), EndKind.SUPERSEDED,
                             punishment.createdAt(), null, null);
                     superseded = this.fetch(dsl, occupant.punishmentId()).orElseThrow();
@@ -432,7 +450,7 @@ public final class PunishmentRepository {
         return this.storage.read(dsl -> this.mapper.map(dsl, PunishmentMapper.select(dsl)
                 .join(active).on(active.PUNISHMENT_ID.eq(p.ID))
                 .where(active.TYPE.eq(type))
-                .and(StoredVictim.of(victim).matches(SakuraTables.VICTIMS))
+                .and(StoredVictim.of(victim, this.hasher).matches(SakuraTables.VICTIMS))
                 .and(scope == null ? DSL.noCondition() : ScopeRepository.matches(scope))
                 .and(unexpired(now))
                 .orderBy(p.CREATED_AT.desc(), p.ID.desc())
@@ -457,7 +475,7 @@ public final class PunishmentRepository {
             final @Nullable Instant before) {
         final SbPunishments p = SakuraTables.PUNISHMENTS;
         return this.storage.read(dsl -> this.mapper.map(dsl, PunishmentMapper.select(dsl)
-                .where(StoredVictim.of(victim).matches(SakuraTables.VICTIMS))
+                .where(StoredVictim.of(victim, this.hasher).matches(SakuraTables.VICTIMS))
                 .and(p.ID.notIn(DSL.select(SakuraTables.ACTIVE_PUNISHMENTS.PUNISHMENT_ID)
                         .from(SakuraTables.ACTIVE_PUNISHMENTS)))
                 .and(before == null ? DSL.noCondition() : p.CREATED_AT.lt(before))
@@ -499,6 +517,73 @@ public final class PunishmentRepository {
                 .and(unexpired(now))));
     }
 
+    public CompletableFuture<PunishmentTotals> totals(final Instant now) {
+        final SbPunishments p = SakuraTables.PUNISHMENTS;
+        final SbActivePunishments active = SakuraTables.ACTIVE_PUNISHMENTS;
+        return this.storage.read(dsl -> {
+            final Map<PunishmentType, Long> total = new EnumMap<>(PunishmentType.class);
+            dsl.select(p.TYPE, DSL.count()).from(p)
+                    .where(p.VOIDED_AT.isNull())
+                    .groupBy(p.TYPE)
+                    .fetch()
+                    .forEach(row -> total.put(row.value1(), (long) row.value2()));
+            final Map<PunishmentType, Long> current = new EnumMap<>(PunishmentType.class);
+            dsl.select(active.TYPE, DSL.count()).from(active)
+                    .where(unexpired(now))
+                    .groupBy(active.TYPE)
+                    .fetch()
+                    .forEach(row -> current.put(row.value1(), (long) row.value2()));
+            return new PunishmentTotals(current.getOrDefault(PunishmentType.BAN, 0L),
+                    current.getOrDefault(PunishmentType.MUTE, 0L),
+                    current.getOrDefault(PunishmentType.WARN, 0L),
+                    total.getOrDefault(PunishmentType.BAN, 0L),
+                    total.getOrDefault(PunishmentType.MUTE, 0L),
+                    total.getOrDefault(PunishmentType.WARN, 0L),
+                    total.getOrDefault(PunishmentType.KICK, 0L));
+        });
+    }
+
+    public CompletableFuture<PlayerCounts> countsOf(final UUID uuid, final Instant now) {
+        final SbPunishments p = SakuraTables.PUNISHMENTS;
+        final SbActivePunishments active = SakuraTables.ACTIVE_PUNISHMENTS;
+        final SbVictims victims = SakuraTables.VICTIMS;
+        return this.storage.read(dsl -> {
+            final Map<PunishmentType, Long> received = new EnumMap<>(PunishmentType.class);
+            long shadowMutes = 0;
+            for (final var row : dsl.select(p.TYPE, p.SHADOW, DSL.count()).from(p)
+                    .join(victims).on(victims.ID.eq(p.VICTIM_ID))
+                    .where(victims.UUID.eq(uuid))
+                    .and(victims.KIND.in(VictimKind.PLAYER, VictimKind.COMPOSITE))
+                    .and(p.VOIDED_AT.isNull())
+                    .groupBy(p.TYPE, p.SHADOW)
+                    .fetch()) {
+                received.merge(row.value1(), (long) row.value3(), Long::sum);
+                if (row.value1() == PunishmentType.MUTE && Boolean.TRUE.equals(row.value2())) {
+                    shadowMutes += row.value3();
+                }
+            }
+            long permanent = 0;
+            final List<Instant> expiries = new ArrayList<>();
+            for (final Instant expiry : dsl.select(active.EXPIRES_AT).from(active)
+                    .join(victims).on(victims.ID.eq(active.VICTIM_ID))
+                    .where(active.TYPE.eq(PunishmentType.WARN))
+                    .and(victims.UUID.eq(uuid))
+                    .and(victims.KIND.in(VictimKind.PLAYER, VictimKind.COMPOSITE))
+                    .and(unexpired(now))
+                    .fetch(active.EXPIRES_AT)) {
+                if (expiry == null) {
+                    permanent++;
+                } else {
+                    expiries.add(expiry);
+                }
+            }
+            return new PlayerCounts(received.getOrDefault(PunishmentType.BAN, 0L),
+                    received.getOrDefault(PunishmentType.MUTE, 0L), shadowMutes,
+                    received.getOrDefault(PunishmentType.WARN, 0L),
+                    received.getOrDefault(PunishmentType.KICK, 0L), permanent, expiries);
+        });
+    }
+
     public CompletableFuture<List<Punishment>> unacknowledgedWarnings(final UUID uuid,
             final Instant now) {
         final SbPunishments p = SakuraTables.PUNISHMENTS;
@@ -528,18 +613,18 @@ public final class PunishmentRepository {
             final Applicability applicability, final Collection<? extends Scope> scopes,
             final Instant now) {
         return this.storage.read(dsl -> this.mapper.map(dsl, activeApplicableQuery(dsl, type,
-                applicability, scopes, now, this.policy).fetch()));
+                applicability, scopes, now, this.policy, this.hasher).fetch()));
     }
 
     public CompletableFuture<List<Punishment>> activeApplicableInEveryScope(
             final PunishmentType type, final Applicability applicability, final Instant now) {
         return this.storage.read(dsl -> this.mapper.map(dsl, activeApplicableQuery(dsl, type,
-                applicability, DSL.noCondition(), now, this.policy).fetch()));
+                applicability, DSL.noCondition(), now, this.policy, this.hasher).fetch()));
     }
 
     public CompletableFuture<Optional<List<Punishment>>> restoreErased(
             final List<Punishment> matched, final UUID uuid, final InetAddress address) {
-        final String hash = HexFormat.of().formatHex(AddressHashes.of(address));
+        final String hash = this.hasher.hex(address);
         final List<ErasedAddressVictim> erased = matched.stream()
                 .map(Punishment::victim)
                 .filter(ErasedAddressVictim.class::isInstance)
@@ -554,7 +639,7 @@ public final class PunishmentRepository {
         return this.storage.write(configuration -> {
             final DSLContext dsl = configuration.dsl();
             for (final ErasedAddressVictim victim : erased) {
-                VictimRepository.restore(dsl, victim.uuid().isPresent()
+                VictimRepository.restore(dsl, this.hasher, victim.uuid().isPresent()
                                 ? VictimKind.COMPOSITE : VictimKind.ADDRESS,
                         victim.uuid().orElse(Uuids.ZERO), address);
             }
@@ -594,32 +679,33 @@ public final class PunishmentRepository {
         final SbPunishments p = SakuraTables.PUNISHMENTS;
         return this.storage.read(dsl -> dsl.fetchExists(DSL.selectOne().from(p)
                 .where(p.ID.eq(punishmentId))
-                .and(p.VICTIM_ID.in(ApplicabilityConditions.victimIds(applicability,
-                        this.policy, now)))));
+                .and(ApplicabilityConditions.applies(p.VICTIM_ID, p.CREATED_AT, p.TYPE,
+                        applicability, this.policy, this.hasher, now))));
     }
 
     static ResultQuery<Record> activeApplicableQuery(final DSLContext dsl,
             final PunishmentType type, final Applicability applicability,
             final Collection<? extends Scope> scopes, final Instant now,
-            final AltPolicy policy) {
+            final AltPolicy policy, final AddressHasher hasher) {
         final Condition inScopes = DSL.or(scopes.stream().map(ScopeRepository::matches).toList());
         return activeApplicableQuery(dsl, type, applicability,
                 SakuraTables.ACTIVE_PUNISHMENTS.SCOPE_ID.in(DSL.select(SakuraTables.SCOPES.ID)
                         .from(SakuraTables.SCOPES).where(inScopes)),
-                now, policy);
+                now, policy, hasher);
     }
 
     private static ResultQuery<Record> activeApplicableQuery(final DSLContext dsl,
             final PunishmentType type, final Applicability applicability,
-            final Condition scoped, final Instant now, final AltPolicy policy) {
+            final Condition scoped, final Instant now, final AltPolicy policy,
+            final AddressHasher hasher) {
         final SbPunishments p = SakuraTables.PUNISHMENTS;
         final SbActivePunishments active = SakuraTables.ACTIVE_PUNISHMENTS;
         return PunishmentMapper.select(dsl)
                 .join(active).on(active.PUNISHMENT_ID.eq(p.ID))
                 .where(active.TYPE.eq(type))
                 .and(scoped)
-                .and(active.VICTIM_ID.in(
-                        ApplicabilityConditions.victimIds(applicability, policy, now)))
+                .and(ApplicabilityConditions.applies(active.VICTIM_ID, p.CREATED_AT, active.TYPE,
+                        applicability, policy, hasher, now))
                 .and(unexpired(now))
                 .orderBy(active.EXPIRES_AT.desc().nullsFirst(), p.ID.desc());
     }
@@ -627,21 +713,27 @@ public final class PunishmentRepository {
     public CompletableFuture<Page<Punishment>> query(final PunishmentQuery query,
             final Instant now) {
         return this.storage.read(dsl -> {
-            final List<Condition> conditions = conditions(query, now, this.policy);
-            final long total = count(dsl, conditions);
+            final List<Condition> conditions = conditions(query, now, this.policy, this.hasher);
+            final long counted = count(dsl, conditions);
+            final long offset = (long) (query.page() - 1) * query.pageSize();
             final List<Record> rows = PunishmentMapper.select(dsl)
                     .where(conditions)
                     .orderBy(sort(query.order()))
                     .limit(query.pageSize())
-                    .offset((long) (query.page() - 1) * query.pageSize())
+                    .offset(offset)
                     .fetch();
+            // Two statements under READ COMMITTED: a row written between them can leave the
+            // count short of what the page holds.
+            final long total = rows.isEmpty()
+                    ? counted : Math.max(counted, offset + rows.size());
             return (Page<Punishment>) new SakuraPage<>(this.mapper.map(dsl, rows), total,
                     query.page(), query.pageSize());
         });
     }
 
     public CompletableFuture<Long> count(final PunishmentQuery query, final Instant now) {
-        return this.storage.read(dsl -> count(dsl, conditions(query, now, this.policy)));
+        return this.storage.read(dsl -> count(dsl,
+                conditions(query, now, this.policy, this.hasher)));
     }
 
     private static long count(final DSLContext dsl, final List<Condition> conditions) {
@@ -657,7 +749,7 @@ public final class PunishmentRepository {
     }
 
     static List<Condition> conditions(final PunishmentQuery query, final Instant now,
-            final AltPolicy policy) {
+            final AltPolicy policy, final AddressHasher hasher) {
         final SbPunishments p = SakuraTables.PUNISHMENTS;
         final SbActivePunishments active = SakuraTables.ACTIVE_PUNISHMENTS;
         final List<Condition> conditions = new ArrayList<>();
@@ -665,9 +757,10 @@ public final class PunishmentRepository {
             conditions.add(p.TYPE.in(query.types()));
         }
         query.victim().ifPresent(victim ->
-                conditions.add(StoredVictim.of(victim).matches(SakuraTables.VICTIMS)));
+                conditions.add(StoredVictim.of(victim, hasher).matches(SakuraTables.VICTIMS)));
         query.applicableTo().ifPresent(applicability -> conditions.add(
-                p.VICTIM_ID.in(ApplicabilityConditions.victimIds(applicability, policy, now))));
+                ApplicabilityConditions.applies(p.VICTIM_ID, p.CREATED_AT, p.TYPE,
+                        applicability, policy, hasher, now)));
         query.operator().ifPresent(operator -> conditions.add(StoredOperator.identity(
                 operator, p.OPERATOR_KIND, p.OPERATOR_UUID, p.OPERATOR_NAME)));
         query.revokedBy().ifPresent(operator -> conditions.add(p.END_KIND.eq(EndKind.REVOKED)

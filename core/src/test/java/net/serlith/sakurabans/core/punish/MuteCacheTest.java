@@ -51,14 +51,15 @@ class MuteCacheTest extends DatabaseTest {
     @BeforeEach
     void create() throws Exception {
         this.home = InetAddress.getByName("203.0.113.7");
-        this.punishments =
-                new PunishmentRepository(this.storage, new PunishmentMapper(Long::toString));
+        this.punishments = new PunishmentRepository(this.storage, this.hasher,
+                new PunishmentMapper(Long::toString));
         final SakuraScopeService scopes =
                 new SakuraScopeService(this.config, new FakePlatform(), false,
                         this.log.logger());
         this.cache = new MuteCache(this.punishments, scopes, this.config, this.clock,
-                new ActiveRangeCache(this.punishments, new PlayerRepository(this.storage),
-                        AltPolicy.NONE, this.clock));
+                new ActiveRangeCache(this.punishments,
+                        new PlayerRepository(this.storage, this.hasher), AltPolicy.NONE,
+                        this.clock));
     }
 
     private Punishment mute(final Victim victim, final Scope scope,
@@ -102,7 +103,8 @@ class MuteCacheTest extends DatabaseTest {
         final MuteCache proxy = new MuteCache(this.punishments,
                 new SakuraScopeService(this.config, platform, true, this.log.logger()),
                 this.config, this.clock, new ActiveRangeCache(this.punishments,
-                        new PlayerRepository(this.storage), AltPolicy.NONE, this.clock));
+                        new PlayerRepository(this.storage, this.hasher), AltPolicy.NONE,
+                        this.clock));
         final Punishment survival = this.mute(PlayerVictim.of(STEVE), ServerScope.of("survival"),
                 null);
         final FakeOnlinePlayer steve = platform.join(STEVE, "Steve", this.home, null, "lobby");

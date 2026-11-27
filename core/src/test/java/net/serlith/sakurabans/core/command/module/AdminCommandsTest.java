@@ -145,8 +145,8 @@ class AdminCommandsTest extends CommandTest {
         Assertions.assertThat(texts.get(texts.size() - 3)).contains("H2",
                 "Active punishments: 1", "lobby");
         Assertions.assertThat(texts.subList(texts.size() - 2, texts.size())).containsExactly(
-                "SakuraBans » Servers on this database: 1",
-                "SakuraBans » - lobby (paper, " + BuildConstants.VERSION + "), last seen "
+                "SakuraBans ...🖉 Servers on this database: 1",
+                "SakuraBans ...🖉 - lobby (paper, " + BuildConstants.VERSION + "), last seen "
                         + new Formats(this.messages, this.config).instant(this.now.get(),
                                 Locale.US));
 

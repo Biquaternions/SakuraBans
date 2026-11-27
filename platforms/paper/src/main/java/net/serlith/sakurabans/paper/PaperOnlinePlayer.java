@@ -75,6 +75,31 @@ final class PaperOnlinePlayer implements OnlinePlayer, ForwardingAudience.Single
     }
 
     @Override
+    public void disconnectFromNetwork(final Component reason) {
+        this.scheduler.runFor(this.player, () -> {
+            if (!this.player.isOnline()) {
+                return;
+            }
+            // Without the channel no proxy would read it: kick from here.
+            if (!this.player.getListeningPluginChannels().contains(PaperNetworkKick.CHANNEL)) {
+                this.player.kick(reason, PlayerKickEvent.Cause.PLUGIN);
+                return;
+            }
+            // Raw first (the whole screen on Velocity); the legacy one for a proxy without it.
+            this.player.sendPluginMessage(this.scheduler.plugin(), PaperNetworkKick.CHANNEL,
+                    PaperNetworkKick.raw(this.player.getName(), reason));
+            this.player.sendPluginMessage(this.scheduler.plugin(), PaperNetworkKick.CHANNEL,
+                    PaperNetworkKick.legacy(this.player.getName(), reason));
+            // Still here: no proxy answered (bungee-plugin-message-channel off, or none).
+            this.scheduler.runLater(this.player, PaperNetworkKick.FALLBACK_TICKS, () -> {
+                if (this.player.isOnline()) {
+                    this.player.kick(reason, PlayerKickEvent.Cause.PLUGIN);
+                }
+            });
+        });
+    }
+
+    @Override
     public boolean showNotice(final Component title, final Component body,
             final Component button) {
         // Built and shown on the player's thread (Folia: its region). False when the hop isn't

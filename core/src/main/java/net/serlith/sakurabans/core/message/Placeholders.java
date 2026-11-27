@@ -2,8 +2,10 @@ package net.serlith.sakurabans.core.message;
 
 import java.net.InetAddress;
 import java.time.Instant;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -25,9 +27,31 @@ import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Scope;
 import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.api.model.Victim;
+import net.serlith.sakurabans.core.model.PlayerCounts;
 import net.serlith.sakurabans.core.util.InetAddresses;
+import org.jspecify.annotations.Nullable;
 
 public final class Placeholders {
+
+    public static final List<String> PLAYER_COUNT_TAGS = List.of("player_bans", "player_mutes",
+            "player_warns", "player_kicks", "player_active_warns");
+
+    public static final Set<String> PLAYER_COUNT_KEYS = Set.of("screen.ban",
+            "screen.ban_temporary", "screen.kick", "victim.banned_admitted",
+            "victim.banned_admitted_temporary", "victim.muted", "victim.muted_temporary",
+            "victim.warned", "victim.warned_away", "dialog.muted_title", "dialog.warned_title",
+            "chat.muted", "chat.muted_temporary", "chat.command_muted", "notify.ban",
+            "notify.mute", "notify.warn", "notify.kick", "notify.unban", "notify.unmute",
+            "notify.unwarn", "notify.attempt_join", "notify.attempt_chat",
+            "notify.alts_auto_banned", "punish.ban", "punish.mute", "punish.warn", "punish.kick",
+            "punish.failure.already_punished", "check.detail", "list.entry", "void.done",
+            "delete.confirm", "delete.done");
+
+    public static final String COUNTRY_TAG = "country";
+
+    public static final Set<String> COUNTRY_KEYS = Set.of("notify.attempt_join",
+            "notify.attempt_geoip", "notify.alts.join", "alts.entry", "iphistory.entry",
+            "check.detail", "screen.geoip", "geoip.result");
 
     private final MessageService messages;
     private final Formats formats;
@@ -70,6 +94,54 @@ public final class Placeholders {
                 Placeholder.unparsed("server", punishment.originServer().orElse("")),
                 Placeholder.unparsed("revoker", revoker),
                 Placeholder.unparsed("revoke_reason", revokeReason));
+    }
+
+    public TagResolver playerCounts(final @Nullable PlayerCounts counts,
+            final boolean shadowMutes, final Instant now) {
+        return TagResolver.resolver(PLAYER_COUNT_TAGS.stream()
+                .map(name -> Placeholder.unparsed(name, playerCount(counts, name, shadowMutes,
+                        now)))
+                .toList());
+    }
+
+    public static String playerCount(final @Nullable PlayerCounts counts, final String name,
+            final boolean shadowMutes, final Instant now) {
+        if (counts == null) {
+            return "";
+        }
+        final long value = switch (name) {
+            case "player_bans" -> counts.bans();
+            case "player_mutes" -> shadowMutes ? counts.mutes() : counts.visibleMutes();
+            case "player_warns" -> counts.warns();
+            case "player_kicks" -> counts.kicks();
+            case "player_active_warns" -> counts.activeWarns(now);
+            default -> throw new IllegalArgumentException("not a player count: " + name);
+        };
+        return Long.toString(value);
+    }
+
+    public static TagResolver country(final @Nullable String name) {
+        return Placeholder.unparsed(COUNTRY_TAG, name == null ? "" : name);
+    }
+
+    public static Optional<InetAddress> victimAddress(final Punishment punishment) {
+        return switch (punishment.victim()) {
+            case AddressVictim address -> Optional.of(address.address());
+            case CompositeVictim composite -> Optional.of(composite.address());
+            case PlayerVictim player -> Optional.empty();
+            case ErasedAddressVictim erased -> Optional.empty();
+            case AddressRangeVictim range -> Optional.empty();
+        };
+    }
+
+    public static Optional<UUID> countedPlayer(final Punishment punishment) {
+        return switch (punishment.victim()) {
+            case PlayerVictim player -> Optional.of(player.uuid());
+            case CompositeVictim composite -> Optional.of(composite.uuid());
+            case ErasedAddressVictim erased -> erased.uuid();
+            case AddressVictim address -> Optional.empty();
+            case AddressRangeVictim range -> Optional.empty();
+        };
     }
 
     public String operator(final Operator operator, final Locale locale) {

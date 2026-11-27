@@ -68,6 +68,20 @@ public sealed interface TemplateInfo permits PresetTemplate, LadderTemplate {
     TemplateDisplay display();
 
     /**
+     * Whether its punishments are silent: staff are told only if they may see silent
+     * punishments, and webhooks follow their {@code include-silent} setting, as with the
+     * command flag {@code -s}. A command or API call that asks for {@link
+     * net.serlith.sakurabans.api.model.Visibility#HIDDEN} or {@link
+     * net.serlith.sakurabans.api.model.Visibility#QUIET} gets that instead; one that leaves the
+     * visibility at {@link net.serlith.sakurabans.api.model.Visibility#NORMAL} gets
+     * {@link net.serlith.sakurabans.api.model.Visibility#SILENT}. Revoking such a punishment is
+     * not affected.
+     *
+     * @return {@code true} if its punishments are silent; {@code false} unless set
+     */
+    boolean silent();
+
+    /**
      * The scope its punishments get when the command names none.
      *
      * @return the scope, or empty for the configured default scope

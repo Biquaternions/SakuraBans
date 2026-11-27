@@ -25,6 +25,7 @@ import net.serlith.sakurabans.core.command.CommandRunner;
 import net.serlith.sakurabans.core.command.ConfirmationTracker;
 import net.serlith.sakurabans.core.command.SakuraCommands;
 import net.serlith.sakurabans.core.command.parser.ScopeParser;
+import net.serlith.sakurabans.core.configuration.EnvironmentOverrides;
 import net.serlith.sakurabans.core.configuration.SettingsSchema;
 import net.serlith.sakurabans.core.message.MessageKey;
 import net.serlith.sakurabans.core.model.AdminResult;
@@ -180,6 +181,21 @@ public final class OverrideCommands implements CommandModule {
                         this.value(actor, "value", entry.key(),
                                 this.settings.plainValue(entry.key()).orElse(null)),
                         Placeholder.unparsed("layer", layer));
+            }
+            final List<EnvironmentOverrides.Applied> environment = this.settings.environment();
+            if (!environment.isEmpty()) {
+                this.runner.send(actor, MessageKey.SETTINGS_EFFECTIVE_ENVIRONMENT_HEADER,
+                        Placeholder.unparsed("count", Integer.toString(environment.size())));
+                for (final EnvironmentOverrides.Applied applied : environment) {
+                    this.runner.send(actor, MessageKey.SETTINGS_EFFECTIVE_ENVIRONMENT_ENTRY,
+                            Placeholder.unparsed("source", applied.source()),
+                            Placeholder.unparsed("key", applied.key()),
+                            applied.secret()
+                                    ? Placeholder.component("value", this.runner.render(actor,
+                                            MessageKey.SETTINGS_SECRET_SET))
+                                    : Placeholder.unparsed("value",
+                                            EditorLines.shorten(applied.value())));
+                }
             }
             return;
         }

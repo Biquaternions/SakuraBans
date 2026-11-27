@@ -49,10 +49,23 @@ public final class SelfImport {
         if (dryRun) {
             tables = this.survey(source);
         } else {
-            tables = this.repository.copy(source.dsl(), source.prefix(), batchSize,
-                    source::stream, line -> this.logger.info("Self import: copied {}", line))
-                    .join();
+            final ImportRepository.Copied copied = this.repository.copy(source.dsl(),
+                    source.prefix(), batchSize, source::stream,
+                    line -> this.logger.info("Self import: copied {}", line)).join();
+            tables = copied.tables();
             this.repository.resetIdentities().join();
+            if (copied.rehashed() && copied.erasedKept() == 0) {
+                this.logger.info("Self import: the source used another address-hash-key; its"
+                        + " addresses were hashed again under this server's key");
+            } else if (copied.rehashed()) {
+                this.logger.warn("Self import: the source used another address-hash-key, so its"
+                        + " addresses were hashed again under this server's key. {} erased"
+                        + " address victims have no address to hash again: their punishments"
+                        + " stay but no longer match an address (an erased composite still"
+                        + " reaches its player). To keep them matching, import again into a"
+                        + " new database with the source's address-hash-key in storage.yml.",
+                        copied.erasedKept());
+            }
         }
         return new ImportReport(dryRun, tables.getOrDefault(PUNISHMENTS, 0L), 0,
                 List.of(), 0, tables.getOrDefault(PLAYERS, 0L), 0, 0, tables);

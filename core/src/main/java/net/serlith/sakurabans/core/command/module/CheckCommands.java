@@ -3,6 +3,7 @@ package net.serlith.sakurabans.core.command.module;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.serlith.sakurabans.api.model.AddressRangeVictim;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.punish.PunishmentQuery;
@@ -82,10 +83,17 @@ public final class CheckCommands implements CommandModule {
                 default -> null;
             };
             if (target instanceof ResolvedTarget.PunishmentId(long id1)) {
-                return this.punishments.byId(id1).thenAccept(found -> found.ifPresentOrElse(
-                        punishment -> this.runner.send(actor, MessageKey.CHECK_DETAIL,
-                                this.replies.punishment(actor, punishment)),
-                        () -> this.runner.send(actor, MessageKey.REVOKE_FAILURE_NOT_FOUND)));
+                return this.punishments.byId(id1).thenCompose(found -> {
+                    if (found.isEmpty()) {
+                        this.runner.send(actor, MessageKey.REVOKE_FAILURE_NOT_FOUND);
+                        return CompletableFuture.completedFuture(null);
+                    }
+                    return this.replies.punishmentCounted(actor, found.get(),
+                                    MessageKey.CHECK_DETAIL)
+                            .thenAccept(values -> this.runner.send(actor,
+                                    MessageKey.CHECK_DETAIL, TagResolver.resolver(values,
+                                            this.replies.victimCountry(found.get()))));
+                });
             }
             final PunishmentQuery.Builder query = PunishmentQuery.builder().types(spec.type())
                     .activeOnly(true).pageSize(HistoryCommands.PAGE_SIZE);

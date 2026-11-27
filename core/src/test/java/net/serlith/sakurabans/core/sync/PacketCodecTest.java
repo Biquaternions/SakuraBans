@@ -28,7 +28,11 @@ class PacketCodecTest {
             new SyncPacket.EntityChangedPacket(SubjectType.TEMPLATE),
             new SyncPacket.EntityChangedPacket(SubjectType.SETTINGS),
             new SyncPacket.EntityChangedPacket(SubjectType.MESSAGE),
-            new SyncPacket.ImportedPacket());
+            new SyncPacket.ImportedPacket(),
+            new SyncPacket.PlayerKickedPacket(
+                    UUID.fromString("0f6b8d6a-1d34-4b2e-9c1e-5b7a1e1d2c3b"), "Restarting"),
+            new SyncPacket.PunishmentsResetPacket(),
+            new SyncPacket.AltsAutoBannedPacket(7L, List.of("Alex", "Bob")));
 
     private final RecordingLogger log = new RecordingLogger();
     private final PacketCodec sender = new PacketCodec(UUID.randomUUID(), this.log.logger());

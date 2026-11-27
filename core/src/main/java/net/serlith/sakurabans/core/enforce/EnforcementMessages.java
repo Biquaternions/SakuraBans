@@ -1,23 +1,29 @@
 package net.serlith.sakurabans.core.enforce;
 
+import java.time.Instant;
 import java.time.InstantSource;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Function;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.TemplateRef;
 import net.serlith.sakurabans.api.template.LadderTemplate;
 import net.serlith.sakurabans.api.template.TemplateDisplay;
 import net.serlith.sakurabans.api.template.TemplateInfo;
+import net.serlith.sakurabans.core.geoip.Country;
+import net.serlith.sakurabans.core.geoip.CountryLookup;
 import net.serlith.sakurabans.core.message.MessageKey;
 import net.serlith.sakurabans.core.message.MessageService;
 import net.serlith.sakurabans.core.message.Placeholders;
 import net.serlith.sakurabans.core.model.Lockdown;
 import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import net.serlith.sakurabans.core.player.NameCache;
+import net.serlith.sakurabans.core.punish.PunishmentCounts;
+import org.jspecify.annotations.Nullable;
 
 public final class EnforcementMessages {
 
@@ -26,6 +32,8 @@ public final class EnforcementMessages {
     private final NameCache names;
     private final Function<TemplateRef, Optional<TemplateInfo>> templates;
     private final InstantSource clock;
+    private final PunishmentCounts counts;
+    private final CountryLookup countries;
 
     /**
      * {@code templates}: the definition a punishment came from, in memory (no database
@@ -33,12 +41,15 @@ public final class EnforcementMessages {
      */
     public EnforcementMessages(final MessageService messages, final Placeholders placeholders,
             final NameCache names, final Function<TemplateRef, Optional<TemplateInfo>> templates,
-            final InstantSource clock) {
+            final InstantSource clock, final PunishmentCounts counts,
+            final CountryLookup countries) {
         this.messages = messages;
         this.placeholders = placeholders;
         this.names = names;
         this.templates = templates;
         this.clock = clock;
+        this.counts = counts;
+        this.countries = countries;
     }
 
     public Component banScreen(final Punishment ban, final Locale locale) {
@@ -46,8 +57,19 @@ public final class EnforcementMessages {
                 : MessageKey.SCREEN_BAN_TEMPORARY, ban, locale);
     }
 
+    public Component bannedAdmitted(final Punishment ban, final Locale locale) {
+        return this.render(ban.permanent() ? MessageKey.VICTIM_BANNED_ADMITTED
+                : MessageKey.VICTIM_BANNED_ADMITTED_TEMPORARY, ban, locale);
+    }
+
     public Component kickScreen(final Punishment kick, final Locale locale) {
         return this.victim(MessageKey.SCREEN_KICK, kick, locale);
+    }
+
+    public Component unrecordedKickScreen(final String name, final String reason,
+            final Locale locale) {
+        return this.messages.render(MessageKey.SCREEN_KICK_UNRECORDED, locale,
+                Placeholder.unparsed("victim", name), Placeholder.unparsed("reason", reason));
     }
 
     public Component muted(final Punishment mute, final Locale locale) {
@@ -59,25 +81,30 @@ public final class EnforcementMessages {
         return this.victim(MessageKey.VICTIM_WARNED, warn, locale);
     }
 
+    public Component noticeBody(final Punishment punishment, final Locale locale) {
+        final MessageKey key = punishment.type() != PunishmentType.MUTE ? MessageKey.DIALOG_WARNED
+                : punishment.permanent() ? MessageKey.DIALOG_MUTED
+                : MessageKey.DIALOG_MUTED_TEMPORARY;
+        return this.victim(key, punishment, locale);
+    }
+
     public Component summary(final Punishment punishment, final Locale locale) {
-        return this.render(MessageKey.CHECK_DETAIL, punishment, locale);
+        return this.messages.render(MessageKey.CHECK_DETAIL, locale,
+                this.tags(punishment, locale, true),
+                Placeholders.country(Placeholders.victimAddress(punishment)
+                        .flatMap(this.countries::countryName).orElse(null)));
     }
 
     public Component warnedAway(final Punishment warn, final Locale locale) {
         return this.victim(MessageKey.VICTIM_WARNED_AWAY, warn, locale);
     }
 
-    /**
-     * How the mute notice or warning reaches the player: the template's display, chat without
-     * a template or when it was deleted. The chat and command refusals are always chat.
-     */
     public TemplateDisplay display(final Punishment punishment) {
         return punishment.template().flatMap(this.templates)
                 .map(TemplateInfo::display)
                 .orElse(TemplateDisplay.CHAT);
     }
 
-    /** The dialog's title for a mute notice or a warning. */
     public Component noticeTitle(final Punishment punishment, final Locale locale) {
         return this.render(punishment.type() == PunishmentType.MUTE
                 ? MessageKey.DIALOG_MUTED_TITLE : MessageKey.DIALOG_WARNED_TITLE,
@@ -105,6 +132,13 @@ public final class EnforcementMessages {
     public Component lockdownScreen(final Lockdown lockdown, final Locale locale) {
         return this.messages.render(MessageKey.SCREEN_LOCKDOWN, locale,
                 Placeholder.unparsed("reason", lockdown.reason()));
+    }
+
+    public Component geoipScreen(final @Nullable Country country, final Locale locale) {
+        return this.messages.render(MessageKey.SCREEN_GEOIP, locale,
+                Placeholders.country(country == null
+                        ? this.messages.renderPlain(MessageKey.GEOIP_UNKNOWN_COUNTRY, locale)
+                        : country.name()));
     }
 
     public Component checkFailed(final Locale locale) {
@@ -137,8 +171,7 @@ public final class EnforcementMessages {
         if (text == null) {
             return this.render(key, punishment, locale);
         }
-        return this.messages.renderText(text, locale, this.placeholders.punishment(punishment,
-                locale, this.clock.instant(), this.names::name, false));
+        return this.messages.renderText(text, locale, this.tags(punishment, locale, false));
     }
 
     private static Optional<String> stepMessage(final TemplateInfo template,
@@ -150,8 +183,16 @@ public final class EnforcementMessages {
 
     private Component render(final MessageKey key, final Punishment punishment,
             final Locale locale) {
-        return this.messages.render(key, locale, this.placeholders.punishment(punishment, locale,
-                this.clock.instant(), this.names::name, false));
+        return this.messages.render(key, locale, this.tags(punishment, locale, false));
+    }
+
+    private TagResolver tags(final Punishment punishment, final Locale locale,
+            final boolean shadowMutes) {
+        final Instant now = this.clock.instant();
+        return TagResolver.resolver(this.placeholders.punishment(punishment, locale, now,
+                        this.names::name, false),
+                this.placeholders.playerCounts(Placeholders.countedPlayer(punishment)
+                        .flatMap(this.counts::cached).orElse(null), shadowMutes, now));
     }
 
 }

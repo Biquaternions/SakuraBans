@@ -121,9 +121,22 @@ public final class MuteCache {
     }
 
     private Lookup lookup(final Entry entry, final Set<Scope> scopes) {
+        return this.find(entry, scopes, true);
+    }
+
+    public Lookup lookupVisible(final UUID uuid) {
+        final Entry entry = this.entries.get(uuid);
+        if (entry == null) {
+            return new Lookup.Unknown();
+        }
+        return this.find(entry, this.scopes.scopesOf(uuid), false);
+    }
+
+    private Lookup find(final Entry entry, final Set<Scope> scopes, final boolean shadow) {
         final Instant now = this.clock.instant();
         for (final Punishment mute : entry.mutes()) {
-            if (scopes.contains(mute.scope()) && mute.isActiveAt(now) && this.notEnded(mute)) {
+            if ((shadow || !mute.shadow()) && scopes.contains(mute.scope())
+                    && mute.isActiveAt(now) && this.notEnded(mute)) {
                 return new Lookup.Muted(mute);
             }
         }

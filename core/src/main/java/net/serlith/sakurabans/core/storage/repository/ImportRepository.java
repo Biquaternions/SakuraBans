@@ -1,10 +1,13 @@
 package net.serlith.sakurabans.core.storage.repository;
 
 import com.google.common.base.Preconditions;
+import java.net.InetAddress;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -21,6 +24,7 @@ import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.core.model.AuditAction;
 import net.serlith.sakurabans.core.model.ImportedPlayer;
 import net.serlith.sakurabans.core.model.SubjectType;
+import net.serlith.sakurabans.core.storage.AddressHasher;
 import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.storage.dbo.OperatorKind;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
@@ -31,7 +35,7 @@ import net.serlith.sakurabans.core.storage.dbo.records.SbPlayerNamesRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbPlayersRecord;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbActivePunishments;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbPunishments;
-import net.serlith.sakurabans.core.util.AddressHashes;
+import net.serlith.sakurabans.core.util.InetAddresses;
 import org.jooq.Cursor;
 import org.jooq.DSLContext;
 import org.jooq.Field;
@@ -52,9 +56,11 @@ public final class ImportRepository {
     private static final int MAX_BINDS = 30_000;
 
     private final StorageService storage;
+    private final AddressHasher hasher;
 
-    public ImportRepository(final StorageService storage) {
+    public ImportRepository(final StorageService storage, final AddressHasher hasher) {
         this.storage = storage;
+        this.hasher = hasher;
     }
 
     public record BatchOutcome(int imported, int skipped, int superseded, int players,
@@ -88,7 +94,7 @@ public final class ImportRepository {
             int merged = 0;
             final List<ImportedPlayer> unknown = new ArrayList<>();
             for (final ImportedPlayer player : playerCopy) {
-                if (mergePlayer(dsl, player)) {
+                if (mergePlayer(dsl, this.hasher, player)) {
                     merged++;
                 } else {
                     unknown.add(player);
@@ -107,7 +113,7 @@ public final class ImportRepository {
                     skipped++;
                     continue;
                 }
-                if (insert(dsl, row, now)) {
+                if (insert(dsl, this.hasher, row, now)) {
                     superseded++;
                 }
                 imported++;
@@ -116,10 +122,11 @@ public final class ImportRepository {
         });
     }
 
-    private static boolean insert(final DSLContext dsl, final ImportRow row, final Instant now) {
+    private static boolean insert(final DSLContext dsl, final AddressHasher hasher,
+            final ImportRow row, final Instant now) {
         final NewPunishment punishment = row.punishment();
         final PunishmentType type = punishment.type();
-        final long victimId = VictimRepository.resolve(dsl, punishment.victim());
+        final long victimId = VictimRepository.resolve(dsl, hasher, punishment.victim());
         final int scopeId = ScopeRepository.resolve(dsl, punishment.scope());
         EndKind endKind = row.endKind();
         Instant endedAt = row.endedAt();
@@ -229,7 +236,8 @@ public final class ImportRepository {
                 .value1();
     }
 
-    static boolean mergePlayer(final DSLContext dsl, final ImportedPlayer player) {
+    static boolean mergePlayer(final DSLContext dsl, final AddressHasher hasher,
+            final ImportedPlayer player) {
         final var players = SakuraTables.PLAYERS;
         final SbPlayersRecord existing = dsl.selectFrom(players)
                 .where(players.UUID.eq(player.uuid())).forUpdate().fetchOne();
@@ -293,7 +301,7 @@ public final class ImportRepository {
                 dsl.insertInto(addresses)
                         .set(addresses.UUID, player.uuid())
                         .set(addresses.ADDRESS, player.address())
-                        .set(addresses.ADDRESS_HASH, AddressHashes.of(player.address()))
+                        .set(addresses.ADDRESS_HASH, hasher.hash(player.address()))
                         .set(addresses.FIRST_SEEN, player.firstSeen())
                         .set(addresses.LAST_SEEN, player.lastSeen())
                         .execute();
@@ -366,14 +374,31 @@ public final class ImportRepository {
 
     public static Optional<String> sourceVersion(final DSLContext source,
             final String prefix) {
+        return sourceMeta(source, prefix, SCHEMA_VERSION_KEY);
+    }
+
+    private static Optional<String> sourceMeta(final DSLContext source, final String prefix,
+            final String name) {
         final Table<Record> meta = DSL.table(DSL.quotedName(prefix + "meta"));
         final Field<String> key = DSL.field(DSL.quotedName("k"), String.class);
         final Field<String> value = DSL.field(DSL.quotedName("v"), String.class);
         try {
-            return source.select(value).from(meta).where(key.eq(SCHEMA_VERSION_KEY))
-                    .fetchOptional(value);
+            return source.select(value).from(meta).where(key.eq(name))
+                    .fetchOptional(value).map(String::strip);
         } catch (final DataAccessException e) {
             return Optional.empty();
+        }
+    }
+
+    public boolean otherKey(final DSLContext source, final String prefix) {
+        return !sourceMeta(source, prefix, StorageService.ADDRESS_HASH_KEY_CHECK)
+                .map(this.hasher.fingerprint()::equals).orElse(false);
+    }
+
+    public record Copied(Map<String, Long> tables, boolean rehashed, long erasedKept) {
+
+        public Copied {
+            tables = Map.copyOf(tables);
         }
     }
 
@@ -386,10 +411,11 @@ public final class ImportRepository {
         return counts;
     }
 
-    public CompletableFuture<Map<String, Long>> copy(final DSLContext source,
+    public CompletableFuture<Copied> copy(final DSLContext source,
             final String prefix, final int batchSize,
             final Function<ResultQuery<Record>, Cursor<Record>> read,
             final Consumer<String> progress) {
+        final Rehash rehash = this.otherKey(source, prefix) ? new Rehash(this.hasher) : null;
         return this.storage.write(configuration -> {
             final DSLContext dsl = configuration.dsl();
             final List<SbTable<?>> tables = copiedTables();
@@ -398,7 +424,8 @@ public final class ImportRepository {
             }
             final Map<String, Long> copied = new LinkedHashMap<>();
             for (final SbTable<?> table : tables) {
-                final long rows = copyTable(source, prefix, dsl, table, batchSize, read);
+                final long rows = copyTable(source, prefix, dsl, table, batchSize, read,
+                        rehash);
                 copied.put(baseName(table), rows);
                 progress.accept(baseName(table) + ": " + rows);
             }
@@ -417,13 +444,57 @@ public final class ImportRepository {
                         .set(SakuraTables.META.V, secret)
                         .execute();
             }
-            return copied;
+            return new Copied(copied, rehash != null, rehash == null ? 0 : rehash.erased);
         });
+    }
+
+    private static final class Rehash {
+
+        private final AddressHasher hasher;
+        private final Map<String, String> renamed = new HashMap<>();
+        private long erased;
+
+        Rehash(final AddressHasher hasher) {
+            this.hasher = hasher;
+        }
+
+        Object[] apply(final SbTable<?> table, final Record row) {
+            final Object[] values = row.intoArray();
+            if (table == SakuraTables.VICTIMS) {
+                final int hash = table.indexOf(SakuraTables.VICTIMS.ADDRESS_HASH);
+                final byte[] address = (byte[]) values[table.indexOf(SakuraTables.VICTIMS.ADDRESS)];
+                if (address == null) {
+                    this.erased++;
+                } else if (address.length > 0) {
+                    values[hash] = this.rename((byte[]) values[hash],
+                            InetAddresses.fromBytes(address));
+                }
+            } else if (table == SakuraTables.PLAYER_ADDRESSES) {
+                final int hash = table.indexOf(SakuraTables.PLAYER_ADDRESSES.ADDRESS_HASH);
+                values[hash] = this.rename((byte[]) values[hash], (InetAddress)
+                        values[table.indexOf(SakuraTables.PLAYER_ADDRESSES.ADDRESS)]);
+            } else if (table == SakuraTables.AUDIT_LOG) {
+                final int id = table.indexOf(SakuraTables.AUDIT_LOG.SUBJECT_ID);
+                if (values[table.indexOf(SakuraTables.AUDIT_LOG.SUBJECT_TYPE)]
+                        == SubjectType.ADDRESS_HASH) {
+                    values[id] = this.renamed.getOrDefault((String) values[id],
+                            (String) values[id]);
+                }
+            }
+            return values;
+        }
+
+        private byte[] rename(final byte[] old, final InetAddress address) {
+            final byte[] hash = this.hasher.hash(address);
+            this.renamed.put(HexFormat.of().formatHex(old), HexFormat.of().formatHex(hash));
+            return hash;
+        }
     }
 
     private static long copyTable(final DSLContext source, final String prefix,
             final DSLContext dsl, final SbTable<?> table, final int batchSize,
-            final Function<ResultQuery<Record>, Cursor<Record>> read) {
+            final Function<ResultQuery<Record>, Cursor<Record>> read,
+            final @Nullable Rehash rehash) {
         final Field<?>[] fields = table.fields();
         final List<Field<?>> columns = new ArrayList<>(fields.length);
         for (final Field<?> field : fields) {
@@ -433,9 +504,9 @@ public final class ImportRepository {
         long copied = 0;
         try (Cursor<Record> cursor = read.apply(source.select(columns)
                 .from(DSL.table(DSL.quotedName(prefix + baseName(table)))))) {
-            final List<Record> batch = new ArrayList<>(rowsPerInsert);
+            final List<Object[]> batch = new ArrayList<>(rowsPerInsert);
             for (final Record record : cursor) {
-                batch.add(record);
+                batch.add(rehash == null ? record.intoArray() : rehash.apply(table, record));
                 if (batch.size() == rowsPerInsert) {
                     copied += insertAll(dsl, table, fields, batch);
                     batch.clear();
@@ -449,10 +520,10 @@ public final class ImportRepository {
     }
 
     private static int insertAll(final DSLContext dsl, final SbTable<?> table,
-            final Field<?>[] fields, final List<Record> rows) {
+            final Field<?>[] fields, final List<Object[]> rows) {
         InsertValuesStepN<?> insert = dsl.insertInto(table).columns(fields);
-        for (final Record row : rows) {
-            insert = insert.values(row.intoArray());
+        for (final Object[] row : rows) {
+            insert = insert.values(row);
         }
         insert.execute();
         return rows.size();

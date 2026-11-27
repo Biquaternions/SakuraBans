@@ -57,7 +57,7 @@ class LoginQueryPlanIT extends DatabaseTest {
                 PunishmentRepository.activeApplicableQuery(dsl, PunishmentType.BAN,
                         Applicability.of(player, address, AddressStrictness.NORMAL),
                         List.of(GlobalScope.INSTANCE, ServerScope.of("lobby")),
-                        this.now.get(), AltPolicy.NONE)));
+                        this.now.get(), AltPolicy.NONE, this.hasher)));
         final List<String> plan = this.read(dsl -> dsl.connectionResult(connection ->
                 this.container == ContainerDatabase.POSTGRESQL
                         ? postgresPlan(connection, sql)
@@ -70,8 +70,8 @@ class LoginQueryPlanIT extends DatabaseTest {
 
     /** A few hundred rows, so the planner has something to choose between. */
     private UUID seed() {
-        final PlayerRepository players = new PlayerRepository(this.storage);
-        final PunishmentRepository punishments = new PunishmentRepository(this.storage,
+        final PlayerRepository players = new PlayerRepository(this.storage, this.hasher);
+        final PunishmentRepository punishments = new PunishmentRepository(this.storage, this.hasher,
                 new PunishmentMapper(Long::toString));
         final Actor console = Actor.of(ConsoleOperator.INSTANCE, "console");
         UUID last = null;

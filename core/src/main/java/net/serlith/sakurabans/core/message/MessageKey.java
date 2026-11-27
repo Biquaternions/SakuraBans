@@ -7,7 +7,12 @@ import java.util.List;
 
 public record MessageKey(String key) {
 
+    public static final MessageKey PLUGIN = new MessageKey("plugin");
     public static final MessageKey PREFIX = new MessageKey("prefix");
+    public static final MessageKey PALETTE_MAIN = new MessageKey("palette.main");
+    public static final MessageKey PALETTE_ACCENT = new MessageKey("palette.accent");
+    public static final MessageKey PALETTE_HIGHLIGHT = new MessageKey("palette.highlight");
+    public static final MessageKey PALETTE_DANGER = new MessageKey("palette.danger");
 
     public static final MessageKey ERROR_INTERNAL = new MessageKey("error.internal");
     public static final MessageKey ERROR_NOT_READY = new MessageKey("error.not_ready");
@@ -44,8 +49,14 @@ public record MessageKey(String key) {
     public static final MessageKey SCREEN_BAN = new MessageKey("screen.ban");
     public static final MessageKey SCREEN_BAN_TEMPORARY = new MessageKey("screen.ban_temporary");
     public static final MessageKey SCREEN_KICK = new MessageKey("screen.kick");
+    public static final MessageKey SCREEN_KICK_UNRECORDED =
+            new MessageKey("screen.kick_unrecorded");
     public static final MessageKey SCREEN_CHECK_FAILED = new MessageKey("screen.check_failed");
 
+    public static final MessageKey VICTIM_BANNED_ADMITTED =
+            new MessageKey("victim.banned_admitted");
+    public static final MessageKey VICTIM_BANNED_ADMITTED_TEMPORARY =
+            new MessageKey("victim.banned_admitted_temporary");
     public static final MessageKey VICTIM_MUTED = new MessageKey("victim.muted");
     public static final MessageKey VICTIM_MUTED_TEMPORARY =
             new MessageKey("victim.muted_temporary");
@@ -53,6 +64,10 @@ public record MessageKey(String key) {
     public static final MessageKey DIALOG_MUTED_TITLE = new MessageKey("dialog.muted_title");
     public static final MessageKey DIALOG_WARNED_TITLE = new MessageKey("dialog.warned_title");
     public static final MessageKey DIALOG_CLOSE = new MessageKey("dialog.close");
+    public static final MessageKey DIALOG_MUTED = new MessageKey("dialog.muted");
+    public static final MessageKey DIALOG_MUTED_TEMPORARY =
+            new MessageKey("dialog.muted_temporary");
+    public static final MessageKey DIALOG_WARNED = new MessageKey("dialog.warned");
 
     public static final MessageKey CHAT_MUTED = new MessageKey("chat.muted");
     public static final MessageKey CHAT_MUTED_TEMPORARY = new MessageKey("chat.muted_temporary");
@@ -62,6 +77,8 @@ public record MessageKey(String key) {
 
     public static final MessageKey NOTIFY_SILENT_TAG = new MessageKey("notify.silent_tag");
     public static final MessageKey NOTIFY_BAN = new MessageKey("notify.ban");
+    public static final MessageKey NOTIFY_ALTS_AUTO_BANNED =
+            new MessageKey("notify.alts_auto_banned");
     public static final MessageKey NOTIFY_MUTE = new MessageKey("notify.mute");
     public static final MessageKey NOTIFY_WARN = new MessageKey("notify.warn");
     public static final MessageKey NOTIFY_KICK = new MessageKey("notify.kick");
@@ -70,6 +87,7 @@ public record MessageKey(String key) {
     public static final MessageKey NOTIFY_UNWARN = new MessageKey("notify.unwarn");
     public static final MessageKey NOTIFY_ATTEMPT_JOIN = new MessageKey("notify.attempt_join");
     public static final MessageKey NOTIFY_ATTEMPT_CHAT = new MessageKey("notify.attempt_chat");
+    public static final MessageKey NOTIFY_ATTEMPT_GEOIP = new MessageKey("notify.attempt_geoip");
 
     public static final MessageKey COMMAND_CAPTION_ARGUMENT_PARSE_FAILURE_BOOLEAN =
             new MessageKey("command.caption.argument.parse.failure.boolean");
@@ -206,6 +224,12 @@ public record MessageKey(String key) {
     public static final MessageKey PUNISH_MUTE = new MessageKey("punish.mute");
     public static final MessageKey PUNISH_WARN = new MessageKey("punish.warn");
     public static final MessageKey PUNISH_KICK = new MessageKey("punish.kick");
+    public static final MessageKey PUNISH_KICK_UNRECORDED =
+            new MessageKey("punish.kick_unrecorded");
+    public static final MessageKey PUNISH_FAILURE_UNRECORDED_OPTIONS =
+            new MessageKey("punish.failure.unrecorded_options");
+    public static final MessageKey PUNISH_FAILURE_UNRECORDED_PLAYER =
+            new MessageKey("punish.failure.unrecorded_player");
     public static final MessageKey PUNISH_ACTIONS_ONLY = new MessageKey("punish.actions_only");
     public static final MessageKey PUNISH_FAILURE_ALREADY_PUNISHED =
             new MessageKey("punish.failure.already_punished");
@@ -240,6 +264,8 @@ public record MessageKey(String key) {
             new MessageKey("punish.failure.not_a_ladder");
     public static final MessageKey PUNISH_FAILURE_FORBIDDEN =
             new MessageKey("punish.failure.forbidden");
+    public static final MessageKey PUNISH_FAILURE_TEMPLATE_PROTECTED =
+            new MessageKey("punish.failure.template_protected");
     public static final MessageKey REVOKE_BAN = new MessageKey("revoke.ban");
     public static final MessageKey REVOKE_MUTE = new MessageKey("revoke.mute");
     public static final MessageKey REVOKE_WARN = new MessageKey("revoke.warn");
@@ -254,6 +280,8 @@ public record MessageKey(String key) {
             new MessageKey("revoke.failure.reason_required");
     public static final MessageKey REVOKE_FAILURE_FORBIDDEN =
             new MessageKey("revoke.failure.forbidden");
+    public static final MessageKey REVOKE_FAILURE_TEMPLATE_PROTECTED =
+            new MessageKey("revoke.failure.template_protected");
     public static final MessageKey REVOKE_FAILURE_SCOPE_NO_PERMISSION =
             new MessageKey("revoke.failure.scope_no_permission");
     public static final MessageKey REVOKE_SKIPPED_SCOPES = new MessageKey("revoke.skipped_scopes");
@@ -372,6 +400,8 @@ public record MessageKey(String key) {
             new MessageKey("edit.failure.evidence_not_attached");
     public static final MessageKey EDIT_FAILURE_FORBIDDEN =
             new MessageKey("edit.failure.forbidden");
+    public static final MessageKey EDIT_FAILURE_TEMPLATE_PROTECTED =
+            new MessageKey("edit.failure.template_protected");
     public static final MessageKey EDIT_FAILURE_ALREADY_VOIDED =
             new MessageKey("edit.failure.already_voided");
     public static final MessageKey EDIT_WHAT_REASON = new MessageKey("edit.what.reason");
@@ -385,12 +415,25 @@ public record MessageKey(String key) {
     public static final MessageKey DELETE_CONFIRM = new MessageKey("delete.confirm");
     public static final MessageKey DELETE_DONE = new MessageKey("delete.done");
     public static final MessageKey INFO_EVIDENCE = new MessageKey("info.evidence");
+    public static final MessageKey INFO_VISIBILITY = new MessageKey("info.visibility");
+    public static final MessageKey INFO_ADDRESS_DECAYED =
+            new MessageKey("info.address_decayed");
     public static final MessageKey INFO_ENDED = new MessageKey("info.ended");
     public static final MessageKey INFO_VOIDED = new MessageKey("info.voided");
     public static final MessageKey INFO_AUDIT_HEADER = new MessageKey("info.audit.header");
     public static final MessageKey INFO_AUDIT_ENTRY = new MessageKey("info.audit.entry");
 
     public static final MessageKey SCREEN_LOCKDOWN = new MessageKey("screen.lockdown");
+    public static final MessageKey SCREEN_GEOIP = new MessageKey("screen.geoip");
+    public static final MessageKey COMMAND_DESCRIPTION_GEOIP =
+            new MessageKey("command.description.geoip");
+    public static final MessageKey GEOIP_RESULT = new MessageKey("geoip.result");
+    public static final MessageKey GEOIP_UNKNOWN = new MessageKey("geoip.unknown");
+    public static final MessageKey GEOIP_DISABLED = new MessageKey("geoip.disabled");
+    public static final MessageKey GEOIP_NO_DATABASE = new MessageKey("geoip.no_database");
+    public static final MessageKey GEOIP_TARGET = new MessageKey("geoip.target");
+    public static final MessageKey GEOIP_UNKNOWN_COUNTRY =
+            new MessageKey("geoip.unknown_country");
     public static final MessageKey COMMAND_DESCRIPTION_LOCKDOWN =
             new MessageKey("command.description.lockdown");
     public static final MessageKey COMMAND_DESCRIPTION_STAFFROLLBACK =
@@ -401,6 +444,37 @@ public record MessageKey(String key) {
             new MessageKey("command.description.status");
     public static final MessageKey COMMAND_DESCRIPTION_RELOAD =
             new MessageKey("command.description.reload");
+    public static final MessageKey COMMAND_DESCRIPTION_RESET =
+            new MessageKey("command.description.reset");
+    public static final MessageKey COMMAND_DESCRIPTION_ACCEPT_ALTS =
+            new MessageKey("command.description.accept_alts");
+    public static final MessageKey ALTS_AUTO_BAN_ACCEPTED =
+            new MessageKey("alts.auto_ban.accepted");
+    public static final MessageKey ALTS_AUTO_BAN_ALREADY =
+            new MessageKey("alts.auto_ban.already");
+    public static final MessageKey ALTS_AUTO_BAN_PENDING =
+            new MessageKey("alts.auto_ban.pending");
+    public static final MessageKey ALTS_AUTO_BAN_CONFIRM =
+            new MessageKey("alts.auto_ban.confirm");
+    public static final MessageKey COMMAND_DESCRIPTION_ADDLOGIN =
+            new MessageKey("command.description.addlogin");
+    public static final MessageKey RESET_CONFIRM = new MessageKey("reset.confirm");
+    public static final MessageKey RESET_NONE = new MessageKey("reset.none");
+    public static final MessageKey RESET_NO_MODE = new MessageKey("reset.no_mode");
+    public static final MessageKey RESET_CONSOLE_ONLY = new MessageKey("reset.console_only");
+    public static final MessageKey RESET_DONE_DELETE = new MessageKey("reset.done.delete");
+    public static final MessageKey RESET_DONE_DEACTIVATE =
+            new MessageKey("reset.done.deactivate");
+    public static final MessageKey RESET_DONE_PRUNE = new MessageKey("reset.done.prune");
+    public static final MessageKey RESET_ACTION_DELETE = new MessageKey("reset.action.delete");
+    public static final MessageKey RESET_ACTION_DEACTIVATE =
+            new MessageKey("reset.action.deactivate");
+    public static final MessageKey RESET_ACTION_PRUNE = new MessageKey("reset.action.prune");
+    public static final MessageKey ADDLOGIN_DONE = new MessageKey("addlogin.done");
+    public static final MessageKey ADDLOGIN_INVALID_NAME =
+            new MessageKey("addlogin.invalid_name");
+    public static final MessageKey ADDLOGIN_INVALID_ADDRESS =
+            new MessageKey("addlogin.invalid_address");
     public static final MessageKey LOCKDOWN_STARTED = new MessageKey("lockdown.started");
     public static final MessageKey LOCKDOWN_ENDED = new MessageKey("lockdown.ended");
     public static final MessageKey LOCKDOWN_NOT_FOUND = new MessageKey("lockdown.not_found");
@@ -441,6 +515,10 @@ public record MessageKey(String key) {
             new MessageKey("settings.reset.confirm");
     public static final MessageKey SETTINGS_EFFECTIVE_HEADER =
             new MessageKey("settings.effective.header");
+    public static final MessageKey SETTINGS_EFFECTIVE_ENVIRONMENT_HEADER =
+            new MessageKey("settings.effective.environment.header");
+    public static final MessageKey SETTINGS_EFFECTIVE_ENVIRONMENT_ENTRY =
+            new MessageKey("settings.effective.environment.entry");
     public static final MessageKey SETTINGS_EFFECTIVE_ENTRY =
             new MessageKey("settings.effective.entry");
     public static final MessageKey SETTINGS_PUBLISH_UNNAMED =
@@ -548,6 +626,27 @@ public record MessageKey(String key) {
     public static final MessageKey EDITOR_APPLY_CONFLICT_HINT =
             new MessageKey("editor.apply.conflict_hint");
 
+    public static final MessageKey COMMAND_DESCRIPTION_AUDIT =
+            new MessageKey("command.description.audit");
+    public static final MessageKey AUDIT_HEADER = new MessageKey("audit.header");
+    public static final MessageKey AUDIT_ENTRY = new MessageKey("audit.entry");
+    public static final MessageKey AUDIT_SUBJECT_PUNISHMENT =
+            new MessageKey("audit.subject.punishment");
+    public static final MessageKey AUDIT_SUBJECT_TEMPLATE =
+            new MessageKey("audit.subject.template");
+    public static final MessageKey AUDIT_SUBJECT_SETTINGS =
+            new MessageKey("audit.subject.settings");
+    public static final MessageKey AUDIT_SUBJECT_MESSAGE =
+            new MessageKey("audit.subject.message");
+    public static final MessageKey AUDIT_SUBJECT_PLAYER = new MessageKey("audit.subject.player");
+    public static final MessageKey AUDIT_SUBJECT_ALLOW_LIST =
+            new MessageKey("audit.subject.allow_list");
+    public static final MessageKey AUDIT_SUBJECT_IMPORT = new MessageKey("audit.subject.import");
+    public static final MessageKey AUDIT_SUBJECT_ADDRESS_HASH =
+            new MessageKey("audit.subject.address_hash");
+    public static final MessageKey AUDIT_SUBJECT_VICTIM = new MessageKey("audit.subject.victim");
+    public static final MessageKey AUDIT_EXPORTED = new MessageKey("audit.exported");
+    public static final MessageKey AUDIT_UNKNOWN_ACTION = new MessageKey("audit.unknown_action");
     public static final MessageKey COMMAND_DESCRIPTION_GDPR =
             new MessageKey("command.description.gdpr");
     public static final MessageKey GDPR_EXPORTED = new MessageKey("gdpr.exported");

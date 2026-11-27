@@ -9,9 +9,9 @@ import net.serlith.sakurabans.api.model.CompositeVictim;
 import net.serlith.sakurabans.api.model.ErasedAddressVictim;
 import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.Victim;
+import net.serlith.sakurabans.core.storage.AddressHasher;
 import net.serlith.sakurabans.core.storage.dbo.VictimKind;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbVictims;
-import net.serlith.sakurabans.core.util.AddressHashes;
 import net.serlith.sakurabans.core.util.InetAddresses;
 import net.serlith.sakurabans.core.util.Uuids;
 import org.jooq.Condition;
@@ -22,18 +22,19 @@ record StoredVictim(VictimKind kind, UUID uuid, byte @Nullable [] address, short
         byte[] addressHash) {
 
     private static final byte[] NO_ADDRESS = new byte[0];
-    private static final byte[] NO_HASH = new byte[AddressHashes.LENGTH];
+    private static final byte[] NO_HASH = new byte[AddressHasher.LENGTH];
 
-    static StoredVictim of(final Victim victim) {
+    static StoredVictim of(final Victim victim, final AddressHasher hasher) {
         return switch (victim) {
             case PlayerVictim player -> new StoredVictim(VictimKind.PLAYER, player.uuid(),
                     NO_ADDRESS, (short) 0, NO_HASH);
-            case AddressVictim address -> exact(VictimKind.ADDRESS, Uuids.ZERO, address.address());
+            case AddressVictim address -> exact(VictimKind.ADDRESS, Uuids.ZERO, address.address(),
+                    hasher);
             case CompositeVictim composite -> exact(VictimKind.COMPOSITE, composite.uuid(),
-                    composite.address());
+                    composite.address(), hasher);
             case AddressRangeVictim range -> new StoredVictim(VictimKind.ADDRESS_RANGE,
                     Uuids.ZERO, InetAddresses.toBytes(range.network()),
-                    (short) range.prefixLength(), AddressHashes.of(range.network()));
+                    (short) range.prefixLength(), hasher.hash(range.network()));
             case ErasedAddressVictim erased -> new StoredVictim(
                     erased.uuid().isPresent() ? VictimKind.COMPOSITE : VictimKind.ADDRESS,
                     erased.uuid().orElse(Uuids.ZERO), null, (short) 0,
@@ -65,9 +66,9 @@ record StoredVictim(VictimKind kind, UUID uuid, byte @Nullable [] address, short
     }
 
     private static StoredVictim exact(final VictimKind kind, final UUID uuid,
-            final InetAddress address) {
+            final InetAddress address, final AddressHasher hasher) {
         final byte[] bytes = InetAddresses.toBytes(address);
         return new StoredVictim(kind, uuid, bytes, (short) (bytes.length * 8),
-                AddressHashes.of(address));
+                hasher.hash(address));
     }
 }

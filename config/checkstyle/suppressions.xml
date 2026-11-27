@@ -21,6 +21,9 @@
     <suppress checks="MissingJavadocType|MissingJavadocMethod"
             files="[\\/](core|platforms[\\/][^\\/]+)[\\/]src[\\/]"/>
 
+    <!-- MaxMind's reader is loaded only through this class (S72). -->
+    <suppress id="maxmindImports" files="[\\/]core[\\/]src[\\/]main[\\/].*[\\/]geoip[\\/]MaxMindCountryDatabase\.java"/>
+
     <!-- The API-only import bans apply to the api module alone. -->
     <suppress id="apiImports" files="[\\/](core|platforms[\\/][^\\/]+)[\\/]src[\\/]"/>
 

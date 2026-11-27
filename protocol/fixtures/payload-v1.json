@@ -458,6 +458,40 @@
       }
     ]
   },
+  "recentChanges": [
+    {
+      "at": 1795651140000,
+      "actor": "Alex",
+      "action": "update",
+      "kind": "settings",
+      "scope": "server:skywars",
+      "locale": null,
+      "target": "",
+      "keys": [
+        "reasons.default"
+      ]
+    },
+    {
+      "at": 1795651020000,
+      "actor": "Console",
+      "action": "update",
+      "kind": "messages",
+      "scope": "global",
+      "locale": "en_US",
+      "target": "screen.ban",
+      "keys": []
+    },
+    {
+      "at": 1795650900000,
+      "actor": "Mod",
+      "action": "delete",
+      "kind": "templates",
+      "scope": "global",
+      "locale": null,
+      "target": "lifesteal",
+      "keys": []
+    }
+  ],
   "lookups": {
     "servers": [
       "bedwars-1",

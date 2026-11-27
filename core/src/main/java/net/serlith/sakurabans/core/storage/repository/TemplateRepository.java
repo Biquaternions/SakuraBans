@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +37,7 @@ import net.serlith.sakurabans.core.model.SubjectType;
 import net.serlith.sakurabans.core.model.TemplateBuilder;
 import net.serlith.sakurabans.core.model.TemplateKind;
 import net.serlith.sakurabans.core.model.TemplateSummaries;
+import net.serlith.sakurabans.core.storage.AddressHasher;
 import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.storage.dbo.DurationMode;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
@@ -51,7 +51,6 @@ import net.serlith.sakurabans.core.storage.dbo.tables.SbTemplateSteps;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbTemplateUses;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbTemplates;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbVictims;
-import net.serlith.sakurabans.core.util.AddressHashes;
 import net.serlith.sakurabans.core.util.Scopes;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
@@ -67,10 +66,13 @@ public final class TemplateRepository {
     private static final String SEPARATOR = "\n";
 
     private final StorageService storage;
+    private final AddressHasher hasher;
     private final AltPolicy policy;
 
-    public TemplateRepository(final StorageService storage, final AltPolicy policy) {
+    public TemplateRepository(final StorageService storage, final AddressHasher hasher,
+            final AltPolicy policy) {
         this.storage = storage;
+        this.hasher = hasher;
         this.policy = policy;
     }
 
@@ -288,17 +290,17 @@ public final class TemplateRepository {
             return CompletableFuture.completedFuture(Map.of());
         }
         return this.storage.read(dsl -> counts(dsl, templates, victim, addressShared, since, now,
-                this.policy));
+                this.policy, this.hasher));
     }
 
     /** The victim's step on a ladder now ({@link LadderCount}). */
     public CompletableFuture<Integer> step(final Victim victim, final LadderCount count) {
-        return this.storage.read(dsl -> countStep(dsl, victim, count, this.policy));
+        return this.storage.read(dsl -> countStep(dsl, victim, count, this.policy, this.hasher));
     }
 
     private static Map<String, Long> counts(final DSLContext dsl, final Set<String> templates,
             final Victim victim, final boolean addressShared, final @Nullable Instant since,
-            final Instant now, final AltPolicy policy) {
+            final Instant now, final AltPolicy policy, final AddressHasher hasher) {
         if (templates.isEmpty()) {
             return Map.of();
         }
@@ -306,7 +308,7 @@ public final class TemplateRepository {
         final SbPunishments p = SakuraTables.PUNISHMENTS;
         final List<Condition> conditions = new ArrayList<>();
         conditions.add(u.TEMPLATE.in(templates));
-        conditions.add(u.VICTIM_ID.in(victims(victim, addressShared, now, policy)));
+        conditions.add(u.VICTIM_ID.in(victims(victim, addressShared, now, policy, hasher)));
         conditions.add(DSL.notExists(DSL.selectOne().from(p)
                 .where(p.ID.eq(u.PUNISHMENT_ID))
                 .and(p.VOIDED_AT.isNotNull())));
@@ -323,10 +325,10 @@ public final class TemplateRepository {
     }
 
     private static int countStep(final DSLContext dsl, final Victim victim,
-            final LadderCount count, final AltPolicy policy) {
+            final LadderCount count, final AltPolicy policy, final AddressHasher hasher) {
         long points = 0;
         for (final Map.Entry<String, Long> used : counts(dsl, count.weights().keySet(), victim,
-                count.addressShared(), count.since(), count.now(), policy).entrySet()) {
+                count.addressShared(), count.since(), count.now(), policy, hasher).entrySet()) {
             points += used.getValue() * count.weights().getOrDefault(used.getKey(), 0);
         }
         return count.stepFor().applyAsInt(points);
@@ -341,9 +343,9 @@ public final class TemplateRepository {
      * the same step.
      */
     static OptionalInt changedStep(final DSLContext dsl, final Victim victim,
-            final ExpectedStep expected, final AltPolicy policy) {
-        VictimRepository.lock(dsl, victim);
-        final int now = countStep(dsl, victim, expected.count(), policy);
+            final ExpectedStep expected, final AltPolicy policy, final AddressHasher hasher) {
+        VictimRepository.lock(dsl, hasher, victim);
+        final int now = countStep(dsl, victim, expected.count(), policy, hasher);
         return now == expected.step() ? OptionalInt.empty() : OptionalInt.of(now);
     }
 
@@ -370,13 +372,13 @@ public final class TemplateRepository {
             final DSLContext dsl = configuration.dsl();
             if (expected != null) {
                 final OptionalInt changed = changedStep(dsl, use.victim(), expected,
-                        this.policy);
+                        this.policy, this.hasher);
                 if (changed.isPresent()) {
                     return new UseOutcome.StepChanged(changed.getAsInt());
                 }
             }
-            final long id = insertUse(dsl, use, null);
-            final Subject subject = victimSubject(dsl, use.victim());
+            final long id = insertUse(dsl, this.hasher, use, null);
+            final Subject subject = victimSubject(dsl, this.hasher, use.victim());
             AuditRepository.append(dsl, use.createdAt(), use.actor(), AuditAction.APPLY,
                     subject.type(), subject.id(), null,
                     "template " + use.template()
@@ -425,7 +427,7 @@ public final class TemplateRepository {
             final int deleted = dsl.deleteFrom(SakuraTables.TEMPLATE_USES).where(which)
                     .execute();
             final ResetCount done = new ResetCount(deleted, found.victims());
-            final Subject subject = victimSubject(dsl, target);
+            final Subject subject = victimSubject(dsl, this.hasher, target);
             AuditRepository.append(dsl, at, actor, AuditAction.RESET, subject.type(),
                     subject.id(), "template uses of "
                             + (template == null ? "every template" : template) + ": "
@@ -441,7 +443,7 @@ public final class TemplateRepository {
         Condition any = DSL.falseCondition();
         for (final ResetSelection selection : selections) {
             final Condition victims = u.VICTIM_ID.in(victims(target, selection.addressShared(),
-                    now, this.policy));
+                    now, this.policy, this.hasher));
             any = any.or(selection.templates() == null ? victims
                     : victims.and(u.TEMPLATE.in(selection.templates())));
         }
@@ -467,7 +469,8 @@ public final class TemplateRepository {
      * {@code sb_victims} id for a range or an erased address. Erasing a player keeps the hashes
      * of {@code sb_victims} (D28), so the subject needs no redaction.
      */
-    static Subject victimSubject(final DSLContext dsl, final Victim victim) {
+    static Subject victimSubject(final DSLContext dsl, final AddressHasher hasher,
+            final Victim victim) {
         return switch (victim) {
             case PlayerVictim player -> new Subject(SubjectType.PLAYER, player.uuid().toString());
             case CompositeVictim composite -> new Subject(SubjectType.PLAYER,
@@ -475,16 +478,16 @@ public final class TemplateRepository {
             case ErasedAddressVictim erased when erased.uuid().isPresent() ->
                     new Subject(SubjectType.PLAYER, erased.uuid().get().toString());
             case AddressVictim address -> new Subject(SubjectType.ADDRESS_HASH,
-                    HexFormat.of().formatHex(AddressHashes.of(address.address())));
+                    hasher.hex(address.address()));
             case AddressRangeVictim range -> new Subject(SubjectType.VICTIM,
-                    Long.toString(VictimRepository.resolve(dsl, range)));
+                    Long.toString(VictimRepository.resolve(dsl, hasher, range)));
             case ErasedAddressVictim erased -> new Subject(SubjectType.VICTIM,
-                    Long.toString(VictimRepository.resolve(dsl, erased)));
+                    Long.toString(VictimRepository.resolve(dsl, hasher, erased)));
         };
     }
 
-    static long insertUse(final DSLContext dsl, final NewTemplateUse use,
-            final @Nullable Long punishmentId) {
+    static long insertUse(final DSLContext dsl, final AddressHasher hasher,
+            final NewTemplateUse use, final @Nullable Long punishmentId) {
         final SbTemplateUses u = SakuraTables.TEMPLATE_USES;
         final StoredOperator operator = StoredOperator.of(use.actor().operator());
         return dsl.insertInto(u)
@@ -492,7 +495,7 @@ public final class TemplateRepository {
                 .set(u.TEMPLATE_VARIANT_SCOPE_ID, use.variant() == null ? null
                         : ScopeRepository.resolve(dsl, use.variant()))
                 .set(u.STEP, use.step() == null ? null : use.step().shortValue())
-                .set(u.VICTIM_ID, VictimRepository.resolve(dsl, use.victim()))
+                .set(u.VICTIM_ID, VictimRepository.resolve(dsl, hasher, use.victim()))
                 .set(u.PUNISHMENT_ID, punishmentId)
                 .set(u.OPERATOR_KIND, operator.kind())
                 .set(u.OPERATOR_UUID, operator.uuid())
@@ -505,7 +508,8 @@ public final class TemplateRepository {
     }
 
     private static Select<Record1<Long>> victims(final Victim victim,
-            final boolean addressShared, final Instant now, final AltPolicy policy) {
+            final boolean addressShared, final Instant now, final AltPolicy policy,
+            final AddressHasher hasher) {
         final SbVictims v = SakuraTables.VICTIMS;
         final UUID uuid = switch (victim) {
             case PlayerVictim player -> player.uuid();
@@ -518,11 +522,11 @@ public final class TemplateRepository {
             default -> null;
         };
         if (victim instanceof AddressRangeVictim || victim instanceof ErasedAddressVictim) {
-            return DSL.select(v.ID).from(v).where(StoredVictim.of(victim).matches(v));
+            return DSL.select(v.ID).from(v).where(StoredVictim.of(victim, hasher).matches(v));
         }
         if (addressShared) {
             return ApplicabilityConditions.victimIds(Applicability.of(uuid, address,
-                    AddressStrictness.STRICT), policy, now);
+                    AddressStrictness.STRICT), policy, hasher, now);
         }
         if (uuid != null) {
             return DSL.select(v.ID).from(v)
@@ -530,7 +534,7 @@ public final class TemplateRepository {
                     .and(v.KIND.in(VictimKind.PLAYER, VictimKind.COMPOSITE));
         }
         return DSL.select(v.ID).from(v)
-                .where(v.ADDRESS_HASH.eq(AddressHashes.of(address)))
+                .where(v.ADDRESS_HASH.eq(hasher.hash(address)))
                 .and(v.KIND.in(VictimKind.ADDRESS, VictimKind.COMPOSITE));
     }
 
@@ -613,6 +617,7 @@ public final class TemplateRepository {
                 .groups(groups)
                 .message(row.message())
                 .display(row.display())
+                .silent(row.silent())
                 .variant(variant)
                 .build(), row.version());
     }
@@ -643,6 +648,7 @@ public final class TemplateRepository {
         values.put(t.ACTIONS, join(template.actions()));
         values.put(t.MESSAGE, template.message().orElse(null));
         values.put(t.DISPLAY, template.display());
+        values.put(t.SILENT, template.silent());
         values.put(t.UPDATED_AT, at);
         values.put(t.LADDER_EXPIRY_MS, template instanceof LadderTemplate ladder
                 ? ladder.expiry().orElse(null) : null);

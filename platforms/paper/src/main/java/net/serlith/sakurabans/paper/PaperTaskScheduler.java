@@ -26,12 +26,17 @@ final class PaperTaskScheduler implements TaskScheduler {
         }
     }
 
-    /**
-     * Runs the task on the player's thread (Folia: its region). False when it isn't scheduled:
-     * the entity scheduler returns no task once the player is gone (retired).
-     */
     boolean runFor(final Player player, final Runnable task) {
         return player.getScheduler().run(this.plugin, ignored -> task.run(), null) != null;
+    }
+
+    boolean runLater(final Player player, final long ticks, final Runnable task) {
+        return player.getScheduler().runDelayed(this.plugin, ignored -> task.run(), null,
+                ticks) != null;
+    }
+
+    Plugin plugin() {
+        return this.plugin;
     }
 
 }

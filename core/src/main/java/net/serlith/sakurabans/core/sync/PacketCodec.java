@@ -27,6 +27,10 @@ public final class PacketCodec {
     private static final int LOCKDOWN = 7;
     private static final int ENTITY_CHANGED = 8;
     private static final int IMPORTED = 9;
+    private static final int KICKED = 10;
+    private static final int RESET = 11;
+    private static final int ALTS_AUTO_BANNED = 12;
+    private static final int MAX_NAMES = 10_000;
 
     private final UUID instanceId;
     private final ComponentLogger logger;
@@ -85,6 +89,21 @@ public final class PacketCodec {
                     out.writeUTF(changed.entity().name());
                 }
                 case SyncPacket.ImportedPacket imported -> out.writeByte(IMPORTED);
+                case SyncPacket.PlayerKickedPacket kicked -> {
+                    out.writeByte(KICKED);
+                    out.writeLong(kicked.uuid().getMostSignificantBits());
+                    out.writeLong(kicked.uuid().getLeastSignificantBits());
+                    out.writeUTF(kicked.reason());
+                }
+                case SyncPacket.PunishmentsResetPacket reset -> out.writeByte(RESET);
+                case SyncPacket.AltsAutoBannedPacket banned -> {
+                    out.writeByte(ALTS_AUTO_BANNED);
+                    out.writeLong(banned.banId());
+                    out.writeInt(banned.names().size());
+                    for (final String name : banned.names()) {
+                        out.writeUTF(name);
+                    }
+                }
             }
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
@@ -130,6 +149,21 @@ public final class PacketCodec {
                 case ENTITY_CHANGED -> Optional.of(new SyncPacket.EntityChangedPacket(
                         SubjectType.valueOf(in.readUTF())));
                 case IMPORTED -> Optional.of(new SyncPacket.ImportedPacket());
+                case KICKED -> Optional.of(new SyncPacket.PlayerKickedPacket(
+                        new UUID(in.readLong(), in.readLong()), in.readUTF()));
+                case RESET -> Optional.of(new SyncPacket.PunishmentsResetPacket());
+                case ALTS_AUTO_BANNED -> {
+                    final long banId = in.readLong();
+                    final int count = in.readInt();
+                    if (count < 0 || count > MAX_NAMES) {
+                        throw new IllegalArgumentException("too many names");
+                    }
+                    final List<String> names = new ArrayList<>(count);
+                    for (int i = 0; i < count; i++) {
+                        names.add(in.readUTF());
+                    }
+                    yield Optional.of(new SyncPacket.AltsAutoBannedPacket(banId, names));
+                }
                 default -> {
                     this.logger.warn("Ignoring a sync message of an unknown type");
                     yield Optional.empty();

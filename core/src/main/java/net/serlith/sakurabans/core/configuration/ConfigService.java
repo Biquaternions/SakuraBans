@@ -2,6 +2,7 @@ package net.serlith.sakurabans.core.configuration;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -36,6 +37,7 @@ public final class ConfigService {
 
     private final Path dataDirectory;
     private final ComponentLogger logger;
+    private final EnvironmentOverrides environment;
     private final AtomicReference<@Nullable Settings> settings = new AtomicReference<>();
     private final AtomicReference<@Nullable StorageSettings> storage = new AtomicReference<>();
     private final AtomicReference<@Nullable LimitSettings> limits = new AtomicReference<>();
@@ -51,8 +53,18 @@ public final class ConfigService {
             new AtomicReference<>(Map.of());
 
     public ConfigService(final Path dataDirectory, final ComponentLogger logger) {
+        this(dataDirectory, logger, Map.of());
+    }
+
+    public ConfigService(final Path dataDirectory, final ComponentLogger logger,
+            final Map<String, String> environment) {
         this.dataDirectory = dataDirectory;
         this.logger = logger;
+        this.environment = EnvironmentOverrides.of(environment);
+    }
+
+    public List<EnvironmentOverrides.Applied> environment() {
+        return this.environment.applied();
     }
 
     public Settings settings() {
@@ -118,6 +130,18 @@ public final class ConfigService {
         this.effectiveNodes.set(loaded.effectiveNodes());
         this.resolution.set(loaded.resolution());
         this.logWarnings(loaded.warnings());
+        this.logEnvironment();
+    }
+
+    /** The names of what the environment sets, never a value. */
+    private void logEnvironment() {
+        final List<EnvironmentOverrides.Applied> applied = this.environment.applied();
+        if (!applied.isEmpty()) {
+            this.logger.info("The environment sets {} file-level settings, over the files: {}"
+                    + " (values aren't logged; /sb settings list --effective names them too)",
+                    applied.size(), String.join(", ", applied.stream()
+                            .map(EnvironmentOverrides.Applied::source).toList()));
+        }
     }
 
     public ReloadResult reload() {
@@ -266,6 +290,10 @@ public final class ConfigService {
         if (!before.labels().equals(after.labels())) {
             restartRequired.add("commands.labels");
         }
+        // S72: the database is loaded at start only where GeoIP is on.
+        if (this.settings().geoip().enabled() != loaded.settings().geoip().enabled()) {
+            restartRequired.add("geoip.enabled");
+        }
         this.settings.set(loaded.settings());
         this.limits.set(loaded.limits());
         this.webhooks.set(loaded.webhooks());
@@ -326,7 +354,7 @@ public final class ConfigService {
     }
 
     private Loaded read(final Map<Scope, Map<String, String>> overrides) {
-        final List<ConfigIssue> errors = new ArrayList<>();
+        final List<ConfigIssue> errors = new ArrayList<>(this.environment.errors());
         final List<ConfigIssue> warnings = new ArrayList<>();
         final Map<String, ConfigurationNode> files = new HashMap<>();
         final Map<String, ConfigurationNode> effective = new HashMap<>();
@@ -335,14 +363,17 @@ public final class ConfigService {
                 new AtomicReference<>(List.of(GlobalScope.INSTANCE));
         final MainConfig main = this.readFile(ConfigFiles.CONFIG, MainConfig.class, errors,
                 warnings, node -> {
+                    // First: the scopes and everything after read this server's name from it.
+                    this.environment.apply(ConfigFiles.CONFIG, node);
                     files.put(ConfigFiles.CONFIG, node.copy());
                     scopes.set(this.scopes(node, overrides));
                     this.layer(node, ConfigFiles.CONFIG, overrides, scopes.get(), sources,
                             errors);
                     effective.put(ConfigFiles.CONFIG, node.copy());
                 });
-        final StorageConfig storageConfig =
-                this.readFile(ConfigFiles.STORAGE, StorageConfig.class, errors, warnings);
+        final StorageConfig storageConfig = this.readFile(ConfigFiles.STORAGE,
+                StorageConfig.class, errors, warnings,
+                node -> this.environment.apply(ConfigFiles.STORAGE, node));
         final LimitsConfig limitsConfig = this.readFile(ConfigFiles.LIMITS, LimitsConfig.class,
                 errors, warnings, node -> {
                     files.put(ConfigFiles.LIMITS, node.copy());
@@ -355,6 +386,7 @@ public final class ConfigService {
         if (main != null) {
             final SettingsMapper.Mapped<Settings> mapped = SettingsMapper.settings(main);
             errors.addAll(mapped.errors());
+            warnings.addAll(mapped.warnings());
             settings = mapped.value();
         }
         if (storageConfig != null) {
@@ -385,7 +417,7 @@ public final class ConfigService {
         }
         final Resolution resolved = new Resolution(scopes.get(), sources);
         // Errors name the scope a bad value came from.
-        final List<ConfigIssue> sourced = errors.stream()
+        final List<ConfigIssue> sourced = errors.stream().map(this.environment::label)
                 .map(issue -> sourced(issue, resolved)).toList();
         return new Loaded(settings, storageSettings, limitSettings, webhookSettings,
                 Map.copyOf(files), Map.copyOf(effective), resolved, sourced,
@@ -476,7 +508,17 @@ public final class ConfigService {
             final Consumer<ConfigurationNode> prepare) {
         final ConfigurationNode node;
         try {
-            final Path file = ConfigFiles.ensureDefault(this.dataDirectory, name);
+            final boolean fresh = Files.notExists(this.dataDirectory.resolve(name));
+            // A key the environment supplies isn't generated into the file as well.
+            final boolean keyFromEnvironment = name.equals(ConfigFiles.STORAGE)
+                    && this.environment.supplies(ConfigFiles.STORAGE, "address-hash-key");
+            final Path file = ConfigFiles.ensureDefault(this.dataDirectory, name,
+                    !keyFromEnvironment);
+            if (fresh && name.equals(ConfigFiles.STORAGE) && !keyFromEnvironment) {
+                this.logger.info("Created storage.yml with a new address-hash-key. Every server"
+                        + " that shares a database needs the same key: copy that line to the"
+                        + " storage.yml of the others before they first start.");
+            }
             node = ConfigFiles.loader(file).load();
         } catch (final IOException e) {
             errors.add(ConfigIssue.error(name, "", describe(e)));

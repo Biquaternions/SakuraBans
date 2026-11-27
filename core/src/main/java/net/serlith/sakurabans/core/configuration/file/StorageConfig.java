@@ -24,6 +24,7 @@ public final class StorageConfig {
     private Map<String, String> properties = new LinkedHashMap<>();
     private PoolSection pool = new PoolSection();
     private SyncSection sync = new SyncSection();
+    private String addressHashKey = "";
 
     @Getter
     @ConfigSerializable

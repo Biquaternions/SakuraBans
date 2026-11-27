@@ -2,6 +2,14 @@
 #
 # Changes here need a restart; /sb reload keeps the current storage and says so. SakuraBans
 # never rewrites this file.
+#
+# Every key here can also come from the environment, which wins over this file: the variable is
+# SAKURABANS_STORAGE_ and the key in upper case with . and - as _ (SAKURABANS_STORAGE_HOST,
+# SAKURABANS_STORAGE_POOL_MAXIMUM_SIZE, SAKURABANS_STORAGE_ADDRESS_HASH_KEY), or one JSON object
+# in SAKURABANS_CONFIG ({"storage.password": "..."}; the single variables win over it). Useful
+# for containers and for keeping the password and the address hash key out of the file. A fresh
+# install whose address-hash-key comes from the environment gets none generated into this file.
+# Values are checked like the ones here, and only the names of the variables are ever logged.
 
 # H2 (a local file, the default), MARIADB, MYSQL or POSTGRESQL. Several servers sharing one
 # MariaDB, MySQL or PostgreSQL database share their punishments.
@@ -31,6 +39,14 @@ schema: ''
 #   useSSL: 'true'
 properties: {}
 
+# The secret key that turns IP addresses into keyed hashes (HMAC-SHA-256). SakuraBans matches
+# address bans by these hashes, and an erased player's punished addresses are kept only as
+# hashes. A new install gets a generated key here. Every server that uses one database needs
+# the same key: copy this line to the storage.yml of each of them. Never change it once a
+# database is in use: SakuraBans then refuses to start, because no stored hash would match.
+# At least 32 characters. Keep it secret, like the password, and keep a copy with your backups.
+address-hash-key: ''
+
 pool:
   # The most connections open at once (1 or more).
   maximum-size: 10
@@ -49,4 +65,7 @@ sync:
   # server when the player next joins.
   mode: NONE
   # How often SQL sync checks for news, from 250ms to 30s (a duration: 500ms, 2s, ...).
+  # Messages are ordered by the database's clock, so the servers' clocks don't have to agree
+  # for sync. Expiry does use each server's own clock: SakuraBans warns at startup when a
+  # server's clock is more than 5 seconds off the database's. Keep every server on NTP.
   poll-interval: 2s

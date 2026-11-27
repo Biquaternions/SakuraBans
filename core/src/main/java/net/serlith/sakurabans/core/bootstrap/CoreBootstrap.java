@@ -39,7 +39,7 @@ public final class CoreBootstrap {
         components.lifecycle().advance(LifecycleState.NEW, LifecycleState.CREATED);
         return new SakuraBansCore(components.environment().logger(), components.lifecycle(),
                 components.platform(), components.executors(), components.config(),
-                components.messages(), components.storage(),
+                components.messages(), components.storage(), components.databaseClock(),
                 new SakuraBansCore.Services(components.notifications(), components.sweeper(),
                         components.punishmentService(),
                         components.loginGate(), components.chatGate(),
@@ -57,6 +57,9 @@ public final class CoreBootstrap {
                                 components.scopeService(), components.events(),
                                 components.integrations(), components.templates(),
                                 components.allowList(), components.formatter(),
-                                components.playerData())));
+                                components.playerData()),
+                        components.altAutoBans(), components.counts(),
+                        components.placeholderValues(), components.placeholderBridges(),
+                        components.geoip()));
     }
 }

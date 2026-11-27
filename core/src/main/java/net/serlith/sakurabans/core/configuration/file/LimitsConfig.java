@@ -10,6 +10,7 @@ import org.spongepowered.configurate.objectmapping.ConfigSerializable;
 public final class LimitsConfig {
 
     private boolean reduceToLimit = true;
+    private String consoleCooldown = "1s";
     private Map<String, GroupSection> groups = new LinkedHashMap<>();
 
     @Getter
@@ -20,5 +21,6 @@ public final class LimitsConfig {
         private Map<String, String> maxDuration = new LinkedHashMap<>();
         private Map<String, String> cooldown = new LinkedHashMap<>();
         private boolean requireTemplate;
+        private String cooldownRedo = "1s";
     }
 }

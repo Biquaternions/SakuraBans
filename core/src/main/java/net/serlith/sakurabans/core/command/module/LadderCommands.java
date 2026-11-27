@@ -10,6 +10,7 @@ import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.EvidenceRef;
 import net.serlith.sakurabans.api.model.Scope;
 import net.serlith.sakurabans.api.model.Victim;
+import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.api.punish.LadderRequest;
 import net.serlith.sakurabans.api.punish.LadderResult;
 import net.serlith.sakurabans.api.template.LadderTemplate;
@@ -88,6 +89,8 @@ public final class LadderCommands implements CommandModule {
         for (final CommandFlag<?> flag : List.of(
                 this.flags.silent(Permissions.punishFlag(PunishFlags.SILENT)),
                 this.flags.hide(Permissions.punishFlag(PunishFlags.HIDE)),
+                this.flags.quiet(Permissions.punishFlag(PunishFlags.QUIET)),
+                this.flags.serverOrigin(),
                 this.flags.global(),
                 this.flags.server(),
                 this.flags.category(),
@@ -112,6 +115,7 @@ public final class LadderCommands implements CommandModule {
         final TargetInput input = context.get("target");
         final String name = context.<String>get("ladder").strip().toLowerCase(Locale.ROOT);
         final Optional<Scope> scope = PunishSupport.scope(flags);
+        final Visibility visibility = PunishSupport.visibility(flags);
         final Actor issuer = PunishSupport.issuer(actor, flags);
         if (issuer == null) {
             this.runner.send(actor, MessageKey.COMMAND_SENDER_NEEDS_NAME);
@@ -169,7 +173,7 @@ public final class LadderCommands implements CommandModule {
             }
             final String shown = target instanceof ResolvedTarget.Player player
                     ? PunishCommands.displayName(player) : PunishCommands.inputText(input);
-            return this.punishments.applyLadder(request, PunishSupport.options(flags))
+            return this.punishments.applyLadder(request, PunishSupport.options(flags, visibility))
                     .thenAccept(result -> this.reply(actor, template.name(), shown, result))
                     .exceptionally(failure -> this.support.invalidOrRethrow(actor, failure));
         });

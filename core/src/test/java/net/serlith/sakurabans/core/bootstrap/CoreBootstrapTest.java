@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.InstantSource;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -68,6 +69,33 @@ class CoreBootstrapTest {
         assertThatThrownBy(() -> core.start(platform)).isInstanceOf(IllegalStateException.class);
 
         core.stop();
+    }
+
+    @Test
+    void theEnvironmentTheCoreIsGivenReachesTheConfiguration() throws Exception {
+        final CoreComponents components = new CoreComponents(new CoreEnvironment(this.dir,
+                this.log.logger(), false, Map.of("SAKURABANS_SERVER_NAME", "from-env",
+                        "SAKURABANS_STORAGE_ADDRESS_HASH_KEY",
+                        "bootstrap-environment-key-0123456789")), InstantSource.system());
+
+        final SakuraBansCore core = CoreBootstrap.create(components);
+
+        assertThat(components.config().settings().server().name()).isEqualTo("from-env");
+        assertThat(components.config().storage().addressHashKey())
+                .isEqualTo("bootstrap-environment-key-0123456789");
+        assertThat(Files.readString(this.dir.resolve("storage.yml")))
+                .doesNotContain("bootstrap-environment-key");
+        assertThat(core.state()).isEqualTo(LifecycleState.CREATED);
+    }
+
+    @Test
+    void badVariablesRefusePhaseOne() {
+        final CoreEnvironment environment = new CoreEnvironment(this.dir, this.log.logger(),
+                false, Map.of("SAKURABANS_REASONS_DEFAULT", "x"));
+
+        assertThatThrownBy(() -> CoreBootstrap.create(new CoreComponents(environment,
+                InstantSource.system()))).isInstanceOf(IllegalStateException.class);
+        assertThat(this.log.entries("error")).isNotEmpty();
     }
 
     @Test

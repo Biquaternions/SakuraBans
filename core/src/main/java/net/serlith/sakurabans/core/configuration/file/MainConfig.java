@@ -9,6 +9,7 @@ public final class MainConfig {
 
     private ServerSection server = new ServerSection();
     private ScopesSection scopes = new ScopesSection();
+    private WebSection web = new WebSection();
     private EnforcementSection enforcement = new EnforcementSection();
     private AltsSection alts = new AltsSection();
     private ReasonsSection reasons = new ReasonsSection();
@@ -18,6 +19,8 @@ public final class MainConfig {
     private LockdownSection lockdown = new LockdownSection();
     private NotificationsSection notifications = new NotificationsSection();
     private PlayersSection players = new PlayersSection();
-    private WebSection web = new WebSection();
+    private AuditSection audit = new AuditSection();
+    private PlaceholdersSection placeholders = new PlaceholdersSection();
+    private GeoIpSection geoip = new GeoIpSection();
     private CommandsSection commands = new CommandsSection();
 }

@@ -60,6 +60,14 @@ public final class Indexes {
                     SakuraTables.PUNISHMENTS,
                     new OrderField<?>[] {SakuraTables.PUNISHMENTS.CREATED_AT}, false);
 
+    public static final Index PUNISHMENTS_TYPE_IX =
+            Internal.createIndex(DSL.name(SakuraTables.prefix() + "punishments_type_ix"),
+                    SakuraTables.PUNISHMENTS,
+                    new OrderField<?>[] {
+                            SakuraTables.PUNISHMENTS.TYPE,
+                            SakuraTables.PUNISHMENTS.VOIDED_AT
+                    }, false);
+
     public static final Index TEMPLATE_USES_TEMPLATE_IX =
             Internal.createIndex(DSL.name(SakuraTables.prefix() + "template_uses_template_ix"),
                     SakuraTables.TEMPLATE_USES,
@@ -105,6 +113,22 @@ public final class Indexes {
                     SakuraTables.AUDIT_LOG,
                     new OrderField<?>[] {
                             SakuraTables.AUDIT_LOG.ACTOR_UUID,
+                            SakuraTables.AUDIT_LOG.AT
+                    }, false);
+
+    public static final Index AUDIT_LOG_ACTION_IX =
+            Internal.createIndex(DSL.name(SakuraTables.prefix() + "audit_log_action_ix"),
+                    SakuraTables.AUDIT_LOG,
+                    new OrderField<?>[] {
+                            SakuraTables.AUDIT_LOG.ACTION,
+                            SakuraTables.AUDIT_LOG.AT
+                    }, false);
+
+    public static final Index AUDIT_LOG_KIND_IX =
+            Internal.createIndex(DSL.name(SakuraTables.prefix() + "audit_log_kind_ix"),
+                    SakuraTables.AUDIT_LOG,
+                    new OrderField<?>[] {
+                            SakuraTables.AUDIT_LOG.SUBJECT_TYPE,
                             SakuraTables.AUDIT_LOG.AT
                     }, false);
 

@@ -1,7 +1,9 @@
 package net.serlith.sakurabans.core.bootstrap;
 
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.util.LinkedHashMap;
@@ -41,7 +43,8 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 /**
  * Two complete instances ({@link CoreBootstrap}, each with its own data folder and fake
- * platform) on one database with SQL sync (S46).
+ * platform) on one database with SQL sync (S46). Beta's host clock runs minutes ahead: sync
+ * goes by the database's clock (S66), so every test here also covers skewed hosts.
  */
 @ParameterizedClass
 @EnumSource(ContainerDatabase.class)
@@ -49,6 +52,7 @@ class TwoInstancesIT {
 
     private static final Actor CONSOLE = Actor.of(ConsoleOperator.INSTANCE, "console");
     private static final String KEY = "chat.muted";
+    private static final Duration BETA_AHEAD = Duration.ofMinutes(7);
 
     @Parameter
     private ContainerDatabase container;
@@ -65,12 +69,11 @@ class TwoInstancesIT {
     private SakuraBansCore coreA;
     private SakuraBansCore coreB;
 
-    private CoreComponents components(final Path dir, final String server, final String reason)
-            throws Exception {
+    private CoreComponents components(final Path dir, final String server, final String reason,
+            final InstantSource clock) throws Exception {
         Files.writeString(dir.resolve("config.yml"), "server:\n  name: " + server
                 + "\nreasons:\n  default: '" + reason + "'\n");
-        return new CoreComponents(new CoreEnvironment(dir, this.log.logger(), false),
-                InstantSource.system());
+        return new CoreComponents(new CoreEnvironment(dir, this.log.logger(), false), clock);
     }
 
     @BeforeEach
@@ -79,8 +82,9 @@ class TwoInstancesIT {
                 + "sync:\n  mode: SQL\n  poll-interval: 250ms\n";
         Files.writeString(this.first.resolve("storage.yml"), storage);
         Files.writeString(this.second.resolve("storage.yml"), storage);
-        this.alpha = this.components(this.first, "alpha", "Reason of A");
-        this.beta = this.components(this.second, "beta", "Reason of B");
+        this.alpha = this.components(this.first, "alpha", "Reason of A", InstantSource.system());
+        this.beta = this.components(this.second, "beta", "Reason of B",
+                InstantSource.offset(InstantSource.system(), BETA_AHEAD));
         this.coreA = CoreBootstrap.create(this.alpha);
         this.coreB = CoreBootstrap.create(this.beta);
         this.coreA.start(new FakePlatform());
@@ -111,6 +115,16 @@ class TwoInstancesIT {
     private static <T> T ok(final AdminResult<T> result) {
         Assertions.assertThat(result).isInstanceOf(AdminResult.Ok.class);
         return ((AdminResult.Ok<T>) result).value();
+    }
+
+    @Test
+    void bothUseOneKeyAndOnlyTheSkewedHostIsWarnedAboutItsClock() throws Exception {
+        final InetAddress address = InetAddress.getByName("203.0.113.7");
+        Assertions.assertThat(this.beta.hasher().hash(address))
+                .isEqualTo(this.alpha.hasher().hash(address));
+        Assertions.assertThat(this.log.entries("warn")).extracting(RecordingLogger.Entry::format)
+                .filteredOn(line -> line.contains("the database's") && line.contains("NTP"))
+                .singleElement().asString().contains("ahead of");
     }
 
     @Test

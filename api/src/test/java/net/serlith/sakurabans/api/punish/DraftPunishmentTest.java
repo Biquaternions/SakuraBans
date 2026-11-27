@@ -19,6 +19,7 @@ import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.api.validation.FieldError;
 import net.serlith.sakurabans.api.validation.FieldError.Code;
+import net.serlith.sakurabans.api.validation.ValidationException;
 import org.junit.jupiter.api.Test;
 
 class DraftPunishmentTest {
@@ -136,5 +137,28 @@ class DraftPunishmentTest {
         assertThat(defaults.bypassLimits()).isFalse();
         assertThat(defaults.toBuilder().visibility(Visibility.SILENT).build().visibility())
                 .isEqualTo(Visibility.SILENT);
+    }
+
+    @Test
+    void theOriginServerIsAnOptionalValidatedIdentifier() {
+        assertThat(PunishOptions.defaults().originServer()).isEmpty();
+
+        final PunishOptions options = PunishOptions.builder().originServer("Hub-2").build();
+
+        assertThat(options.originServer()).contains("hub-2");
+        assertThat(options.toBuilder().build().originServer()).contains("hub-2");
+        assertThat(options.toBuilder().originServer(null).build().originServer()).isEmpty();
+        assertThat(PunishOptions.builder().originServer("not valid!").validate())
+                .extracting(FieldError::path).containsExactly("originServer");
+        assertThatThrownBy(() -> PunishOptions.builder().originServer("not valid!").build())
+                .isInstanceOf(ValidationException.class);
+    }
+
+    @Test
+    void quietIsTheLastVisibilityLevel() {
+        assertThat(Visibility.values()).containsExactly(Visibility.NORMAL, Visibility.SILENT,
+                Visibility.HIDDEN, Visibility.QUIET);
+        assertThat(PunishOptions.builder().visibility(Visibility.QUIET).build().visibility())
+                .isEqualTo(Visibility.QUIET);
     }
 }

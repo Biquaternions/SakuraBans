@@ -29,6 +29,7 @@ import net.serlith.sakurabans.api.model.Scope;
 import net.serlith.sakurabans.api.validation.FieldError;
 import net.serlith.sakurabans.core.message.MessageKey;
 import net.serlith.sakurabans.core.message.MessageService;
+import net.serlith.sakurabans.core.message.Placeholders;
 import net.serlith.sakurabans.core.model.AdminResult;
 import net.serlith.sakurabans.core.model.ApiValues;
 import net.serlith.sakurabans.core.model.SubjectType;
@@ -87,7 +88,7 @@ public final class SakuraMessageTemplateService {
         final List<MessageField> fields = new ArrayList<>();
         for (final MessageKey key : MessageKey.all()) {
             final String text = english.getOrDefault(key.key(), "");
-            fields.add(new MessageField(key.key(), placeholders(text), text,
+            fields.add(new MessageField(key.key(), placeholders(key.key(), text), text,
                     key.key()));
         }
         final List<MessageField> all = List.copyOf(fields);
@@ -95,19 +96,29 @@ public final class SakuraMessageTemplateService {
         return all;
     }
 
+    static List<String> placeholders(final String key, final String text) {
+        final Set<String> names = new LinkedHashSet<>(placeholders(text));
+        if (Placeholders.PLAYER_COUNT_KEYS.contains(key)) {
+            names.addAll(Placeholders.PLAYER_COUNT_TAGS);
+        }
+        if (Placeholders.COUNTRY_KEYS.contains(key)) {
+            names.add(Placeholders.COUNTRY_TAG);
+        }
+        return List.copyOf(names);
+    }
+
     static List<String> placeholders(final String text) {
         final Set<String> names = new LinkedHashSet<>();
         final Matcher matcher = TAG.matcher(text);
         while (matcher.find()) {
             final String name = matcher.group(1);
-            if (!name.equals("prefix") && !TagResolver.standard().has(name)) {
+            if (!MessageService.STYLE_TAGS.contains(name) && !TagResolver.standard().has(name)) {
                 names.add(name);
             }
         }
         return List.copyOf(names);
     }
 
-    /** A scope's overridden keys by locale. */
     public SortedMap<Locale, SortedSet<String>> overrides(final Scope scope) {
         final SortedMap<Locale, SortedSet<String>> overrides =
                 new TreeMap<>(Comparator.comparing(Locale::toLanguageTag));
@@ -119,18 +130,15 @@ public final class SakuraMessageTemplateService {
         return overrides;
     }
 
-    /** A scope's override texts in a locale. */
     public Map<String, String> texts(final Scope scope, final Locale locale) {
         return this.messages.scopedOverrides().getOrDefault(scope, Map.of())
                 .getOrDefault(locale, Map.of());
     }
 
-    /** Every scope and locale that has overrides, with their texts. */
     public Map<Scope, Map<Locale, Map<String, String>>> allOverrides() {
         return this.messages.scopedOverrides();
     }
 
-    /** The scope whose override gives a key its text here, if one does. */
     public Optional<Scope> source(final String key, final Locale locale) {
         return this.messages.source(key, locale);
     }
@@ -149,17 +157,14 @@ public final class SakuraMessageTemplateService {
         return new MessageSnapshot(this.version(locale), locale, texts, origins);
     }
 
-    /** The version of the global overrides of a locale: 0 while it never had any. */
     public long version(final Locale locale) {
         return this.version(GlobalScope.INSTANCE, locale);
     }
 
-    /** The version of a scope's overrides in a locale: 0 while it never had any. */
     public long version(final Scope scope, final Locale locale) {
         return this.versions.get().getOrDefault(scope, Map.of()).getOrDefault(locale, 0L);
     }
 
-    /** The locales that have a language file or overrides. */
     public SortedSet<Locale> locales() {
         final SortedSet<Locale> locales = new TreeSet<>(Comparator.comparing(Locale::toString));
         locales.addAll(this.messages.fileLocales());
@@ -172,7 +177,6 @@ public final class SakuraMessageTemplateService {
         return locales;
     }
 
-    /** The language file's text, or the shipped en_US one. */
     public String fileText(final String key, final Locale locale) {
         return this.messages.fileText(key, locale)
                 .orElseGet(() -> MessageService.builtInTexts().getOrDefault(key, ""));
@@ -194,7 +198,6 @@ public final class SakuraMessageTemplateService {
         return this.change(GlobalScope.INSTANCE, locale, set, reset, expectedVersion, actor);
     }
 
-    /** Sets and resets for one scope and locale in one write, with their version. */
     public CompletableFuture<AdminResult<MessageSnapshot>> change(final Scope scope,
             final Locale locale, final Map<String, String> set, final Set<String> reset,
             final long expectedVersion, final Actor actor) {
@@ -203,12 +206,10 @@ public final class SakuraMessageTemplateService {
         return this.write(scope, locale, changes, errors, expectedVersion, actor);
     }
 
-    /** Unknown keys and texts that are empty or too long; paths are the message keys. */
     public List<FieldError> validate(final Map<String, String> set, final Set<String> reset) {
         return this.prepare(set, reset, new HashMap<>());
     }
 
-    /** The overrides the change really alters (a text equal to the override's doesn't). */
     public Map<String, @Nullable String> effective(final Scope scope, final Locale locale,
             final Map<String, String> set, final Set<String> reset) {
         final Map<String, @Nullable String> changes = new HashMap<>();
@@ -245,9 +246,7 @@ public final class SakuraMessageTemplateService {
     public Component preview(final String text, final Map<String, String> sample) {
         final List<TagResolver> resolvers = new ArrayList<>();
         sample.forEach((name, value) -> resolvers.add(Placeholder.unparsed(name, value)));
-        resolvers.add(Placeholder.component("prefix", MiniMessage.miniMessage().deserialize(
-                this.messages.find(MessageKey.PREFIX.key(), this.messages.defaultLocale())
-                        .orElse(""))));
+        resolvers.add(this.messages.styles(this.messages.defaultLocale()));
         return MiniMessage.miniMessage().deserialize(text, TagResolver.resolver(resolvers));
     }
 

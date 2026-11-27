@@ -1,5 +1,6 @@
 package net.serlith.sakurabans.core.template;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import net.serlith.sakurabans.api.model.PlayerVictim;
@@ -33,6 +34,9 @@ class TemplateDisplayTest extends ServiceTest {
                 .reason("Language").display(TemplateDisplay.DIALOG).build(), CONSOLE).join();
         this.templates.create(TemplateBuilder.preset("chatty", PunishmentType.MUTE)
                 .reason("Chatty").build(), CONSOLE).join();
+        this.templates.create(TemplateBuilder.preset("flood", PunishmentType.MUTE)
+                .reason("Flood").duration(TemplateDuration.fixed(Duration.ofHours(1)))
+                .display(TemplateDisplay.DIALOG).build(), CONSOLE).join();
         this.templates.create(TemplateBuilder.ladder("conduct")
                 .reason("Conduct")
                 .steps(List.of(
@@ -89,9 +93,56 @@ class TemplateDisplayTest extends ServiceTest {
         Assertions.assertThat(steve.notices()).singleElement().satisfies(notice -> {
             Assertions.assertThat(plain(notice.title())).isEqualTo("You were warned");
             Assertions.assertThat(plain(notice.body()))
-                    .as("the network's warning, as chat would show it")
-                    .endsWith("You were warned by Mod: Language");
+                    .as("the network's dialog text: the banner, then the lines")
+                    .startsWith("■■■■■■■\n")
+                    .endsWith("\n\nWarned\nStaff: Mod\nExpiration: 30 days\nReason: Language");
         });
+        Assertions.assertThat(steve.messages()).isEmpty();
+    }
+
+    @Test
+    void dialogsThatCantBeShownSendTheChatBanner() {
+        final FakeOnlinePlayer steve = this.platform.join(STEVE, "Steve", this.home);
+        this.preset(PunishmentType.WARN, STEVE, "language");
+
+        eventually(() -> !steve.messages().isEmpty());
+        Assertions.assertThat(steve.notices()).isEmpty();
+        Assertions.assertThat(plain(steve.messages().getFirst())).isEqualTo(
+                """
+                ■■■■■■■
+                ■■■■■■■  Warned
+                ■■■■■■■
+                ■■■■■■■  Staff: Mod
+                ■■■■■■■  Expiration: 30 days
+                ■■■■■■■  Reason: Language
+                ■■■■■■■\
+                """);
+    }
+
+    @Test
+    void temporaryMutesShowTheirLengthInTheDialogAndTheBanner() {
+        final FakeOnlinePlayer steve = this.platform.join(STEVE, "Steve", this.home)
+                .dialogs(true);
+        this.preset(PunishmentType.MUTE, STEVE, "flood");
+
+        eventually(() -> !steve.notices().isEmpty());
+        Assertions.assertThat(plain(steve.notices().getFirst().body()))
+                .startsWith("■■■■■■■\n")
+                .endsWith("\n\nMuted for 1 hour\nStaff: Mod\nExpiration: 1 hour\nReason: Flood");
+
+        final FakeOnlinePlayer alex = this.platform.join(ALEX, "Alex", this.home);
+        this.preset(PunishmentType.MUTE, ALEX, "flood");
+        eventually(() -> !alex.messages().isEmpty());
+        Assertions.assertThat(plain(alex.messages().getFirst())).isEqualTo(
+                """
+                ■■■■■■■
+                ■■■■■■■  Muted for 1 hour
+                ■■■■■■■
+                ■■■■■■■  Staff: Mod
+                ■■■■■■■  Expiration: 1 hour
+                ■■■■■■■  Reason: Flood
+                ■■■■■■■\
+                """);
     }
 
     @Test

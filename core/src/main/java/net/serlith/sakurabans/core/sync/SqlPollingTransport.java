@@ -2,7 +2,6 @@ package net.serlith.sakurabans.core.sync;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.InstantSource;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -12,9 +11,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.serlith.sakurabans.core.concurrent.SakuraExecutors;
 import net.serlith.sakurabans.core.configuration.ConfigService;
+import net.serlith.sakurabans.core.storage.DatabaseClock;
 import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import net.serlith.sakurabans.core.util.Futures;
+import org.jooq.DSLContext;
 import org.jspecify.annotations.Nullable;
 
 public final class SqlPollingTransport implements SyncTransport {
@@ -27,17 +28,16 @@ public final class SqlPollingTransport implements SyncTransport {
     private final PacketCodec codec;
     private final SakuraExecutors executors;
     private final ConfigService config;
-    private final InstantSource clock;
+    private final DatabaseClock clock;
     private final ComponentLogger logger;
     private final Map<Long, Instant> seen = new ConcurrentHashMap<>();
     private final AtomicReference<@Nullable ScheduledFuture<?>> task = new AtomicReference<>();
     private volatile @Nullable SyncPacketHandler handler;
-    private volatile Instant cursor = Instant.EPOCH;
-    private volatile Instant lastSuccess = Instant.EPOCH;
+    private volatile @Nullable Instant cursor;
 
     public SqlPollingTransport(final StorageService storage, final PacketCodec codec,
             final SakuraExecutors executors, final ConfigService config,
-            final InstantSource clock, final ComponentLogger logger) {
+            final DatabaseClock clock, final ComponentLogger logger) {
         this.storage = storage;
         this.codec = codec;
         this.executors = executors;
@@ -51,7 +51,8 @@ public final class SqlPollingTransport implements SyncTransport {
         final byte[] payload = this.codec.encode(packet);
         Futures.logged(this.storage.write(configuration -> configuration.dsl()
                 .insertInto(SakuraTables.SYNC_MESSAGES)
-                .set(SakuraTables.SYNC_MESSAGES.CREATED_AT, this.clock.instant())
+                .set(SakuraTables.SYNC_MESSAGES.CREATED_AT,
+                        DatabaseClock.now(configuration.dialect()))
                 .set(SakuraTables.SYNC_MESSAGES.PAYLOAD, payload)
                 .execute()), this.logger, "publish " + packet);
     }
@@ -70,9 +71,15 @@ public final class SqlPollingTransport implements SyncTransport {
 
     void open(final SyncPacketHandler packets) {
         this.handler = packets;
-        final Instant now = this.clock.instant();
-        this.cursor = now;
-        this.lastSuccess = now;
+        this.cursor = Futures.logged(this.clock.now(), this.logger, "read the database's clock")
+                .exceptionally(failure -> null).join();
+    }
+
+    void rewind(final Duration by) {
+        final Instant current = this.cursor;
+        if (current != null) {
+            this.cursor = current.minus(by);
+        }
     }
 
     @Override
@@ -88,33 +95,36 @@ public final class SqlPollingTransport implements SyncTransport {
         if (packets == null) {
             return CompletableFuture.completedFuture(0);
         }
-        final Instant started = this.clock.instant();
-        final boolean missed = Duration.between(this.lastSuccess, started)
-                .compareTo(MISSED_AFTER) > 0;
-        final Instant from = this.cursor.minus(OVERLAP);
-        return this.storage.read(dsl -> dsl
-                        .select(SakuraTables.SYNC_MESSAGES.ID,
-                                SakuraTables.SYNC_MESSAGES.CREATED_AT,
-                                SakuraTables.SYNC_MESSAGES.PAYLOAD)
-                        .from(SakuraTables.SYNC_MESSAGES)
-                        .where(SakuraTables.SYNC_MESSAGES.CREATED_AT.gt(from))
-                        .orderBy(SakuraTables.SYNC_MESSAGES.ID)
-                        .fetch(row -> new Row(row.value1(), row.value2(), row.value3())))
-                .thenCompose(rows -> this.handleAll(packets, rows))
-                .thenApply(handled -> {
-                    this.cursor = started;
-                    this.lastSuccess = started;
-                    // The next poll reads from started - OVERLAP; older ids can't come back.
-                    final Instant oldest = started.minus(OVERLAP);
-                    this.seen.values().removeIf(createdAt -> !createdAt.isAfter(oldest));
-                    if (missed) {
-                        this.logger.warn("No sync poll succeeded for over {} minutes; reloading"
-                                + " the state of online players", MISSED_AFTER.toMinutes());
-                        Futures.logged(packets.missed(), this.logger,
-                                "catch up after missed sync messages");
-                    }
-                    return handled;
-                });
+        final Instant previous = this.cursor;
+        return this.storage.read(dsl -> {
+            final Instant now = DatabaseClock.now(dsl);
+            final Instant from = (previous == null ? now : previous).minus(OVERLAP);
+            return new Poll(now, dsl
+                    .select(SakuraTables.SYNC_MESSAGES.ID,
+                            SakuraTables.SYNC_MESSAGES.CREATED_AT,
+                            SakuraTables.SYNC_MESSAGES.PAYLOAD)
+                    .from(SakuraTables.SYNC_MESSAGES)
+                    .where(SakuraTables.SYNC_MESSAGES.CREATED_AT.gt(from))
+                    .orderBy(SakuraTables.SYNC_MESSAGES.ID)
+                    .fetch(row -> new Row(row.value1(), row.value2(), row.value3())));
+        }).thenCompose(poll -> this.handleAll(packets, poll.rows()).thenApply(handled -> {
+            final boolean missed = previous != null
+                    && Duration.between(previous, poll.now()).compareTo(MISSED_AFTER) > 0;
+            this.cursor = poll.now();
+            // The next poll reads from now - OVERLAP; older ids can't come back.
+            final Instant oldest = poll.now().minus(OVERLAP);
+            this.seen.values().removeIf(createdAt -> !createdAt.isAfter(oldest));
+            if (missed) {
+                this.logger.warn("No sync poll succeeded for over {} minutes; reloading"
+                        + " the state of online players", MISSED_AFTER.toMinutes());
+                Futures.logged(packets.missed(), this.logger,
+                        "catch up after missed sync messages");
+            }
+            return handled;
+        }));
+    }
+
+    private record Poll(Instant now, List<Row> rows) {
     }
 
     private record Row(long id, Instant createdAt, byte[] payload) {
@@ -140,11 +150,14 @@ public final class SqlPollingTransport implements SyncTransport {
     }
 
     @Override
-    public CompletableFuture<Integer> cleanup(final Instant now) {
-        return this.storage.write(configuration -> configuration.dsl()
-                .deleteFrom(SakuraTables.SYNC_MESSAGES)
-                .where(SakuraTables.SYNC_MESSAGES.CREATED_AT.lt(now.minus(MAX_AGE)))
-                .execute());
+    public CompletableFuture<Integer> cleanup() {
+        return this.storage.write(configuration -> {
+            final DSLContext dsl = configuration.dsl();
+            return dsl.deleteFrom(SakuraTables.SYNC_MESSAGES)
+                    .where(SakuraTables.SYNC_MESSAGES.CREATED_AT.lt(
+                            DatabaseClock.now(dsl).minus(MAX_AGE)))
+                    .execute();
+        });
     }
 
 }

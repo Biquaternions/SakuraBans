@@ -45,11 +45,11 @@ class TemplateRepositoryTest extends DatabaseTest {
 
     @BeforeEach
     void fixture() throws Exception {
-        this.templates = new TemplateRepository(this.storage, AltPolicy.NONE);
-        this.punishments = new PunishmentRepository(this.storage,
+        this.templates = new TemplateRepository(this.storage, this.hasher, AltPolicy.NONE);
+        this.punishments = new PunishmentRepository(this.storage, this.hasher,
                 new PunishmentMapper(Long::toString));
         this.shared = InetAddress.getByName("203.0.113.2");
-        final PlayerRepository players = new PlayerRepository(this.storage);
+        final PlayerRepository players = new PlayerRepository(this.storage, this.hasher);
         players.recordConnection(STEVE, "Steve", this.now.get(), this.shared, null).join();
         players.recordConnection(ALEX, "Alex", this.now.get(), this.shared, null).join();
     }

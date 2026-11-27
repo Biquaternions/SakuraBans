@@ -63,6 +63,7 @@ public enum ContainerDatabase implements TestDatabase {
                 username: %s
                 password: %s
                 table-prefix: sb_
+                address-hash-key: 'integration-tests-share-this-address-hash-key'
                 """;
         return Optional.of(yaml.formatted(this.type, container.getHost(),
                 container.getMappedPort(this.port()), name, container.getUsername(),

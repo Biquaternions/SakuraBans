@@ -20,11 +20,11 @@ import net.serlith.sakurabans.core.model.SakuraAddressRecord;
 import net.serlith.sakurabans.core.model.SakuraNameRecord;
 import net.serlith.sakurabans.core.model.SakuraPlayerProfileView;
 import net.serlith.sakurabans.core.model.SubjectType;
+import net.serlith.sakurabans.core.storage.AddressHasher;
 import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import net.serlith.sakurabans.core.storage.dbo.records.SbPlayersRecord;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbPlayerAddresses;
-import net.serlith.sakurabans.core.util.AddressHashes;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
@@ -34,9 +34,11 @@ import org.jspecify.annotations.Nullable;
 public final class PlayerRepository {
 
     private final StorageService storage;
+    private final AddressHasher hasher;
 
-    public PlayerRepository(final StorageService storage) {
+    public PlayerRepository(final StorageService storage, final AddressHasher hasher) {
         this.storage = storage;
+        this.hasher = hasher;
     }
 
     public CompletableFuture<Void> recordConnection(final UUID uuid, final String name,
@@ -75,7 +77,7 @@ public final class PlayerRepository {
                 dsl.insertInto(SakuraTables.PLAYER_ADDRESSES)
                         .set(SakuraTables.PLAYER_ADDRESSES.UUID, uuid)
                         .set(SakuraTables.PLAYER_ADDRESSES.ADDRESS, address)
-                        .set(SakuraTables.PLAYER_ADDRESSES.ADDRESS_HASH, AddressHashes.of(address))
+                        .set(SakuraTables.PLAYER_ADDRESSES.ADDRESS_HASH, this.hasher.hash(address))
                         .set(SakuraTables.PLAYER_ADDRESSES.FIRST_SEEN, at)
                         .set(SakuraTables.PLAYER_ADDRESSES.LAST_SEEN, at)
                         .set(SakuraTables.PLAYER_ADDRESSES.LAST_SERVER, server)

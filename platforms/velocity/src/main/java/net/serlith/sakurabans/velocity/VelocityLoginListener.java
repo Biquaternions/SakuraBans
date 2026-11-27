@@ -44,6 +44,10 @@ final class VelocityLoginListener {
                 .thenAccept(decision -> {
                     if (decision instanceof LoginDecision.Denied denied) {
                         event.setResult(ResultedEvent.ComponentResult.denied(denied.screen()));
+                    } else if (decision instanceof LoginDecision.Allowed allowed) {
+                        // A banned player let in (S68): told on their first server.
+                        allowed.notice().ifPresent(notice -> this.notices.put(
+                                event.getPlayer().getUniqueId(), notice));
                     }
                 }));
     }
@@ -55,7 +59,9 @@ final class VelocityLoginListener {
         }
         final Player player = event.getPlayer();
         final String server = event.getOriginalServer().getServerInfo().getName();
-        return EventTask.resumeWhenComplete(this.gate.checkServer(attempt(player, server), server)
+        final boolean initial = player.getCurrentServer().isEmpty();
+        return EventTask.resumeWhenComplete(this.gate.checkServer(attempt(player, server), server,
+                        initial)
                 .thenAccept(decision -> {
                     if (!(decision instanceof LoginDecision.Denied denied)) {
                         return;
@@ -74,7 +80,8 @@ final class VelocityLoginListener {
                         return;
                     }
                     event.setResult(ServerPreConnectEvent.ServerResult.allowed(fallback));
-                    this.notices.put(player.getUniqueId(), denied.screen());
+                    // A notice from the login says it better.
+                    this.notices.putIfAbsent(player.getUniqueId(), denied.screen());
                 }));
     }
 

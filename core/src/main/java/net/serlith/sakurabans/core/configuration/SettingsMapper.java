@@ -1,6 +1,7 @@
 package net.serlith.sakurabans.core.configuration;
 
 import java.net.Inet6Address;
+import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.InvalidPathException;
@@ -20,8 +21,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import net.serlith.sakurabans.api.model.AddressRangeVictim;
 import net.serlith.sakurabans.api.model.CategoryScope;
 import net.serlith.sakurabans.api.model.GlobalScope;
 import net.serlith.sakurabans.api.model.Lengths;
@@ -31,6 +34,7 @@ import net.serlith.sakurabans.api.validation.Validator;
 import net.serlith.sakurabans.core.configuration.file.AltsSection;
 import net.serlith.sakurabans.core.configuration.file.CommandsSection;
 import net.serlith.sakurabans.core.configuration.file.DisplaySection;
+import net.serlith.sakurabans.core.configuration.file.GeoIpSection;
 import net.serlith.sakurabans.core.configuration.file.ImportConfig;
 import net.serlith.sakurabans.core.configuration.file.LimitsConfig;
 import net.serlith.sakurabans.core.configuration.file.MainConfig;
@@ -38,6 +42,7 @@ import net.serlith.sakurabans.core.configuration.file.ReasonsSection;
 import net.serlith.sakurabans.core.configuration.file.StorageConfig;
 import net.serlith.sakurabans.core.configuration.file.WarningsSection;
 import net.serlith.sakurabans.core.configuration.file.WebhooksConfig;
+import net.serlith.sakurabans.core.configuration.settings.CommandPatterns;
 import net.serlith.sakurabans.core.configuration.settings.ImportSettings;
 import net.serlith.sakurabans.core.configuration.settings.LimitSettings;
 import net.serlith.sakurabans.core.configuration.settings.Settings;
@@ -45,8 +50,10 @@ import net.serlith.sakurabans.core.configuration.settings.StorageSettings;
 import net.serlith.sakurabans.core.configuration.settings.StorageType;
 import net.serlith.sakurabans.core.configuration.settings.SyncMode;
 import net.serlith.sakurabans.core.configuration.settings.WebhookSettings;
+import net.serlith.sakurabans.core.util.Cidrs;
 import net.serlith.sakurabans.core.util.Durations;
 import net.serlith.sakurabans.core.util.InetAddresses;
+import net.serlith.sakurabans.core.util.Uuids;
 import org.jspecify.annotations.Nullable;
 
 final class SettingsMapper {
@@ -56,32 +63,48 @@ final class SettingsMapper {
     private static final Pattern TABLE_PREFIX = Pattern.compile("[a-z][a-z0-9_]{0,15}");
     private static final Pattern SQL_NAME = Pattern.compile("[a-z_][a-z0-9_]{0,62}");
     private static final Duration MAX_LOGIN_TIMEOUT = Duration.ofSeconds(30);
+    // Every instance runs the count queries; more often than this only loads the database.
+    static final Duration MIN_PLACEHOLDER_REFRESH = Duration.ofSeconds(30);
     private static final Pattern LABEL = Pattern.compile("[a-z0-9_-]{1,32}");
+    private static final Pattern PLAYER_NAME = Pattern.compile("[A-Za-z0-9_]{1,16}");
+    private static final Pattern GROUP = Pattern.compile("[a-z0-9_.-]{1,64}");
     private static final Pattern COLOR = Pattern.compile("#([0-9a-fA-F]{6})");
     private static final Pattern SOURCE_PREFIX = Pattern.compile("[A-Za-z0-9_]{0,32}");
+    // MaxMind publishes GeoLite2 twice a week: checking more often than daily finds nothing new.
+    static final Duration MIN_GEOIP_REFRESH = Duration.ofDays(1);
+    private static final Pattern ACCOUNT_ID = Pattern.compile("[0-9]{1,20}");
+    private static final Pattern LICENSE_KEY = Pattern.compile("[A-Za-z0-9_-]{1,128}");
+    private static final Set<String> COUNTRIES = Set.of(Locale.getISOCountries());
     private static final List<String> JDBC_SCHEMES = List.of("jdbc:mariadb:", "jdbc:mysql:",
             "jdbc:postgresql:", "jdbc:h2:", "jdbc:hsqldb:");
 
     private final String file;
     private final List<ConfigIssue> errors = new ArrayList<>();
+    private final List<ConfigIssue> warnings = new ArrayList<>();
 
     private SettingsMapper(final String file) {
         this.file = file;
     }
 
-    record Mapped<T extends @Nullable Object>(T value, List<ConfigIssue> errors) {
+    record Mapped<T extends @Nullable Object>(T value, List<ConfigIssue> errors,
+            List<ConfigIssue> warnings) {
+    }
+
+    private <T> Mapped<@Nullable T> mapped(final T value) {
+        return new Mapped<>(this.errors.isEmpty() ? value : null, List.copyOf(this.errors),
+                List.copyOf(this.warnings));
     }
 
     static Mapped<@Nullable Settings> settings(final MainConfig config) {
         final SettingsMapper mapper = new SettingsMapper(ConfigFiles.CONFIG);
         final Settings settings = mapper.mapSettings(config);
-        return new Mapped<>(mapper.errors.isEmpty() ? settings : null, List.copyOf(mapper.errors));
+        return mapper.mapped(settings);
     }
 
     static Mapped<@Nullable LimitSettings> limits(final LimitsConfig config) {
         final SettingsMapper mapper = new SettingsMapper(ConfigFiles.LIMITS);
         final LimitSettings limits = mapper.mapLimits(config);
-        return new Mapped<>(mapper.errors.isEmpty() ? limits : null, List.copyOf(mapper.errors));
+        return mapper.mapped(limits);
     }
 
     private LimitSettings mapLimits(final LimitsConfig config) {
@@ -108,16 +131,17 @@ final class SettingsMapper {
                         .ifPresent(duration -> cooldowns.put(parsed, duration)));
             });
             groups.add(new LimitSettings.Group(name, group.permission().strip(), max, cooldowns,
-                    group.requireTemplate()));
+                    group.requireTemplate(),
+                    this.throttle(path + ".cooldown-redo", group.cooldownRedo())));
         });
-        return new LimitSettings(config.reduceToLimit(), groups);
+        return new LimitSettings(config.reduceToLimit(), groups,
+                this.throttle("console-cooldown", config.consoleCooldown()));
     }
 
     static Mapped<@Nullable WebhookSettings> webhooks(final WebhooksConfig config) {
         final SettingsMapper mapper = new SettingsMapper(ConfigFiles.WEBHOOKS);
         final WebhookSettings webhooks = mapper.mapWebhooks(config);
-        return new Mapped<>(mapper.errors.isEmpty() ? webhooks : null,
-                List.copyOf(mapper.errors));
+        return mapper.mapped(webhooks);
     }
 
     private WebhookSettings mapWebhooks(final WebhooksConfig config) {
@@ -196,7 +220,7 @@ final class SettingsMapper {
     static Mapped<@Nullable ImportSettings> imports(final ImportConfig config) {
         final SettingsMapper mapper = new SettingsMapper(ConfigFiles.IMPORT);
         final ImportSettings imports = mapper.mapImports(config);
-        return new Mapped<>(mapper.errors.isEmpty() ? imports : null, List.copyOf(mapper.errors));
+        return mapper.mapped(imports);
     }
 
     private ImportSettings mapImports(final ImportConfig config) {
@@ -240,7 +264,7 @@ final class SettingsMapper {
     static Mapped<@Nullable StorageSettings> storage(final StorageConfig config) {
         final SettingsMapper mapper = new SettingsMapper(ConfigFiles.STORAGE);
         final StorageSettings storage = mapper.mapStorage(config);
-        return new Mapped<>(mapper.errors.isEmpty() ? storage : null, List.copyOf(mapper.errors));
+        return mapper.mapped(storage);
     }
 
     private Settings mapSettings(final MainConfig config) {
@@ -266,18 +290,44 @@ final class SettingsMapper {
         this.check(enforcement.loginCheckTimeout().compareTo(MAX_LOGIN_TIMEOUT) <= 0,
                 "enforcement.login-check-timeout", "must be at most 30s");
         final Set<String> blacklist = new LinkedHashSet<>();
-        enforcement.muteCommandBlacklist().forEach(command ->
-                blacklist.add(command.strip().toLowerCase(Locale.ROOT).replaceFirst("^/", "")));
+        enforcement.muteCommandBlacklist().forEach(command -> {
+            final String entry = command.strip().toLowerCase(Locale.ROOT).replaceFirst("^/", "");
+            if (entry.isEmpty() || entry.chars().anyMatch(Character::isWhitespace)) {
+                this.error("enforcement.mute-command-blacklist", "\"" + command
+                        + "\" must be one command label (a * matches any text)");
+            } else {
+                blacklist.add(entry);
+            }
+        });
+        final List<String> kickIgnored = new ArrayList<>();
+        for (final String reason : enforcement.kickIgnoredReasons()) {
+            final String text = reason.strip().toLowerCase(Locale.ROOT);
+            if (text.isEmpty()) {
+                this.error("enforcement.kick-ignored-reasons", "must not contain an empty text:"
+                        + " it would match every reason");
+            } else {
+                kickIgnored.add(text);
+            }
+        }
+        final Set<String> withoutCheck = new LinkedHashSet<>();
+        enforcement.serversWithoutLoginCheck().forEach(listed ->
+                this.identifier("enforcement.servers-without-login-check", listed)
+                        .ifPresent(withoutCheck::add));
         final Settings.Enforcement enforcementSettings = new Settings.Enforcement(
                 enforcement.addressStrictness(), enforcement.compositeByDefault(),
-                Set.copyOf(blacklist), enforcement.enforceServerSwitch(),
-                enforcement.loginCheckTimeout());
+                new CommandPatterns(blacklist), enforcement.enforceServerSwitch(),
+                enforcement.loginCheckTimeout(), kickIgnored, List.copyOf(withoutCheck),
+                enforcement.loginCheck(), enforcement.networkKick(),
+                this.durationOrNever("enforcement.ip-ban-decay", enforcement.ipBanDecay())
+                        .orElse(null));
 
         final Settings.Alts alts = this.alts(config.alts());
         final Settings.Reasons reasons = this.reasons(config.reasons());
         final Settings.Exemption exemption = new Settings.Exemption(
                 config.exemption().provider(), config.exemption().permitSameWeight(),
-                config.exemption().protectsEdits());
+                config.exemption().protectsEdits(),
+                this.exemptPlayers(config.exemption().players()),
+                this.groups("exemption.groups", config.exemption().groups()));
         final Settings.Warnings warnings = this.warnings(config.warnings());
         final Settings.Display display = this.display(config.display());
         final Duration attemptThrottle = this.throttle("notifications.attempt-throttle",
@@ -286,8 +336,61 @@ final class SettingsMapper {
                 warnings, display, new Settings.Lockdown(config.lockdown().persist()),
                 new Settings.Notifications(attemptThrottle),
                 new Settings.Players(config.players().remoteLookup()),
+                new Settings.Audit(this.durationOrNever("audit.retention",
+                        config.audit().retention()).orElse(null)),
+                this.placeholders(config.placeholders().refresh()),
+                this.geoip(config.geoip()),
                 this.web(config.web().url(), config.web().token(), config.web().liveApply()),
                 this.commands(config.commands()));
+    }
+
+    private Settings.Placeholders placeholders(final Duration refresh) {
+        this.check(refresh.compareTo(MIN_PLACEHOLDER_REFRESH) >= 0, "placeholders.refresh",
+                "must be at least 30s");
+        return new Settings.Placeholders(refresh.compareTo(MIN_PLACEHOLDER_REFRESH) >= 0
+                ? refresh : MIN_PLACEHOLDER_REFRESH);
+    }
+
+    private Settings.GeoIp geoip(final GeoIpSection geoip) {
+        // The account ID and the key are secret: no message repeats them.
+        final String account = geoip.accountId().strip();
+        final String key = geoip.licenseKey().strip();
+        this.check(account.isEmpty() || ACCOUNT_ID.matcher(account).matches(),
+                "geoip.account-id", "must be your MaxMind account ID (a number)");
+        this.check(key.isEmpty() || LICENSE_KEY.matcher(key).matches(), "geoip.license-key",
+                "must be a MaxMind licence key (letters, digits, _ and -, no spaces)");
+        if (account.isEmpty() != key.isEmpty()) {
+            this.error(account.isEmpty() ? "geoip.account-id" : "geoip.license-key",
+                    "is empty: downloads need both geoip.account-id and geoip.license-key"
+                            + " (leave both empty for a database placed by hand)");
+        }
+        final Duration refresh = this.durationOrNever("geoip.refresh", geoip.refresh())
+                .orElse(null);
+        this.check(refresh == null || refresh.compareTo(MIN_GEOIP_REFRESH) >= 0,
+                "geoip.refresh", "must be at least 1d (MaxMind publishes GeoLite2 twice a week)"
+                        + " or never");
+        final Set<String> blacklist = this.countries("geoip.blacklist", geoip.blacklist());
+        final Set<String> whitelist = this.countries("geoip.whitelist", geoip.whitelist());
+        if (!blacklist.isEmpty() && !whitelist.isEmpty()) {
+            this.warnings.add(ConfigIssue.warning(this.file, "geoip.blacklist", "is ignored while"
+                    + " geoip.whitelist is set: only the whitelisted countries can join"));
+        }
+        return new Settings.GeoIp(geoip.enabled(), account.isEmpty() ? null : account,
+                key.isEmpty() ? null : key, refresh, blacklist, whitelist, geoip.allowUnknown());
+    }
+
+    private Set<String> countries(final String path, final List<String> entries) {
+        final Set<String> codes = new LinkedHashSet<>();
+        for (final String entry : entries) {
+            final String code = entry.strip().toUpperCase(Locale.ROOT);
+            if (COUNTRIES.contains(code)) {
+                codes.add(code);
+            } else {
+                this.error(path, "\"" + entry + "\" is not an ISO 3166-1 alpha-2 country code"
+                        + " (like US, DE or GB)");
+            }
+        }
+        return codes;
     }
 
     private Settings.Web web(final String url, final String token, final boolean live) {
@@ -338,11 +441,88 @@ final class SettingsMapper {
         this.check(join.threshold() >= 1, "alts.join-notification.threshold",
                 "must be at least 1");
         this.check(join.limit() >= 1, "alts.join-notification.limit", "must be at least 1");
+        this.check(alts.autoBanConfirmAbove() >= 0, "alts.auto-ban-confirm-above",
+                "must be 0 or more");
         return new Settings.Alts(alts.registerOnConnection(), Set.copyOf(servers),
                 this.durationOrNever("alts.record-expiration", alts.recordExpiration())
                         .orElse(null),
                 new Settings.JoinNotification(join.enabled(), join.onlyIfPunished(),
-                        join.threshold(), join.limit()));
+                        join.threshold(), join.limit()),
+                this.hiddenPlayers(alts.hiddenPlayers()), alts.autoBan(),
+                alts.autoBanConfirmAbove());
+    }
+
+    // Names, UUIDs, addresses and ranges (10.0.0.0/8, 10.0.*.*).
+    private Settings.HiddenPlayers hiddenPlayers(final List<String> entries) {
+        final Set<UUID> uuids = new LinkedHashSet<>();
+        final Set<String> names = new LinkedHashSet<>();
+        final List<AddressRangeVictim> addresses = new ArrayList<>();
+        for (final String entry : entries) {
+            final String text = entry.strip();
+            final Optional<UUID> uuid = Uuids.parse(text);
+            final Optional<InetAddress> address = InetAddresses.parseLiteral(text);
+            if (uuid.isPresent()) {
+                uuids.add(uuid.get());
+            } else if (address.isPresent()) {
+                final InetAddress normalized = InetAddresses.normalize(address.get());
+                addresses.add(AddressRangeVictim.of(normalized,
+                        normalized.getAddress().length * 8));
+            } else if (PLAYER_NAME.matcher(text).matches()) {
+                names.add(text.toLowerCase(Locale.ROOT));
+            } else {
+                final Optional<AddressRangeVictim> range = Cidrs.parse(text);
+                if (range.isPresent()) {
+                    addresses.add(range.get());
+                } else {
+                    // The entry is not echoed: it may be an address.
+                    this.error("alts.hidden-players", "has an entry that is not a player name,"
+                            + " a UUID, an address or a range (like 10.0.0.0/8)");
+                }
+            }
+        }
+        return new Settings.HiddenPlayers(uuids, names, addresses);
+    }
+
+    // "Steve", "Steve:mute", a UUID with or without dashes, "<uuid>:ban".
+    private List<Settings.ExemptPlayer> exemptPlayers(final List<String> entries) {
+        final List<Settings.ExemptPlayer> players = new ArrayList<>();
+        for (final String entry : entries) {
+            final String text = entry.strip();
+            final int colon = text.lastIndexOf(':');
+            final String who = colon < 0 ? text : text.substring(0, colon).strip();
+            PunishmentType type = null;
+            if (colon >= 0) {
+                final Optional<PunishmentType> parsed = this.type("exemption.players",
+                        text.substring(colon + 1));
+                if (parsed.isEmpty()) {
+                    continue;
+                }
+                type = parsed.get();
+            }
+            final Optional<UUID> uuid = Uuids.parse(who);
+            if (uuid.isPresent()) {
+                players.add(new Settings.ExemptPlayer(uuid.get(), null, type));
+            } else if (PLAYER_NAME.matcher(who).matches()) {
+                players.add(new Settings.ExemptPlayer(null, who.toLowerCase(Locale.ROOT), type));
+            } else {
+                this.error("exemption.players", "\"" + entry + "\" is not a player name or UUID,"
+                        + " optionally followed by :ban, :mute, :warn or :kick");
+            }
+        }
+        return List.copyOf(players);
+    }
+
+    private Set<String> groups(final String path, final List<String> entries) {
+        final Set<String> groups = new LinkedHashSet<>();
+        for (final String entry : entries) {
+            final String group = entry.strip().toLowerCase(Locale.ROOT);
+            if (GROUP.matcher(group).matches()) {
+                groups.add(group);
+            } else {
+                this.error(path, "\"" + entry + "\" is not a LuckPerms group name");
+            }
+        }
+        return Set.copyOf(groups);
     }
 
     private Settings.Reasons reasons(final ReasonsSection reasons) {
@@ -448,6 +628,17 @@ final class SettingsMapper {
         this.check(config.sync().pollInterval().compareTo(MIN_POLL) >= 0
                         && config.sync().pollInterval().compareTo(MAX_POLL) <= 0,
                 "sync.poll-interval", "must be from 250ms to 30s");
+        final String key = config.addressHashKey();
+        if (key.isBlank()) {
+            this.error("address-hash-key", "must be set. Every server on one database needs the"
+                    + " same key: copy address-hash-key from the storage.yml of a server that"
+                    + " already uses this database; for a new database, set it to a random text"
+                    + " of at least " + AddressHashKeys.MIN_LENGTH + " characters (for example"
+                    + " the output of: openssl rand -base64 32)");
+        } else {
+            this.check(key.length() >= AddressHashKeys.MIN_LENGTH, "address-hash-key",
+                    "must be at least " + AddressHashKeys.MIN_LENGTH + " characters");
+        }
         final var pool = config.pool();
         this.check(pool.maximumSize() >= 1, "pool.maximum-size", "must be at least 1");
         this.check(pool.minimumIdle() >= 0 && pool.minimumIdle() <= pool.maximumSize(),
@@ -457,7 +648,8 @@ final class SettingsMapper {
                 schema.orElse(null), config.properties(),
                 new StorageSettings.Pool(pool.maximumSize(), pool.minimumIdle(),
                         pool.connectionTimeout(), pool.maxLifetime()),
-                new StorageSettings.Sync(config.sync().mode(), config.sync().pollInterval()));
+                new StorageSettings.Sync(config.sync().mode(), config.sync().pollInterval()),
+                key);
     }
 
     private Settings.Commands commands(final CommandsSection section) {

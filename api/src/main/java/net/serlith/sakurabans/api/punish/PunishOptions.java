@@ -2,8 +2,11 @@ package net.serlith.sakurabans.api.punish;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.api.validation.FieldError;
+import net.serlith.sakurabans.api.validation.Validator;
+import org.jspecify.annotations.Nullable;
 
 /**
  * How {@link PunishmentService#punish(DraftPunishment, PunishOptions)} behaves.
@@ -40,6 +43,13 @@ public interface PunishOptions {
     boolean bypassLimits();
 
     /**
+     * The server stored as the punishment's origin, instead of this server's own name.
+     *
+     * @return the server name (a lower-case identifier), or empty to use this server's name
+     */
+    Optional<String> originServer();
+
+    /**
      * A builder that starts with these options.
      *
      * @return a new builder
@@ -49,7 +59,8 @@ public interface PunishOptions {
                 .visibility(this.visibility())
                 .override(this.override())
                 .enforce(this.enforce())
-                .bypassLimits(this.bypassLimits());
+                .bypassLimits(this.bypassLimits())
+                .originServer(this.originServer().orElse(null));
     }
 
     /**
@@ -79,6 +90,7 @@ public interface PunishOptions {
         private OverridePolicy override = OverridePolicy.REJECT;
         private boolean enforce = true;
         private boolean bypassLimits;
+        private @Nullable String originServer;
 
         private Builder() {
         }
@@ -128,13 +140,24 @@ public interface PunishOptions {
         }
 
         /**
-         * Checks the values without building. Options can't be invalid, so this is always
-         * empty; it exists so every builder can be validated the same way.
+         * Sets the origin server stored with the punishment.
          *
-         * @return no errors
+         * @param originServer a server name (1-64 characters of a-z, 0-9, '_' and '-', in any
+         *         case), or {@code null} for this server's own name
+         * @return this builder
+         */
+        public Builder originServer(final @Nullable String originServer) {
+            this.originServer = originServer;
+            return this;
+        }
+
+        /**
+         * Checks the values without building.
+         *
+         * @return the errors, empty if the options are valid
          */
         public List<FieldError> validate() {
-            return List.of();
+            return Validator.create().identifier("originServer", this.originServer).errors();
         }
 
         /**
@@ -144,14 +167,18 @@ public interface PunishOptions {
          */
         public PunishOptions build() {
             record Impl(Visibility visibility, OverridePolicy override, boolean enforce,
-                    boolean bypassLimits) implements PunishOptions {
+                    boolean bypassLimits, Optional<String> originServer)
+                    implements PunishOptions {
                 Impl {
                     Objects.requireNonNull(visibility, "visibility");
                     Objects.requireNonNull(override, "override");
                 }
             }
 
-            return new Impl(this.visibility, this.override, this.enforce, this.bypassLimits);
+            Validator.create().identifier("originServer", this.originServer).throwIfAny();
+            return new Impl(this.visibility, this.override, this.enforce, this.bypassLimits,
+                    Optional.ofNullable(this.originServer)
+                            .flatMap(Validator::normalizeIdentifier));
         }
     }
 }

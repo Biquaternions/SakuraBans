@@ -55,9 +55,9 @@ class PunishmentRepositoryTest extends DatabaseTest {
 
     @BeforeEach
     void create() throws Exception {
-        this.punishments = new PunishmentRepository(this.storage,
+        this.punishments = new PunishmentRepository(this.storage, this.hasher,
                 new PunishmentMapper(id -> "D" + id));
-        this.players = new PlayerRepository(this.storage);
+        this.players = new PlayerRepository(this.storage, this.hasher);
         this.home = InetAddress.getByName("203.0.113.7");
         this.old = InetAddress.getByName("198.51.100.9");
     }

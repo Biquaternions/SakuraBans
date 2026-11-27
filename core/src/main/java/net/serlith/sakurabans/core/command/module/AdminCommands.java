@@ -11,6 +11,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.serlith.sakurabans.api.model.AddressVictim;
 import net.serlith.sakurabans.api.model.CategoryScope;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
@@ -43,6 +44,7 @@ import net.serlith.sakurabans.core.command.parser.TargetParser;
 import net.serlith.sakurabans.core.configuration.ConfigIssue;
 import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.configuration.ReloadResult;
+import net.serlith.sakurabans.core.enforce.AltAutoBans;
 import net.serlith.sakurabans.core.enforce.LockdownService;
 import net.serlith.sakurabans.core.message.Formats;
 import net.serlith.sakurabans.core.message.MessageKey;
@@ -66,6 +68,7 @@ import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.parser.flag.CommandFlag;
 import org.incendo.cloud.parser.flag.FlagContext;
 import org.incendo.cloud.parser.standard.StringParser;
+import org.incendo.cloud.permission.PredicatePermission;
 import org.jspecify.annotations.Nullable;
 
 public final class AdminCommands implements CommandModule {
@@ -94,6 +97,7 @@ public final class AdminCommands implements CommandModule {
     private final InstanceRegistry registry;
     private final Executor worker;
     private final InstantSource clock;
+    private final AltAutoBans autoBans;
     private final ComponentLogger logger;
 
     public AdminCommands(final CommandRegistrar registrar, final CommandRunner runner,
@@ -105,7 +109,9 @@ public final class AdminCommands implements CommandModule {
             final MessageService messages, final Platform platform,
             final ConfirmationTracker confirmations, final SakuraSettingsService settingsService,
             final SakuraMessageTemplateService messageTemplates, final InstanceRegistry registry,
-            final Executor worker, final InstantSource clock, final ComponentLogger logger) {
+            final Executor worker, final InstantSource clock, final AltAutoBans autoBans,
+            final ComponentLogger logger) {
+        this.autoBans = autoBans;
         this.registrar = registrar;
         this.runner = runner;
         this.replies = replies;
@@ -166,6 +172,12 @@ public final class AdminCommands implements CommandModule {
                         .flag(CommandFlag.builder(CONFIRM).build())
                         .futureHandler(context -> this.runner.run(context.sender(),
                                 () -> this.prune(context)))));
+        this.registrar.builder(manager, SakuraCommands.ROOT,
+                        MessageKey.COMMAND_DESCRIPTION_ACCEPT_ALTS)
+                .ifPresent(root -> manager.command(root.literal("accept").literal("alts")
+                        .permission(PredicatePermission.<CommandActor>of(CommandActor::console))
+                        .futureHandler(context -> this.runner.run(context.sender(),
+                                () -> this.acceptAlts(context.sender())))));
         this.registrar.builder(manager, SakuraCommands.ROOT,
                         MessageKey.COMMAND_DESCRIPTION_STATUS)
                 .ifPresent(root -> manager.command(root.literal("status")
@@ -369,8 +381,28 @@ public final class AdminCommands implements CommandModule {
                         Placeholder.unparsed("active", Long.toString(active)),
                         Placeholder.unparsed("lockdowns",
                                 Integer.toString(this.lockdowns.lockdowns().size()))))
+                .thenCompose(ignored -> this.autoBansPending(actor))
                 .thenCompose(ignored -> this.registry.refresh())
                 .thenRun(() -> this.instances(actor));
+    }
+
+    private CompletableFuture<Void> autoBansPending(final CommandActor actor) {
+        return this.autoBans.pending().thenAccept(pending -> {
+            if (pending) {
+                this.runner.send(actor, MessageKey.ALTS_AUTO_BAN_PENDING, this.mode());
+            }
+        });
+    }
+
+    private TagResolver mode() {
+        return Placeholder.unparsed("mode",
+                this.config.settings().alts().autoBan().name().toLowerCase(Locale.ROOT));
+    }
+
+    private CompletableFuture<?> acceptAlts(final CommandActor actor) {
+        return this.autoBans.accept().thenAccept(stored -> this.runner.send(actor, stored
+                ? MessageKey.ALTS_AUTO_BAN_ACCEPTED
+                : MessageKey.ALTS_AUTO_BAN_ALREADY, this.mode()));
     }
 
     private void instances(final CommandActor actor) {

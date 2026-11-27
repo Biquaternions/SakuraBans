@@ -82,7 +82,8 @@ class NotificationServiceTest extends ServiceTest {
 
         Assertions.assertThat(this.normalStaff.messages()).isEmpty();
         Assertions.assertThat(texts(this.silentStaff)).singleElement()
-                .satisfies(text -> Assertions.assertThat(text).startsWith("SakuraBans » [Silent]"));
+                .satisfies(text -> Assertions.assertThat(text)
+                        .startsWith("SakuraBans ...🖉 [Silent]"));
         Assertions.assertThat(this.console()).singleElement()
                 .satisfies(text -> Assertions.assertThat(text).contains("[Silent]"));
     }
@@ -94,6 +95,24 @@ class NotificationServiceTest extends ServiceTest {
         Assertions.assertThat(this.normalStaff.messages()).isEmpty();
         Assertions.assertThat(this.silentStaff.messages()).isEmpty();
         Assertions.assertThat(this.console()).hasSize(1);
+    }
+
+    @Test
+    void quietPunishmentsAndRevocationsReachNobodyNotEvenTheConsole() {
+        final Punishment ban = this.ban(Visibility.QUIET);
+
+        this.revoke(ban, Visibility.QUIET);
+        // Quiet to the end: a loud revocation of a quiet ban is still the revoker's choice.
+        final Punishment other = this.ban(Visibility.QUIET);
+        Assertions.assertThat(this.normalStaff.messages()).isEmpty();
+        Assertions.assertThat(this.silentStaff.messages()).isEmpty();
+        Assertions.assertThat(this.revokeStaff.messages()).isEmpty();
+        Assertions.assertThat(this.player.messages()).isEmpty();
+        Assertions.assertThat(this.console()).isEmpty();
+        // A remote instance enforcing it announces nothing either.
+        this.notifications.created(other);
+        Assertions.assertThat(this.console()).isEmpty();
+        Assertions.assertThat(other.visibility()).isEqualTo(Visibility.QUIET);
     }
 
     @Test
@@ -131,9 +150,9 @@ class NotificationServiceTest extends ServiceTest {
         final FakeOnlinePlayer watcher = this.join("Watcher", Permissions.NOTIFY_ATTEMPT_JOIN);
         final Punishment ban = this.ban(Visibility.HIDDEN);
 
-        this.notifications.attemptedJoin("Steve", ban);
-        this.notifications.attemptedJoin("STEVE", ban);
-        this.notifications.attemptedJoin("Alex", ban);
+        this.notifications.attemptedJoin("Steve", ban, null);
+        this.notifications.attemptedJoin("STEVE", ban, null);
+        this.notifications.attemptedJoin("Alex", ban, null);
 
         Assertions.assertThat(texts(watcher)).hasSize(2);
         Assertions.assertThat(watcher.messages()).doesNotContain(Component.empty());

@@ -22,6 +22,7 @@ import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Scope;
 import net.serlith.sakurabans.api.model.Victim;
+import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.api.punish.DraftPunishment;
 import net.serlith.sakurabans.api.punish.LadderRequest;
 import net.serlith.sakurabans.api.punish.PunishOptions;
@@ -212,11 +213,19 @@ public final class PunishmentFactory {
         return victim.thenApply(found -> new Prepared.Ready(new NewPunishment(type,
                 shadow, found, scope, text, input.actor(), now,
                 duration == null ? null : now.plus(duration),
-                this.scopes.originServer().orElse(null), options.visibility(),
+                options.originServer().or(this.scopes::originServer).orElse(null),
+                visibility(template, options.visibility()),
                 template == null ? null : template.name(), input.index(),
                 List.copyOf(evidence.values()), null, variant), origin,
                 template == null ? null : new NewTemplateUse(template.name(), input.index(),
                         input.victim(), input.actor(), now, variant), template));
+    }
+
+    private static Visibility visibility(final @Nullable TemplateInfo template,
+            final Visibility asked) {
+        return template != null && template.silent() && asked == Visibility.NORMAL
+                ? Visibility.SILENT
+                : asked;
     }
 
     /** {@code template}, {@code index} and {@code step}: the preset or the ladder's step. */

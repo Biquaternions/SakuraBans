@@ -20,6 +20,9 @@ public final class PunishFlags {
 
     public static final String SILENT = "silent";
     public static final String HIDE = "hide";
+    public static final String QUIET = "quiet";
+    public static final String NO_RECORD = "no-record";
+    public static final String SERVER_ORIGIN = "server-origin";
     public static final String IP = "ip";
     public static final String SHADOW = "shadow";
     public static final String GLOBAL = "global";
@@ -60,6 +63,29 @@ public final class PunishFlags {
 
     public CommandFlag<Void> hide(final String permission) {
         return CommandFlag.<CommandActor>builder(HIDE).withPermission(permission).build();
+    }
+
+    public CommandFlag<Void> quiet(final PunishmentType type) {
+        return this.quiet(Permissions.flag(type, QUIET));
+    }
+
+    public CommandFlag<Void> quiet(final String permission) {
+        return CommandFlag.<CommandActor>builder(QUIET).withPermission(permission).build();
+    }
+
+    public CommandFlag<Void> noRecord() {
+        return CommandFlag.<CommandActor>builder(NO_RECORD)
+                .withPermission(Permissions.flag(PunishmentType.KICK, "norecord")).build();
+    }
+
+    public CommandFlag<String> serverOrigin() {
+        return CommandFlag.<CommandActor>builder(SERVER_ORIGIN)
+                .withComponent(CommandComponent.<CommandActor, String>builder()
+                        .name(SERVER_ORIGIN)
+                        .parser(StringParser.<CommandActor>stringParser())
+                        .suggestionProvider(this.scopes.servers()))
+                .withPermission(Permissions.ADMIN_SERVER_ORIGIN)
+                .build();
     }
 
     public CommandFlag<Void> ip(final PunishmentType type) {

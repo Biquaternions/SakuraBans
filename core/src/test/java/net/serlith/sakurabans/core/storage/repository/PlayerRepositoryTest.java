@@ -28,7 +28,7 @@ class PlayerRepositoryTest extends DatabaseTest {
 
     @BeforeEach
     void create() throws Exception {
-        this.players = new PlayerRepository(this.storage);
+        this.players = new PlayerRepository(this.storage, this.hasher);
         this.home = InetAddress.getByName("203.0.113.7");
         this.work = InetAddress.getByName("2001:db8::7");
     }

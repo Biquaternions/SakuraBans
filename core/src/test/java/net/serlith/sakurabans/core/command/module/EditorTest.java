@@ -105,7 +105,8 @@ abstract class EditorTest extends CommandTest {
     }
 
     static List<String> strip(final List<String> lines) {
-        return lines.stream().map(line -> line.replaceFirst("^SakuraBans » ", "")).toList();
+        return lines.stream().map(line -> line.replaceFirst("^SakuraBans \\.{3}🖉 ", ""))
+                .toList();
     }
 
     static TemplateInfo template(final String name, final String reason) {

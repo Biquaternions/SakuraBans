@@ -25,7 +25,8 @@ public final class TemplateSummaries {
                 + " groups=" + new TreeMap<>(template.groups())
                 + template.message().map(text -> " message=" + text).orElse("")
                 + (template.display() == TemplateDisplay.CHAT ? ""
-                        : " display=" + TemplateDisplays.key(template.display()));
+                        : " display=" + TemplateDisplays.key(template.display()))
+                + (template.silent() ? " silent=true" : "");
     }
 
     /** The kind's own fields, starting with a space. */

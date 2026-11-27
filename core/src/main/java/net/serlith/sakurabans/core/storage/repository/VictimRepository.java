@@ -6,12 +6,12 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import net.serlith.sakurabans.api.model.Victim;
+import net.serlith.sakurabans.core.storage.AddressHasher;
 import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import net.serlith.sakurabans.core.storage.dbo.VictimKind;
 import net.serlith.sakurabans.core.storage.dbo.records.SbVictimsRecord;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbVictims;
-import net.serlith.sakurabans.core.util.AddressHashes;
 import net.serlith.sakurabans.core.util.InetAddresses;
 import org.jooq.DSLContext;
 import org.jooq.Record2;
@@ -19,18 +19,20 @@ import org.jooq.Record2;
 public final class VictimRepository {
 
     private final StorageService storage;
+    private final AddressHasher hasher;
 
-    public VictimRepository(final StorageService storage) {
+    public VictimRepository(final StorageService storage, final AddressHasher hasher) {
         this.storage = storage;
+        this.hasher = hasher;
     }
 
     public CompletableFuture<Long> id(final Victim victim) {
         return this.storage.writeRetryingConflicts(
-                configuration -> resolve(configuration.dsl(), victim));
+                configuration -> resolve(configuration.dsl(), this.hasher, victim));
     }
 
     public CompletableFuture<Optional<Long>> find(final Victim victim) {
-        return this.storage.read(dsl -> lookup(dsl, victim));
+        return this.storage.read(dsl -> lookup(dsl, this.hasher, victim));
     }
 
     public CompletableFuture<Optional<Victim>> byId(final long id) {
@@ -40,8 +42,8 @@ public final class VictimRepository {
                 .map(VictimRepository::victim));
     }
 
-    static long resolve(final DSLContext dsl, final Victim victim) {
-        final StoredVictim stored = StoredVictim.of(victim);
+    static long resolve(final DSLContext dsl, final AddressHasher hasher, final Victim victim) {
+        final StoredVictim stored = StoredVictim.of(victim, hasher);
         final SbVictims victims = SakuraTables.VICTIMS;
         final Record2<Long, byte[]> existing = dsl.select(victims.ID, victims.ADDRESS)
                 .from(victims).where(stored.matches(victims)).fetchOne();
@@ -65,19 +67,19 @@ public final class VictimRepository {
                 .set(victims.ADDRESS_HASH, stored.addressHash())
                 .onConflictDoNothing()
                 .execute();
-        return lookup(dsl, victim).orElseThrow(
+        return lookup(dsl, hasher, victim).orElseThrow(
                 () -> new IllegalStateException("the victim row vanished: " + victim));
     }
 
     // Erased rows whose address was seen again at a login get it back.
-    static int restore(final DSLContext dsl, final VictimKind kind, final UUID uuid,
-            final InetAddress address) {
+    static int restore(final DSLContext dsl, final AddressHasher hasher, final VictimKind kind,
+            final UUID uuid, final InetAddress address) {
         final SbVictims victims = SakuraTables.VICTIMS;
         return dsl.update(victims)
                 .set(victims.ADDRESS, InetAddresses.toBytes(InetAddresses.normalize(address)))
                 .where(victims.KIND.eq(kind))
                 .and(victims.UUID.eq(uuid))
-                .and(victims.ADDRESS_HASH.eq(AddressHashes.of(address)))
+                .and(victims.ADDRESS_HASH.eq(hasher.hash(address)))
                 .and(victims.ADDRESS.isNull())
                 .execute();
     }
@@ -86,8 +88,8 @@ public final class VictimRepository {
      * The victim's row, created if needed, locked ({@code FOR UPDATE}) until the transaction
      * ends: applies of a ladder to one victim store their uses one after the other (S64).
      */
-    static long lock(final DSLContext dsl, final Victim victim) {
-        final long id = resolve(dsl, victim);
+    static long lock(final DSLContext dsl, final AddressHasher hasher, final Victim victim) {
+        final long id = resolve(dsl, hasher, victim);
         dsl.select(SakuraTables.VICTIMS.ID)
                 .from(SakuraTables.VICTIMS)
                 .where(SakuraTables.VICTIMS.ID.eq(id))
@@ -96,10 +98,11 @@ public final class VictimRepository {
         return id;
     }
 
-    static Optional<Long> lookup(final DSLContext dsl, final Victim victim) {
+    static Optional<Long> lookup(final DSLContext dsl, final AddressHasher hasher,
+            final Victim victim) {
         return dsl.select(SakuraTables.VICTIMS.ID)
                 .from(SakuraTables.VICTIMS)
-                .where(StoredVictim.of(victim).matches(SakuraTables.VICTIMS))
+                .where(StoredVictim.of(victim, hasher).matches(SakuraTables.VICTIMS))
                 .fetchOptional(SakuraTables.VICTIMS.ID);
     }
 

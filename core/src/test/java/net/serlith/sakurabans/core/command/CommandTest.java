@@ -17,13 +17,16 @@ import net.serlith.sakurabans.core.admin.InstanceRegistry;
 import net.serlith.sakurabans.core.command.module.AdminCommands;
 import net.serlith.sakurabans.core.command.module.AllowCommands;
 import net.serlith.sakurabans.core.command.module.AltCommands;
+import net.serlith.sakurabans.core.command.module.AuditCommands;
 import net.serlith.sakurabans.core.command.module.CheckCommands;
 import net.serlith.sakurabans.core.command.module.EditCommands;
 import net.serlith.sakurabans.core.command.module.EditorCommands;
 import net.serlith.sakurabans.core.command.module.GdprCommands;
+import net.serlith.sakurabans.core.command.module.GeoIpCommands;
 import net.serlith.sakurabans.core.command.module.HistoryCommands;
 import net.serlith.sakurabans.core.command.module.ImportCommands;
 import net.serlith.sakurabans.core.command.module.LadderCommands;
+import net.serlith.sakurabans.core.command.module.MaintenanceCommands;
 import net.serlith.sakurabans.core.command.module.OverrideCommands;
 import net.serlith.sakurabans.core.command.module.PunishCommands;
 import net.serlith.sakurabans.core.command.module.RevokeCommands;
@@ -36,9 +39,11 @@ import net.serlith.sakurabans.core.message.Formats;
 import net.serlith.sakurabans.core.player.SakuraIntegrationRegistry;
 import net.serlith.sakurabans.core.player.TargetResolver;
 import net.serlith.sakurabans.core.player.UuidResolver;
+import net.serlith.sakurabans.core.punish.ResetService;
 import net.serlith.sakurabans.core.storage.repository.AuditRepository;
 import net.serlith.sakurabans.core.storage.repository.EditorSessionRepository;
 import net.serlith.sakurabans.core.storage.repository.InstanceRepository;
+import net.serlith.sakurabans.core.storage.repository.PunishmentResetRepository;
 import net.serlith.sakurabans.core.util.InetAddresses;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -73,7 +78,8 @@ public abstract class CommandTest extends ServiceTest {
         this.editorClient = new EditorClient(this.config, this.executors.worker(),
                 this.log.logger());
         this.editor = new EditorService(this.config, this.settingsService, this.messageTemplates,
-                this.templates, new EditorSessionRepository(this.storage), this.editorClient,
+                this.templates, new EditorSessionRepository(this.storage),
+                new AuditRepository(this.storage), this.editorClient,
                 new EditorSeal(new SecureRandom()), this.platform, this.registry, this.clock,
                 this.log.logger());
         this.editorLines = new EditorLines(this.messages, this.platform);
@@ -84,7 +90,8 @@ public abstract class CommandTest extends ServiceTest {
         final CommandRunner runner =
                 new CommandRunner(this.lifecycle, this.messages, this.log.logger());
         final Replies replies =
-                new Replies(runner, this.placeholders, this.names, this.config, this.clock);
+                new Replies(runner, this.placeholders, this.names, this.config, this.clock,
+                        this.messages, this.counts, this.delegatingCountries());
         final TargetParser targetParser =
                 new TargetParser(this.platform, this.names, this.lifecycle, this.displayIds);
         final PunishFlags flags = new PunishFlags(new ScopeParser(this.scopes));
@@ -92,10 +99,13 @@ public abstract class CommandTest extends ServiceTest {
         final TargetResolver targets = new TargetResolver(this.platform, this.names,
                 this.players, new UuidResolver(new SakuraIntegrationRegistry(), this.platform,
                         this.config, this.log.logger()));
+        final AuditLines auditLines = new AuditLines(registrar, runner, replies,
+                this.placeholders, new Formats(this.messages, this.config), this.displayIds,
+                this.names);
         new SakuraCommands(List.of(
                 new PunishCommands(registrar, runner, replies, flags, targetParser, targets,
                         this.service, this.names, this.config, this.scopes,
-                        new ScopeAccess(this.config), this.templates),
+                        new ScopeAccess(this.config), this.templates, this.autoBans),
                 new LadderCommands(registrar, runner, replies, flags, targetParser, targets,
                         this.service, this.names, this.scopes, new ScopeAccess(this.config),
                         this.templates),
@@ -107,7 +117,10 @@ public abstract class CommandTest extends ServiceTest {
                         this.service),
                 new AltCommands(registrar, runner, replies, new Formats(this.messages,
                         this.config), targetParser, targets, this.players, this.clock,
-                        this.altService, this.platform, this.config),
+                        this.altService, this.platform, this.config,
+                        this.delegatingCountries()),
+                new GeoIpCommands(registrar, runner, replies, targetParser, targets,
+                        this.delegatingCountries()),
                 new AllowCommands(registrar, runner, replies, new Formats(this.messages,
                         this.config), targetParser, targets, this.allowList, this.names,
                         this.placeholders),
@@ -115,8 +128,11 @@ public abstract class CommandTest extends ServiceTest {
                         new TemplateFiles(this.dir), new ConfirmationTracker(this.clock),
                         this.executors.worker(), this.clock, targetParser, targets,
                         new ScopeParser(this.scopes)),
+                new AuditCommands(registrar, runner, replies, auditLines, pager, targetParser,
+                        targets, new AuditRepository(this.storage), this.displayIds,
+                        this.templates, this.dir, Runnable::run, this.clock),
                 new EditCommands(registrar, runner, replies, this.placeholders,
-                        new Formats(this.messages, this.config), this.service,
+                        new Formats(this.messages, this.config), auditLines, this.service,
                         new AuditRepository(this.storage),
                         this.displayIds, new ScopeParser(this.scopes),
                         new ConfirmationTracker(this.clock), this.clock),
@@ -129,14 +145,19 @@ public abstract class CommandTest extends ServiceTest {
                         this.config, this.messages, this.platform,
                         new ConfirmationTracker(this.clock), this.settingsService,
                         this.messageTemplates, this.registry, Runnable::run, this.clock,
-                        this.log.logger()),
+                        this.autoBans, this.log.logger()),
                 new OverrideCommands(registrar, runner, this.settingsService,
                         this.messageTemplates, new ConfirmationTracker(this.clock),
                         new ScopeParser(this.scopes), this.registry),
                 new EditorCommands(registrar, runner, this.editor, this.editorWatcher,
                         this.editorLines, new Formats(this.messages, this.config)),
                 new ImportCommands(registrar, runner, this.importJobs(this.importSources()),
-                        new ConfirmationTracker(this.clock), this.platform)),
+                        new ConfirmationTracker(this.clock), this.platform),
+                new MaintenanceCommands(registrar, runner, flags, new ResetService(
+                        new PunishmentResetRepository(this.storage), this.mutes, this.ranges,
+                        this.counts, this.syncService, this.clock, this.log.logger()), this.players,
+                        this.names, this.scopes, new ConfirmationTracker(this.clock),
+                        this.clock)),
                 registrar, runner, this.messages).install(this.manager);
     }
 

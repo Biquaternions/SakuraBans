@@ -25,6 +25,12 @@ public sealed interface SyncPacket {
             implements SyncPacket {
     }
 
+    record PlayerKickedPacket(UUID uuid, String reason) implements SyncPacket {
+    }
+
+    record PunishmentsResetPacket() implements SyncPacket {
+    }
+
     record PunishmentEditedPacket(long punishmentId, boolean rescoped) implements SyncPacket {
     }
 
@@ -51,6 +57,13 @@ public sealed interface SyncPacket {
     }
 
     record ImportedPacket() implements SyncPacket {
+    }
+
+    record AltsAutoBannedPacket(long banId, List<String> names) implements SyncPacket {
+
+        public AltsAutoBannedPacket {
+            names = List.copyOf(names);
+        }
     }
 
 }

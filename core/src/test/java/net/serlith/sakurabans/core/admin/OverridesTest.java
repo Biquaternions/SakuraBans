@@ -183,7 +183,7 @@ class OverridesTest extends ServiceTest {
         Assertions.assertThat(this.messageTemplates.messages(Locale.US).version()).isEqualTo(3);
         Assertions.assertThat(this.messageTemplates.messages(Locale.FRANCE).version()).isZero();
         Assertions.assertThat(plain(this.messages.render(MessageKey.VICTIM_WARNED, Locale.US)))
-                .contains("You were warned");
+                .contains("Warned", "Staff:");
         Assertions.assertThat(plain(this.messageTemplates.preview("<prefix><b>Hi <name>",
                 Map.of("name", "<red>Steve")))).endsWith("Hi <red>Steve");
     }
@@ -198,7 +198,7 @@ class OverridesTest extends ServiceTest {
                 this.enforcementMessages, new Formats(this.messages, this.config));
 
         Assertions.assertThat(plain(formatter.disconnectScreen(ban, Locale.US)))
-                .contains("You are banned", "From the file");
+                .contains("Expires on:", "From the file");
         Assertions.assertThat(plain(formatter.summary(ban, Locale.US)))
                 .contains("#" + ban.displayId());
         Assertions.assertThat(formatter.formatDuration(Duration.ofHours(25), Locale.US))

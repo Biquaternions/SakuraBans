@@ -27,11 +27,11 @@ class LayeringTest {
     /** Keep in sync with the table in IMPLEMENTATION_PLAN.md 5.3. */
     private static final List<List<String>> LAYERS = List.of(
             List.of("util", "concurrent", "model", "platform"),
-            List.of("configuration", "message", "storage"),
+            List.of("configuration", "message", "storage", "geoip"),
             List.of("permission", "event", "sync", "player", "scope"),
             List.of("template", "punish", "alts", "limit", "notify",
                     "admin", "data"),
-            List.of("enforce", "importer"),
+            List.of("enforce", "importer", "placeholder"),
             List.of("command"),
             List.of("", "bootstrap"));
 

@@ -2,7 +2,6 @@ package net.serlith.sakurabans.core.storage;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.InstantSource;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
@@ -14,19 +13,16 @@ public final class Lease {
 
     private final StorageService storage;
     private final UUID instanceId;
-    private final InstantSource clock;
 
-    public Lease(final StorageService storage, final UUID instanceId,
-            final InstantSource clock) {
+    public Lease(final StorageService storage, final UUID instanceId) {
         this.storage = storage;
         this.instanceId = instanceId;
-        this.clock = clock;
     }
 
     public CompletableFuture<Boolean> tryAcquire(final String name, final Duration ttl) {
         return this.storage.write(configuration -> {
             final DSLContext dsl = configuration.dsl();
-            final Instant now = this.clock.instant();
+            final Instant now = DatabaseClock.now(dsl);
             final String key = PREFIX + name;
             final String mine = this.instanceId + ":" + now.plus(ttl).toEpochMilli();
             final String current = dsl.select(SakuraTables.META.V).from(SakuraTables.META)

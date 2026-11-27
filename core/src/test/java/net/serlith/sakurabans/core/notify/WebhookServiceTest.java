@@ -142,6 +142,25 @@ class WebhookServiceTest extends ServiceTest {
     }
 
     @Test
+    void quietPunishmentsAndQuietRevocationsAreNeverPosted() {
+        final Punishment quiet = this.punish(PunishmentType.BAN, Visibility.QUIET);
+        // The quiet ban's own revocation, even a loud one, and an edit of it: nothing either.
+        this.service.revoke(RevocationRequest.builder(RevocationTarget.ById.of(quiet.id()),
+                MODERATOR).build()).join();
+        this.punish(PunishmentType.BAN, Visibility.NORMAL);
+        eventually(() -> this.received.size() == 1);
+        this.service.revoke(RevocationRequest.builder(RevocationTarget.ByVictim.of(
+                PunishmentType.BAN, PlayerVictim.of(STEVE), null), MODERATOR)
+                .visibility(Visibility.QUIET).build()).join();
+        // A marker that is posted, so the quiet ones had their chance to go first.
+        this.punish(PunishmentType.BAN, Visibility.NORMAL);
+        eventually(() -> this.received.size() == 2);
+
+        Assertions.assertThat(this.received).hasSize(2)
+                .noneMatch(body -> body.contains("unbanned"));
+    }
+
+    @Test
     void rateLimitsAndServerErrorsAreRetriedClientErrorsAreNot() {
         synchronized (this.answers) {
             this.answers.addAll(List.of(429, 500, 204, 400));

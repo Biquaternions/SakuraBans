@@ -1,6 +1,5 @@
 package net.serlith.sakurabans.core.command.module;
 
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import net.serlith.sakurabans.api.model.AddressVictim;
@@ -19,7 +18,6 @@ import net.serlith.sakurabans.core.model.SubjectType;
 import net.serlith.sakurabans.core.model.TemplateBuilder;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import net.serlith.sakurabans.core.storage.repository.AuditRepository;
-import net.serlith.sakurabans.core.util.AddressHashes;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -137,7 +135,7 @@ class TemplateResetTest extends CommandTest {
         Assertions.assertThat(this.next("grief", PlayerVictim.of(STEVE))).as("his own")
                 .isOne();
         Assertions.assertThat(this.next("chat", PlayerVictim.of(ALEX))).isZero();
-        final String hash = HexFormat.of().formatHex(AddressHashes.of(this.home));
+        final String hash = this.hasher.hex(this.home);
         Assertions.assertThat(this.resets(SubjectType.ADDRESS_HASH, hash)).singleElement()
                 .satisfies(entry -> Assertions.assertThat(entry.oldValue())
                         .isEqualTo("template uses of every template: 3 of 2 victims"));
