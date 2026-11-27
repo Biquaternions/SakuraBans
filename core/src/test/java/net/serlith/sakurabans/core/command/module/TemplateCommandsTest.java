@@ -4,13 +4,15 @@ import java.nio.file.Files;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
+import net.serlith.sakurabans.api.model.CategoryScope;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentType;
+import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.api.punish.PunishmentQuery;
-import net.serlith.sakurabans.api.template.TemplateStep;
+import net.serlith.sakurabans.api.template.TemplateDuration;
 import net.serlith.sakurabans.core.command.CommandTest;
 import net.serlith.sakurabans.core.command.FakeCommandActor;
-import net.serlith.sakurabans.core.model.TemplateDefinition;
+import net.serlith.sakurabans.core.model.TemplateBuilder;
 import net.serlith.sakurabans.core.permission.Permissions;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,11 +34,11 @@ class TemplateCommandsTest extends CommandTest {
     @BeforeEach
     void fixture() {
         this.known(STEVE, "Steve");
-        this.templates.create(TemplateDefinition.builder("hacking", PunishmentType.BAN)
+        this.templates.create(TemplateBuilder.preset("hacking", PunishmentType.BAN)
                 .reason("Hacking")
-                .ladder(List.of(TemplateStep.of(Duration.ofDays(7)), TemplateStep.of(null)))
+                .duration(TemplateDuration.fixed(Duration.ofDays(7)))
                 .build(), CONSOLE).join();
-        this.templates.create(TemplateDefinition.builder("secret", PunishmentType.BAN)
+        this.templates.create(TemplateBuilder.preset("secret", PunishmentType.BAN)
                 .reason("Reason")
                 .permissionRequired(true).build(), CONSOLE).join();
     }
@@ -80,7 +82,7 @@ class TemplateCommandsTest extends CommandTest {
     void templatesAreListedImportedAndExported() throws Exception {
         this.run(this.console, "sakurabans templates list");
         Assertions.assertThat(this.console.texts()).anySatisfy(line ->
-                Assertions.assertThat(line).contains("hacking", "ban", "7d → permanent"));
+                Assertions.assertThat(line).contains("hacking", "ban", "7d"));
 
         Files.writeString(this.dir.resolve("templates.yml"),
                 """
@@ -88,19 +90,73 @@ class TemplateCommandsTest extends CommandTest {
                   spam:
                     type: mute
                     reason: Reason
-                    ladder: [1h]
+                    duration: 1h
+                  misconduct:
+                    type: ladder
+                    reason: Reason
+                    steps: [warn, kick, ban 7d]
                 """);
         this.run(this.console, "sakurabans templates import");
         Assertions.assertThat(this.console.last()).contains("--confirm");
         Assertions.assertThat(this.templates.template("spam")).isEmpty();
         this.run(this.console, "sakurabans templates import --confirm");
-        Assertions.assertThat(this.console.last()).contains("1 new, 0 updated");
+        Assertions.assertThat(this.console.last()).contains("2 new, 0 updated");
         Assertions.assertThat(this.templates.template("spam")).isPresent();
+        this.console.clear();
+        this.run(this.console, "sakurabans templates list");
+        Assertions.assertThat(this.console.texts()).anySatisfy(line ->
+                Assertions.assertThat(line).contains("misconduct", "ladder",
+                        "warn → kick → ban 7d"));
 
         this.run(this.console, "sakurabans templates export");
-        Assertions.assertThat(this.console.last()).contains("Exported 3 templates to exports/");
+        Assertions.assertThat(this.console.last()).contains("Exported 4 templates to exports/");
         try (var files = Files.list(this.dir.resolve("exports"))) {
             Assertions.assertThat(files).hasSize(1);
         }
+    }
+
+    @Test
+    void listImportAndExportTakeScopes() throws Exception {
+        this.templates.create(TemplateBuilder.preset("hacking", PunishmentType.BAN)
+                .reason("Hacking in Skywars").variant(ServerScope.of("skywars")).build(),
+                CONSOLE).join();
+        this.run(this.console, "sakurabans templates list");
+        Assertions.assertThat(this.console.texts()).anySatisfy(line ->
+                Assertions.assertThat(line).contains("variants: server:skywars"));
+        this.console.clear();
+        this.run(this.console, "sakurabans templates list server:skywars");
+        Assertions.assertThat(this.console.texts()).anySatisfy(line ->
+                Assertions.assertThat(line).contains("variants in server:skywars", "(1)"));
+        Assertions.assertThat(this.console.texts()).anySatisfy(line ->
+                Assertions.assertThat(line).contains("hacking", "Hacking in Skywars"));
+        this.run(this.console, "sakurabans templates list category:none");
+        Assertions.assertThat(this.console.last()).contains("No template has a variant in"
+                + " category:none");
+
+        this.run(this.console, "sakurabans templates export server:skywars");
+        Assertions.assertThat(this.console.last()).contains("Exported 1 templates");
+        this.run(this.console, "sakurabans templates export");
+        Assertions.assertThat(this.console.last()).as("none means global")
+                .contains("Exported 2 templates");
+        this.run(this.console, "sakurabans templates export --all");
+        Assertions.assertThat(this.console.last()).contains("Exported 3 templates");
+
+        Files.writeString(this.dir.resolve("templates.yml"),
+                """
+                templates:
+                  spam: {type: mute, reason: Spamming, duration: 1h}
+                variants:
+                  category:games:
+                    spam: {type: mute, reason: Spamming in games}
+                """);
+        this.run(this.console, "sakurabans templates import category:games");
+        this.run(this.console, "sakurabans templates import category:games --confirm");
+        Assertions.assertThat(this.console.texts()).anySatisfy(line ->
+                Assertions.assertThat(line).contains("needs one"));
+        this.run(this.console, "sakurabans templates import --all");
+        this.run(this.console, "sakurabans templates import --all --confirm");
+        Assertions.assertThat(this.console.last()).contains("2 new, 0 updated");
+        Assertions.assertThat(this.templates.find("spam", CategoryScope.of("games"))
+                .orElseThrow().template().reason()).isEqualTo("Spamming in games");
     }
 }

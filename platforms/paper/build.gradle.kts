@@ -7,6 +7,7 @@ dependencies {
     implementation(project(":core"))
     implementation(libs.cloud.paper)
     compileOnly(libs.paper.api)
+    testImplementation(libs.paper.api)
 }
 
 val shadedOnPaper = setOf("com.google.guava", "com.google.code.gson")

@@ -11,6 +11,8 @@ public final class Permissions {
     public static final String NOTIFY_ATTEMPT_CHAT = ROOT + "notify.attempt.chat";
     public static final String VIEW_IPS = ROOT + "viewips";
     public static final String HELP = ROOT + "help";
+    /** Applying a ladder (D37), whatever its step's type. */
+    public static final String PUNISH = ROOT + "punish";
     public static final String INFO = ROOT + "info";
     public static final String LOCKDOWN_BYPASS = ROOT + "lockdown.bypass";
     public static final String ADMIN_LOCKDOWN = ROOT + "admin.lockdown";
@@ -62,6 +64,11 @@ public final class Permissions {
 
     public static String punish(final PunishmentType type) {
         return ROOT + key(type);
+    }
+
+    /** {@code sakurabans.punish.<flag>}: a flag of {@code /punish}. */
+    public static String punishFlag(final String flag) {
+        return PUNISH + "." + flag;
     }
 
     public static String temporary(final PunishmentType type) {

@@ -73,13 +73,13 @@ export function draftFromChanges(payload: Payload, changes: ChangeSet): EditorDr
     }
   }
   for (const change of changes.templates ?? []) {
-    const index = draft.templates.findIndex(form => form.name === change.name)
+    const index = draft.templates.findIndex(form => form.variant === change.scope && form.name === change.name)
     if (change.op === 'delete') {
       draft.templates.splice(index, 1)
     } else if (change.op === 'update') {
-      draft.templates[index] = { ...definitionToForm(change.name, change.definition), origin: change.name }
+      draft.templates[index] = { ...definitionToForm(change.name, change.definition), origin: change.name, variant: change.scope }
     } else {
-      draft.templates.push({ ...definitionToForm(change.name, change.definition), origin: null })
+      draft.templates.push({ ...definitionToForm(change.name, change.definition), origin: null, variant: change.scope })
     }
   }
   return draft

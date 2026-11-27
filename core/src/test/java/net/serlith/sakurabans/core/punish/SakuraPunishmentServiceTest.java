@@ -31,7 +31,7 @@ import net.serlith.sakurabans.core.concurrent.LifecycleState;
 import net.serlith.sakurabans.core.event.SakuraPunishmentRevokedEvent;
 import net.serlith.sakurabans.core.fake.FakeOnlinePlayer;
 import net.serlith.sakurabans.core.model.SakuraRevokeResult;
-import net.serlith.sakurabans.core.model.TemplateDefinition;
+import net.serlith.sakurabans.core.model.TemplateBuilder;
 import net.serlith.sakurabans.core.sync.SyncPacket;
 import net.serlith.sakurabans.core.util.InetAddresses;
 import org.assertj.core.api.Assertions;
@@ -114,7 +114,7 @@ class SakuraPunishmentServiceTest extends ServiceTest {
                         ((PunishResult.Success) replaced).punishment().id(), first.id()));
     }
 
-    private void template(final TemplateDefinition.Builder template) {
+    private void template(final TemplateBuilder template) {
         this.templates.create(template.reason("Reason").build(), CONSOLE).join();
     }
 
@@ -123,13 +123,14 @@ class SakuraPunishmentServiceTest extends ServiceTest {
         final Punishment shadow = this.punished(this.draft(PunishmentType.MUTE).shadow(true));
         Assertions.assertThat(shadow.shadow()).isTrue();
 
-        this.template(TemplateDefinition.builder("quiet", PunishmentType.MUTE).shadow(true));
+        this.template(TemplateBuilder.preset("quiet", PunishmentType.MUTE).shadow(true));
         final Punishment quiet = this.punished(DraftPunishment.builder(PunishmentType.MUTE,
                 PlayerVictim.of(ALEX), MODERATOR).template("quiet"));
         Assertions.assertThat(quiet.shadow()).isTrue();
 
         Assertions.assertThat(failure(this.punish(this.draft(PunishmentType.BAN)
-                .template("quiet")))).isEqualTo(PunishResult.Failure.Reason.UNKNOWN_TEMPLATE);
+                .template("quiet")))).isEqualTo(
+                        PunishResult.Failure.Reason.TEMPLATE_TYPE_MISMATCH);
         Assertions.assertThatThrownBy(() -> this.punish(this.draft(PunishmentType.BAN)
                         .shadow(true)))
                 .isInstanceOf(ValidationException.class);
@@ -137,7 +138,7 @@ class SakuraPunishmentServiceTest extends ServiceTest {
 
     @Test
     void templatesCanHaveTheirOwnScope() {
-        this.template(TemplateDefinition.builder("elimination", PunishmentType.BAN)
+        this.template(TemplateBuilder.preset("elimination", PunishmentType.BAN)
                 .scope(CategoryScope.of("lifesteal")));
 
         final Punishment eliminated =
@@ -153,7 +154,7 @@ class SakuraPunishmentServiceTest extends ServiceTest {
     @Test
     void anIpTemplateBansTheLastKnownAddress() {
         this.players.recordConnection(STEVE, "Steve", this.now.get(), this.home, null).join();
-        this.template(TemplateDefinition.builder("ip-hacking", PunishmentType.BAN).ip(true));
+        this.template(TemplateBuilder.preset("ip-hacking", PunishmentType.BAN).ip(true));
 
         final Punishment ipBan =
                 this.punished(this.draft(PunishmentType.BAN).template("ip-hacking"));

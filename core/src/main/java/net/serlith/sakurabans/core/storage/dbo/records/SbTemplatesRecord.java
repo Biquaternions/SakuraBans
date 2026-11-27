@@ -3,7 +3,9 @@ package net.serlith.sakurabans.core.storage.dbo.records;
 import java.io.Serial;
 import java.time.Duration;
 import java.time.Instant;
-import net.serlith.sakurabans.api.model.PunishmentType;
+import net.serlith.sakurabans.api.template.TemplateDisplay;
+import net.serlith.sakurabans.core.model.TemplateKind;
+import net.serlith.sakurabans.core.storage.dbo.DurationMode;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import org.jooq.impl.UpdatableRecordImpl;
 import org.jspecify.annotations.Nullable;
@@ -35,13 +37,21 @@ public final class SbTemplatesRecord extends UpdatableRecordImpl<SbTemplatesReco
         return this;
     }
 
-    public PunishmentType type() {
-        return this.get(SakuraTables.TEMPLATES.TYPE);
+    public TemplateKind kind() {
+        return this.get(SakuraTables.TEMPLATES.KIND);
     }
 
-    public SbTemplatesRecord type(final PunishmentType value) {
-        this.set(SakuraTables.TEMPLATES.TYPE, value);
+    public SbTemplatesRecord kind(final TemplateKind value) {
+        this.set(SakuraTables.TEMPLATES.KIND, value);
         return this;
+    }
+
+    public DurationMode durationMode() {
+        return this.get(SakuraTables.TEMPLATES.DURATION_MODE);
+    }
+
+    public @Nullable Duration durationMs() {
+        return this.get(SakuraTables.TEMPLATES.DURATION_MS);
     }
 
     public Boolean ip() {
@@ -60,6 +70,10 @@ public final class SbTemplatesRecord extends UpdatableRecordImpl<SbTemplatesReco
     public SbTemplatesRecord shadow(final Boolean value) {
         this.set(SakuraTables.TEMPLATES.SHADOW, value);
         return this;
+    }
+
+    public Integer variantScopeId() {
+        return this.get(SakuraTables.TEMPLATES.VARIANT_SCOPE_ID);
     }
 
     public @Nullable Integer scopeId() {
@@ -109,6 +123,10 @@ public final class SbTemplatesRecord extends UpdatableRecordImpl<SbTemplatesReco
 
     public @Nullable String message() {
         return this.get(SakuraTables.TEMPLATES.MESSAGE);
+    }
+
+    public TemplateDisplay display() {
+        return this.get(SakuraTables.TEMPLATES.DISPLAY);
     }
 
     public String actions() {

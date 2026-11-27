@@ -3,15 +3,19 @@ package net.serlith.sakurabans.core.storage.repository;
 import com.google.common.base.Preconditions;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.Evidence;
 import net.serlith.sakurabans.api.model.EvidenceRef;
 import net.serlith.sakurabans.api.model.Punishment;
+import net.serlith.sakurabans.api.model.Scope;
 import net.serlith.sakurabans.core.model.SakuraEvidence;
 import net.serlith.sakurabans.core.model.SakuraPunishment;
 import net.serlith.sakurabans.core.model.SakuraPunishmentEnd;
@@ -66,13 +70,25 @@ public final class PunishmentMapper {
                 .stream()
                 .collect(Collectors.groupingBy(SbPunishmentEvidenceRecord::punishmentId,
                         Collectors.mapping(PunishmentMapper::evidence, Collectors.toList())));
+        final Set<Integer> variantIds = rows.stream()
+                .map(row -> row.get(SakuraTables.PUNISHMENTS.TEMPLATE_VARIANT_SCOPE_ID))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        final Map<Integer, Scope> variants = new HashMap<>();
+        if (!variantIds.isEmpty()) {
+            dsl.selectFrom(SakuraTables.SCOPES)
+                    .where(SakuraTables.SCOPES.ID.in(variantIds))
+                    .fetch()
+                    .forEach(scope -> variants.put(scope.id(), ScopeRepository.scope(scope)));
+        }
         return rows.stream()
                 .map(row -> this.punishment(row, evidence.getOrDefault(
-                        row.get(SakuraTables.PUNISHMENTS.ID), List.of())))
+                        row.get(SakuraTables.PUNISHMENTS.ID), List.of()), variants))
                 .toList();
     }
 
-    private Punishment punishment(final Record row, final List<Evidence> evidence) {
+    private Punishment punishment(final Record row, final List<Evidence> evidence,
+            final Map<Integer, Scope> variants) {
         final SbPunishmentsRecord p = row.into(SakuraTables.PUNISHMENTS);
         final String templateName = p.template();
         final Short templateStep = p.templateStep();
@@ -92,7 +108,9 @@ public final class PunishmentMapper {
                 p.visibility(),
                 templateName == null ? null
                         : new SakuraTemplateRef(templateName,
-                                templateStep == null ? 0 : templateStep),
+                                templateStep == null ? null : templateStep.intValue(),
+                                p.templateVariantScopeId() == null ? null
+                                        : variants.get(p.templateVariantScopeId())),
                 p.endedAt() == null || p.endKind() == null ? null
                         : new SakuraPunishmentEnd(p.endKind(), p.endedAt(),
                                 revoker(p).orElse(null), p.revokeReason()),

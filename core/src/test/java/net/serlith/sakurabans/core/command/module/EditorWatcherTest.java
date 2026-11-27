@@ -51,8 +51,8 @@ class EditorWatcherTest extends EditorTest {
     private static String create(final String name) {
         return
                 """
-                {"format": 1, "templates": [{"op": "create", "name": "%s",
-                  "definition": {"type": "mute", "reason": "R", "ladder": ["1h"]}}]}
+                {"format": 1, "templates": [{"op": "create", "scope": "global", "name": "%s",
+                  "definition": {"type": "mute", "reason": "R", "duration": "1h"}}]}
                 """.formatted(name);
     }
 
@@ -93,14 +93,14 @@ class EditorWatcherTest extends EditorTest {
         final String first = this.save(session, create("ladder"));
         final String second = this.save(session,
                 """
-                {"format": 1, "templates": [{"op": "update", "name": "ladder",
+                {"format": 1, "templates": [{"op": "update", "scope": "global", "name": "ladder",
                   "expectedVersion": 1,
-                  "definition": {"type": "mute", "reason": "Second", "ladder": ["1h"]}}]}
+                  "definition": {"type": "mute", "reason": "Second", "duration": "1h"}}]}
                 """);
 
         this.editorSockets.last().frame("{\"type\":\"hello\",\"browsers\":1,\"pending\":[\""
                 + first + "\",\"" + second + "\"]}");
-        eventually(() -> this.templates.find("ladder").map(template -> template.reason()
+        eventually(() -> this.templates.find("ladder").map(template -> template.template().reason()
                 .equals("Second")).orElse(false));
 
         // A notice for a code a command applied already: nothing more to say.

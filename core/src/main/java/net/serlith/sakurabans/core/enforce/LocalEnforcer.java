@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -15,6 +16,7 @@ import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.punish.PunishmentQuery.Applicability;
+import net.serlith.sakurabans.api.template.TemplateDisplay;
 import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import net.serlith.sakurabans.core.platform.Platform;
@@ -148,16 +150,29 @@ public final class LocalEnforcer implements Enforcer {
             }
             case MUTE -> this.mutes.load(player.uuid(), player.address()).thenRun(() -> {
                 if (!punishment.shadow()) {
-                    player.sendMessage(this.messages.muted(punishment,
+                    this.notice(player, punishment, this.messages.muted(punishment,
                             this.messages.localeOf(player)));
                 }
             });
             case WARN -> {
-                player.sendMessage(this.messages.warned(punishment,
+                this.notice(player, punishment, this.messages.warned(punishment,
                         this.messages.localeOf(player)));
                 yield this.punishments.acknowledge(punishment.id()).thenRun(() -> { });
             }
         };
+    }
+
+    // As the template's display says; chat when the player can't be shown a dialog.
+    private void notice(final OnlinePlayer player, final Punishment punishment,
+            final Component message) {
+        if (this.messages.display(punishment) == TemplateDisplay.DIALOG) {
+            final Locale locale = this.messages.localeOf(player);
+            if (player.showNotice(this.messages.noticeTitle(punishment, locale), message,
+                    this.messages.noticeButton(locale))) {
+                return;
+            }
+        }
+        player.sendMessage(message);
     }
 
     private CompletableFuture<Void> ban(final Punishment punishment, final OnlinePlayer player) {

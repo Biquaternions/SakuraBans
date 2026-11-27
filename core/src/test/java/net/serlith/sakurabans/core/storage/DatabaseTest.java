@@ -13,6 +13,7 @@ import net.serlith.sakurabans.core.RecordingLogger;
 import net.serlith.sakurabans.core.TestConfig;
 import net.serlith.sakurabans.core.concurrent.SakuraExecutors;
 import net.serlith.sakurabans.core.configuration.ConfigService;
+import net.serlith.sakurabans.core.util.ReleaseChannel;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Table;
@@ -61,7 +62,8 @@ public abstract class DatabaseTest {
         this.config = TestConfig.load(this.dir, this.baseConfigYaml() + this.configYaml(),
                 this.log);
         this.storage = new StorageService(this.dir, this.config,
-                new SchemaManager(this.log.logger()), this.executors, this.log.logger());
+                new SchemaManager(this.log.logger(), ReleaseChannel.current()),
+                this.executors, this.log.logger());
         this.storage.start();
     }
 

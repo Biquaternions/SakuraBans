@@ -5,7 +5,7 @@
 import type { ApplyResult, ChangeSet, JsonValue, Payload, ResultChange, Section } from '../protocol/schema'
 import { removeKey } from '../json'
 import { GLOBAL } from '../protocol/schema'
-import { listChanges, refId, refSection, settingField } from './draft'
+import { listChanges, refId, refSection, settingField, templateKey, templatePath } from './draft'
 import type { ChangeItem, ChangeRef, EditorDraft, Issue } from './draft'
 import { formToDefinition, sameDefinition } from './templates'
 
@@ -22,7 +22,7 @@ export function refForResultChange(change: ResultChange): ChangeRef | null {
         : { section: 'messages', scope: change.scope || GLOBAL, locale: change.target.slice(0, colon), key: change.target.slice(colon + 1) }
     }
     case 'templates':
-      return { section: 'templates', name: change.target }
+      return { section: 'templates', scope: change.scope || GLOBAL, name: change.target }
   }
 }
 
@@ -49,7 +49,7 @@ function keyIn(rest: string, keys: Iterable<string>): string | undefined {
 /**
  * Maps a refusal path to the change it belongs to, and the path in the editor's terms:
  * `settings[0].set.<key>…`, `settings[0].reset[1]`, `settings[0].publish.keys[0]`,
- * `messages[0].set.<key>`, `templates[1].definition.ladder[0]`; a `settings.set.<key>` without
+ * `messages[0].set.<key>`, `templates[1].definition.steps[0].step`; a `settings.set.<key>` without
  * an index means the global block. Null when it names nothing the editor shows.
  */
 export function mapErrorPath(payload: Payload, changes: ChangeSet, path: string):
@@ -97,7 +97,8 @@ export function mapErrorPath(payload: Payload, changes: ChangeSet, path: string)
     if (!entry) {
       return null
     }
-    return { ref: { section: 'templates', name: entry.name }, path: `templates.${entry.name}.${templates[2] || 'name'}` }
+    return { ref: { section: 'templates', scope: entry.scope, name: entry.name },
+      path: `${templatePath(entry.scope, entry.name)}.${templates[2] || 'name'}` }
   }
   return null
 }
@@ -180,10 +181,10 @@ export function simulateResult(payload: Payload, draft: EditorDraft, changes: Ch
       ? ref.key
       : ref.section === 'messages' ? `${ref.locale}:${ref.key}` : ref.name
     if (item.kind === 'rename' && ref.section === 'templates') {
-      const form = draft.templates.find(other => other.name === target)
-      lines.push({ section: 'templates', scope: '', target, action: 'created', detail: '' })
+      const form = draft.templates.find(other => other.variant === GLOBAL && other.name === target)
+      lines.push({ section: 'templates', scope: GLOBAL, target, action: 'created', detail: '' })
       if (form?.origin) {
-        lines.push({ section: 'templates', scope: '', target: form.origin, action: 'deleted', detail: '' })
+        lines.push({ section: 'templates', scope: GLOBAL, target: form.origin, action: 'deleted', detail: '' })
       }
       continue
     }
@@ -298,14 +299,16 @@ export function simulateSnapshot(payload: Payload, draft: EditorDraft): Payload 
     }
   }
   if (next.templates) {
-    const before = new Map(next.templates.items.map(item => [item.name, item]))
-    next.templates.items = draft.templates.map((form) => {
-      const old = before.get(form.name)
+    const before = new Map(next.templates.items.map(item => [templateKey(item.scope, item.name), item]))
+    // As the plugin lists them: by name, the global definition first, then its variants.
+    next.templates.items = [...draft.templates].sort((a, b) => a.name.localeCompare(b.name)
+      || (a.variant === GLOBAL ? -1 : b.variant === GLOBAL ? 1 : a.variant.localeCompare(b.variant))).map((form) => {
+      const old = before.get(templateKey(form.variant, form.name))
       const definition = formToDefinition(form)
       if (old && sameDefinition(old.definition, definition)) {
         return old
       }
-      return { name: form.name, version: (old?.version ?? 0) + 1, definition }
+      return { scope: form.variant, name: form.name, version: (old?.version ?? 0) + 1, definition }
     })
   }
   next.meta.createdAt = Math.max(Date.now(), payload.meta.createdAt + 1)

@@ -18,5 +18,8 @@ public enum AuditAction {
     ERASE,
     ALLOW,
     DISALLOW,
-    IMPORT
+    IMPORT,
+    RESET,
+    /** A ladder step without a punishment (S63): only its use and actions. */
+    APPLY
 }

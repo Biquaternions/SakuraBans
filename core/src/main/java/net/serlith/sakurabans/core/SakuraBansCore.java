@@ -29,7 +29,6 @@ import net.serlith.sakurabans.core.platform.Platform;
 import net.serlith.sakurabans.core.punish.ActiveRangeCache;
 import net.serlith.sakurabans.core.punish.ExpirySweeper;
 import net.serlith.sakurabans.core.punish.SakuraPunishmentService;
-import net.serlith.sakurabans.core.punish.TemplateActions;
 import net.serlith.sakurabans.core.punish.WarningActions;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
 import net.serlith.sakurabans.core.storage.DisplayIdCodec;
@@ -37,6 +36,7 @@ import net.serlith.sakurabans.core.storage.StorageService;
 import net.serlith.sakurabans.core.sync.SyncService;
 import net.serlith.sakurabans.core.template.SakuraTemplateService;
 import net.serlith.sakurabans.core.util.BuildConstants;
+import net.serlith.sakurabans.core.util.ReleaseChannel;
 
 public final class SakuraBansCore {
 
@@ -57,7 +57,7 @@ public final class SakuraBansCore {
             SyncReceiver syncReceiver,
             SakuraAllowListService allowList, ActiveRangeCache ranges,
             SakuraTemplateService templates,
-            TemplateActions templateActions, WarningActions warningActions,
+            WarningActions warningActions,
             DisplayIdCodec displayIds, LockdownService lockdowns, WebhookService webhooks,
             SakuraSettingsService settings, SakuraMessageTemplateService messageTemplates,
             EditorClient editorClient, EditorWatcher editorWatcher, InstanceRegistry registry,
@@ -92,7 +92,6 @@ public final class SakuraBansCore {
             this.services.allowList().reload().join();
             this.services.ranges().reload().join();
             this.services.templates().start().join();
-            this.services.templateActions().start();
             this.services.warningActions().start();
             this.services.sync().start(this.services.syncReceiver());
             this.services.notifications().start();
@@ -109,6 +108,13 @@ public final class SakuraBansCore {
         this.lifecycle.advance(LifecycleState.STARTING, LifecycleState.RUNNING);
         this.logger.info("SakuraBans {} ({}) enabled on {}", BuildConstants.VERSION,
                 BuildConstants.GIT_COMMIT, platform.platformVersion());
+        final ReleaseChannel channel = ReleaseChannel.current();
+        if (!channel.stable()) {
+            this.logger.warn("This is a {} build: expect bugs.{}", channel.label(),
+                    channel.migratesSchema() ? ""
+                            : " Its database isn't updated by later builds; it has to be"
+                                    + " dropped when the schema changes.");
+        }
     }
 
     public ReloadResult reload() {
@@ -136,7 +142,6 @@ public final class SakuraBansCore {
         this.services.editorWatcher().stop();
         this.services.registry().stop();
         this.services.editorClient().stop();
-        this.services.templateActions().stop();
         this.services.warningActions().stop();
         if (!this.executors.shutdown(SHUTDOWN_TIMEOUT)) {
             this.logger.warn("Background tasks didn't finish within {} s and were interrupted",

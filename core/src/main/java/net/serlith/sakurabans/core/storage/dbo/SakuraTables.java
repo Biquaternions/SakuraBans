@@ -22,6 +22,7 @@ import net.serlith.sakurabans.core.storage.dbo.tables.SbSyncMessages;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbTemplateGroupMembers;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbTemplateGroups;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbTemplateSteps;
+import net.serlith.sakurabans.core.storage.dbo.tables.SbTemplateUses;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbTemplates;
 import net.serlith.sakurabans.core.storage.dbo.tables.SbVictims;
 import org.jspecify.annotations.Nullable;
@@ -41,6 +42,7 @@ public final class SakuraTables {
     public static SbTemplateSteps TEMPLATE_STEPS;
     public static SbTemplateGroups TEMPLATE_GROUPS;
     public static SbTemplateGroupMembers TEMPLATE_GROUP_MEMBERS;
+    public static SbTemplateUses TEMPLATE_USES;
     public static SbPunishments PUNISHMENTS;
     public static SbActivePunishments ACTIVE_PUNISHMENTS;
     public static SbPunishmentEvidence PUNISHMENT_EVIDENCE;
@@ -89,6 +91,7 @@ public final class SakuraTables {
         PUNISHMENTS = new SbPunishments(tablePrefix);
         ACTIVE_PUNISHMENTS = new SbActivePunishments(tablePrefix);
         PUNISHMENT_EVIDENCE = new SbPunishmentEvidence(tablePrefix);
+        TEMPLATE_USES = new SbTemplateUses(tablePrefix);
         AUDIT_LOG = new SbAuditLog(tablePrefix);
         ALLOWED_PLAYERS = new SbAllowedPlayers(tablePrefix);
         ALLOWED_ADDRESSES = new SbAllowedAddresses(tablePrefix);
@@ -133,6 +136,7 @@ public final class SakuraTables {
                 PUNISHMENTS,
                 ACTIVE_PUNISHMENTS,
                 PUNISHMENT_EVIDENCE,
+                TEMPLATE_USES,
                 AUDIT_LOG,
                 ALLOWED_PLAYERS,
                 ALLOWED_ADDRESSES,

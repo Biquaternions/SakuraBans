@@ -11,6 +11,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -72,8 +73,41 @@ public final class PunishmentRepository {
 
     public CompletableFuture<InsertOutcome> insert(final NewPunishment punishment,
             final OverridePolicy policy) {
-        return this.storage.writeRetryingConflicts(configuration ->
-                this.insert(configuration.dsl(), punishment, policy));
+        return this.insert(punishment, policy, null);
+    }
+
+    /** {@code use}: the template use the punishment comes from, written with it. */
+    public CompletableFuture<InsertOutcome> insert(final NewPunishment punishment,
+            final OverridePolicy policy, final @Nullable NewTemplateUse use) {
+        return this.insert(punishment, policy, use, null);
+    }
+
+    /**
+     * {@code expected}: the ladder step the use was counted at (S64). The use's victim is then
+     * locked first and counted again, and nothing is stored when the step changed meanwhile
+     * ({@link InsertOutcome.StepChanged}). The lock comes before the active slot's, as on every
+     * path that takes both, so the two can't deadlock.
+     */
+    public CompletableFuture<InsertOutcome> insert(final NewPunishment punishment,
+            final OverridePolicy policy, final @Nullable NewTemplateUse use,
+            final @Nullable ExpectedStep expected) {
+        Preconditions.checkArgument(expected == null || use != null,
+                "an expected step needs its use");
+        return this.storage.writeRetryingConflicts(configuration -> {
+            final DSLContext dsl = configuration.dsl();
+            if (expected != null) {
+                final OptionalInt changed = TemplateRepository.changedStep(dsl, use.victim(),
+                        expected, this.policy);
+                if (changed.isPresent()) {
+                    return new InsertOutcome.StepChanged(changed.getAsInt());
+                }
+            }
+            final InsertOutcome outcome = this.insert(dsl, punishment, policy);
+            if (use != null && outcome instanceof InsertOutcome.Inserted inserted) {
+                TemplateRepository.insertUse(dsl, use, inserted.punishment().id());
+            }
+            return outcome;
+        });
     }
 
     private InsertOutcome insert(final DSLContext dsl, final NewPunishment punishment,
@@ -156,6 +190,8 @@ public final class PunishmentRepository {
                 .set(p.ORIGIN_SERVER, punishment.originServer())
                 .set(p.VISIBILITY, punishment.visibility())
                 .set(p.TEMPLATE, punishment.template())
+                .set(p.TEMPLATE_VARIANT_SCOPE_ID, punishment.templateVariant() == null ? null
+                        : ScopeRepository.resolve(dsl, punishment.templateVariant()))
                 .set(p.TEMPLATE_STEP, punishment.templateStep() == null ? null
                         : punishment.templateStep().shortValue())
                 .set(p.EXTERNAL_ID, punishment.externalId())
@@ -329,6 +365,9 @@ public final class PunishmentRepository {
                     .where(SakuraTables.PUNISHMENT_EVIDENCE.PUNISHMENT_ID.eq(id)).execute();
             dsl.deleteFrom(SakuraTables.ACTIVE_PUNISHMENTS)
                     .where(SakuraTables.ACTIVE_PUNISHMENTS.PUNISHMENT_ID.eq(id)).execute();
+            // Its template use goes too (also by the foreign key's cascade).
+            dsl.deleteFrom(SakuraTables.TEMPLATE_USES)
+                    .where(SakuraTables.TEMPLATE_USES.PUNISHMENT_ID.eq(id)).execute();
             dsl.deleteFrom(SakuraTables.PUNISHMENTS)
                     .where(SakuraTables.PUNISHMENTS.ID.eq(id)).execute();
             AuditRepository.append(dsl, now, actor, AuditAction.EXPUNGE, SubjectType.PUNISHMENT,

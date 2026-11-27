@@ -43,6 +43,7 @@ import net.serlith.sakurabans.core.limit.LimitService;
 import net.serlith.sakurabans.core.message.Formats;
 import net.serlith.sakurabans.core.message.MessageService;
 import net.serlith.sakurabans.core.message.Placeholders;
+import net.serlith.sakurabans.core.model.StoredTemplate;
 import net.serlith.sakurabans.core.notify.NotificationService;
 import net.serlith.sakurabans.core.notify.Throttle;
 import net.serlith.sakurabans.core.permission.AuthorizationService;
@@ -156,7 +157,8 @@ public abstract class ServiceTest extends DatabaseTest {
      * with these, as staff acting in game are.
      */
     protected static String[] staffPermissions() {
-        final List<String> nodes = new ArrayList<>(List.of(Permissions.ADMIN_TEMPLATES,
+        final List<String> nodes = new ArrayList<>(List.of(Permissions.PUNISH,
+                Permissions.ADMIN_TEMPLATES,
                 Permissions.ADMIN_SETTINGS, Permissions.ADMIN_MESSAGES, Permissions.ADMIN_GDPR,
                 Permissions.ADMIN_STAFFROLLBACK));
         for (final PunishmentType type : PunishmentType.values()) {
@@ -197,13 +199,14 @@ public abstract class ServiceTest extends DatabaseTest {
                 this.ranges);
         this.enforcementMessages =
                 new EnforcementMessages(this.messages, this.placeholders, this.names,
-                        name -> this.templates.template(name), this.clock);
+                        ref -> this.templates.definition(ref).map(StoredTemplate::template),
+                        this.clock);
         this.notifications = new NotificationService(this.platform, this.messages,
                 this.placeholders, this.names, this.config, this.bus, new Throttle(this.clock),
                 Runnable::run, this.clock);
         this.notifications.start();
         this.permissions = new PermissionService(this.platform, new DelegatingPermissions(),
-                this.log.logger());
+                this.executors.worker(), this.log.logger());
         this.exemption = new ExemptionService(this.config, this.permissions, this.log.logger());
         this.authorization = new AuthorizationService(this.permissions, this.exemption,
                 this.punishments, this.config);
@@ -226,11 +229,10 @@ public abstract class ServiceTest extends DatabaseTest {
         this.templates = new SakuraTemplateService(this.templateRepository,
                 new MetaRepository(this.storage), new TemplateFiles(this.dir),
                 this.authorization, this.syncService,
-                this.clock, this.log.logger());
+                this.clock, this.config, this.scopes, this.platform, this.log.logger());
         this.templates.reload().join();
-        this.templateActions = new TemplateActions(this.bus, this.templates, this.platform,
-                this.names, this.log.logger());
-        this.templateActions.start();
+        this.templateActions = new TemplateActions(this.platform, this.names,
+                this.log.logger());
         this.warningActions = new WarningActions(this.bus, this.punishments, this.config,
                 this.platform, this.names, this.clock, this.log.logger());
         this.warningActions.start();
@@ -239,7 +241,9 @@ public abstract class ServiceTest extends DatabaseTest {
                 new PunishmentFactory(this.scopes, this.config, this.players, this.platform,
                         this.clock, this.templates),
                 this.mutes, this.enforcer, this.authorization,
-                this.limits, this.exemption, this.bus, this.syncService, this.displayIds);
+                this.limits, this.exemption, this.bus, this.syncService, this.displayIds,
+                this.templates, this.templateRepository, this.templateActions,
+                this.log.logger());
         this.playerData = new SakuraPlayerDataService(new PlayerDataRepository(this.storage,
                 new PunishmentMapper(this.displayIds::display)), this.players,
                 new AuditRepository(this.storage), this.allowList, this.mutes, this.names,

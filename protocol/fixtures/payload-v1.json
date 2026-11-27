@@ -360,62 +360,99 @@
   "templates": {
     "items": [
       {
+        "scope": "global",
         "name": "hacking",
         "version": 4,
         "definition": {
-          "type": "ban",
+          "type": "ladder",
           "reason": "Unfair advantage (hacked client)",
-          "ladder": [
-            "7d",
-            "30d",
-            "permanent"
+          "steps": [
+            "ban 7d",
+            "ban 30d",
+            {
+              "step": "ban permanent",
+              "message": "<red>Permanently banned for cheating.</red>"
+            }
           ],
-          "ladder-expiry": "1y",
+          "expiry": "1y",
           "address-shared": true,
           "groups": {
             "cheating": 2
           },
-          "message": "<red>Banned for cheating.</red>\n<gray>Appeal at example.org/appeal</gray>",
-          "step-messages": {
-            "3": "<red>Permanently banned for cheating.</red>"
-          }
+          "message": "<red>Banned for cheating.</red>\n<gray>Appeal at example.org/appeal</gray>"
         }
       },
       {
+        "scope": "global",
         "name": "lifesteal",
         "version": 1,
         "definition": {
           "type": "ban",
+          "scope": "category:lifesteal",
           "reason": "Out of hearts",
-          "ladder": [
-            "3d"
-          ],
-          "scope": "category:lifesteal"
+          "duration": "3d"
         }
       },
       {
-        "name": "toxicity",
-        "version": 2,
+        "scope": "global",
+        "name": "spam",
+        "version": 1,
         "definition": {
           "type": "mute",
           "shadow": true,
+          "reason": "Spamming",
+          "duration": "1h",
+          "groups": {
+            "chat": 1
+          },
+          "message": "<red>Muted for spamming.</red>"
+        }
+      },
+      {
+        "scope": "server:skywars",
+        "name": "spam",
+        "version": 1,
+        "definition": {
+          "type": "mute",
+          "reason": "Spamming in Skywars",
+          "duration": "1d",
+          "message": "<red>Muted in Skywars for spamming.</red>"
+        }
+      },
+      {
+        "scope": "global",
+        "name": "toxicity",
+        "version": 2,
+        "definition": {
+          "type": "ladder",
+          "shadow": true,
           "reason": "Toxic behaviour",
-          "ladder": [
+          "steps": [
+            "warn",
             "kick",
-            "1h",
-            "1d",
-            "ban 7d",
+            "mute 1h",
+            {
+              "step": "none",
+              "actions": [
+                "say {victim} is on a final warning"
+              ]
+            },
+            {
+              "step": "ban 7d",
+              "reason": "Toxic behaviour (repeated)",
+              "actions": [
+                "kick {victim} Last warning"
+              ]
+            },
             "ban permanent"
           ],
-          "ladder-expiry": "30d",
+          "expiry": "30d",
           "permission-required": true,
           "actions": [
             "say {victim} was punished for {duration}"
           ],
-          "step-actions": {
-            "4": [
-              "kick {victim} Last warning"
-            ]
+          "groups": {
+            "chat": 1
           }
         }
       }

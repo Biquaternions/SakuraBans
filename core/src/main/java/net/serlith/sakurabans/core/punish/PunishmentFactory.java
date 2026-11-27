@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.AddressVictim;
 import net.serlith.sakurabans.api.model.CompositeVictim;
 import net.serlith.sakurabans.api.model.ErasedAddressVictim;
@@ -22,18 +23,26 @@ import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Scope;
 import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.api.punish.DraftPunishment;
+import net.serlith.sakurabans.api.punish.LadderRequest;
 import net.serlith.sakurabans.api.punish.PunishOptions;
 import net.serlith.sakurabans.api.punish.PunishResult.Failure.Reason;
+import net.serlith.sakurabans.api.template.LadderTemplate;
+import net.serlith.sakurabans.api.template.PresetTemplate;
+import net.serlith.sakurabans.api.template.TemplateDuration;
 import net.serlith.sakurabans.api.template.TemplateInfo;
+import net.serlith.sakurabans.api.template.TemplateStep;
 import net.serlith.sakurabans.api.validation.FieldError.Code;
 import net.serlith.sakurabans.api.validation.ValidationException;
 import net.serlith.sakurabans.api.validation.Validator;
 import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.configuration.settings.Settings;
+import net.serlith.sakurabans.core.model.StoredTemplate;
+import net.serlith.sakurabans.core.model.TemplateKind;
 import net.serlith.sakurabans.core.platform.OnlinePlayer;
 import net.serlith.sakurabans.core.platform.Platform;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
 import net.serlith.sakurabans.core.storage.repository.NewPunishment;
+import net.serlith.sakurabans.core.storage.repository.NewTemplateUse;
 import net.serlith.sakurabans.core.storage.repository.PlayerRepository;
 import net.serlith.sakurabans.core.template.SakuraTemplateService;
 import org.jspecify.annotations.Nullable;
@@ -58,9 +67,27 @@ public final class PunishmentFactory {
         this.templates = templates;
     }
 
+    /** Where a prepared punishment comes from (S64): a ladder step isn't clipped by limits. */
+    public enum Origin { PLAIN, PRESET, LADDER_STEP }
+
     public sealed interface Prepared {
 
-        record Ready(NewPunishment punishment) implements Prepared {
+        /**
+         * {@code use} and {@code template}: the template use to record with the punishment and
+         * the definition that was applied; both null for a plain punishment, never otherwise.
+         */
+        record Ready(NewPunishment punishment, Origin origin, @Nullable NewTemplateUse use,
+                @Nullable TemplateInfo template) implements Prepared {
+
+            public Ready {
+                Preconditions.checkArgument((origin == Origin.PLAIN) == (use == null)
+                        && (use == null) == (template == null),
+                        "a use and its template come with a preset or a ladder step only");
+            }
+
+            public Ready withPunishment(final NewPunishment changed) {
+                return new Ready(changed, this.origin, this.use, this.template);
+            }
         }
 
         record Refused(Reason reason) implements Prepared {
@@ -69,50 +96,94 @@ public final class PunishmentFactory {
 
     public Optional<Scope> requestedScope(final DraftPunishment draft) {
         return draft.scope().or(() -> draft.template()
-                .flatMap(this.templates::template)
-                .filter(template -> SakuraTemplateService.usableFor(template, draft.type()))
+                .flatMap(name -> this.templates.resolve(name, null, draft.actor()))
+                .map(StoredTemplate::template)
+                .filter(template -> template instanceof PresetTemplate preset
+                        && preset.type() == draft.type())
                 .flatMap(TemplateInfo::scope));
+    }
+
+    /**
+     * The preset whose node the draft needs (S63): its name when the definition in force has
+     * {@code permission-required} and fits the draft's type, else null (the factory refuses a
+     * preset that doesn't fit).
+     */
+    public @Nullable String requiredTemplate(final DraftPunishment draft) {
+        return draft.template()
+                .flatMap(name -> this.templates.resolve(name, draft.scope().orElse(null),
+                        draft.actor()))
+                .map(StoredTemplate::template)
+                .filter(template -> template.permissionRequired()
+                        && TemplateKind.of(template).type().orElse(null) == draft.type())
+                .map(TemplateInfo::name)
+                .orElse(null);
     }
 
     public CompletableFuture<Prepared> prepare(final DraftPunishment draft,
             final PunishOptions options) {
         if (draft.victim() instanceof ErasedAddressVictim) {
-            try {
-                Validator.create().add("victim", Code.NOT_ALLOWED,
-                        "an erased victim has no address; name the address or player instead")
-                        .throwIfAny();
-            } catch (final ValidationException e) {
-                return CompletableFuture.failedFuture(e);
-            }
+            return erased();
         }
         final String name = draft.template().orElse(null);
+        final PresetTemplate preset;
         if (name == null) {
-            return this.prepare(draft, options, null);
-        }
-        return this.templates.resolve(name, draft.victim()).thenCompose(found -> {
-            if (found.isEmpty()
-                    || !SakuraTemplateService.usableFor(found.get().template(), draft.type())) {
+            preset = null;
+        } else {
+            // The variant in force where it is issued (S62).
+            final StoredTemplate found = this.templates.resolve(name,
+                    draft.scope().orElse(null), draft.actor()).orElse(null);
+            if (found == null) {
                 return refused(Reason.UNKNOWN_TEMPLATE);
             }
-            return this.prepare(draft, options, found.get());
-        });
+            if (!(found.template() instanceof PresetTemplate given)
+                    || given.type() != draft.type()) {
+                return refused(Reason.TEMPLATE_TYPE_MISMATCH);
+            }
+            if (draft.duration().isPresent()
+                    && !(given.duration() instanceof TemplateDuration.Open)) {
+                return invalid("duration", Code.EXCLUSIVE, "the template " + given.name()
+                        + " decides the duration; don't give one");
+            }
+            preset = given;
+        }
+        return this.prepare(new Input(draft.type(), draft.victim(), draft.actor(),
+                draft.scope().orElse(null), draft.reason().orElse(null),
+                draft.duration().orElse(null), draft.shadow(), draft.evidence(), preset,
+                null, null), options);
     }
 
-    private CompletableFuture<Prepared> prepare(final DraftPunishment draft,
-            final PunishOptions options,
-            final SakuraTemplateService.@Nullable Resolution resolution) {
-        final TemplateInfo template = resolution == null ? null : resolution.template();
-        // A template's step decides the type: a /ban with a mixed ladder may kick.
-        final PunishmentType type = resolution == null ? draft.type()
-                : resolution.template().type(resolution.step());
+    /** A ladder's step with a punishment (D37): the step decides type and duration. */
+    public CompletableFuture<Prepared> prepare(final LadderRequest request,
+            final LadderTemplate ladder, final int index, final PunishOptions options) {
+        if (request.victim() instanceof ErasedAddressVictim) {
+            return erased();
+        }
+        final TemplateStep step = ladder.step(index);
+        Preconditions.checkArgument(step.type().isPresent(), "a step without a punishment");
+        return this.prepare(new Input(step.type().orElseThrow(), request.victim(),
+                request.actor(), request.scope().orElse(null), request.reason().orElse(null),
+                null, false, request.evidence(), ladder, index, step), options);
+    }
+
+    private CompletableFuture<Prepared> prepare(final Input input, final PunishOptions options) {
+        final TemplateInfo template = input.template();
+        final TemplateStep step = input.step();
+        final PunishmentType type = input.type();
         final Settings settings = this.config.settings();
-        final Duration duration = resolution != null ? resolution.duration()
-                : draft.duration().orElse(type == PunishmentType.WARN
-                        ? settings.warnings().expireAfter() : null);
+        final TemplateDuration fixed = step != null ? step.duration()
+                : template instanceof PresetTemplate preset ? preset.duration()
+                : TemplateDuration.open();
+        final Duration duration = switch (fixed) {
+            case TemplateDuration.Permanent permanent -> null;
+            case TemplateDuration.Fixed length -> length.length();
+            case TemplateDuration.Open open -> input.duration() != null ? input.duration()
+                    : type == PunishmentType.WARN ? settings.warnings().expireAfter() : null;
+        };
         final Map<String, EvidenceRef> evidence = new LinkedHashMap<>();
-        draft.evidence().forEach(ref -> evidence.put(ref.uri(), ref));
-        final Optional<String> reason = draft.reason().map(String::strip)
+        input.evidence().forEach(ref -> evidence.put(ref.uri(), ref));
+        final Optional<String> reason = Optional.ofNullable(input.reason()).map(String::strip)
                 .filter(text -> !text.isEmpty())
+                .or(() -> Optional.ofNullable(step).flatMap(TemplateStep::reason))
                 .or(() -> Optional.ofNullable(template).map(TemplateInfo::reason)
                         .filter(text -> !text.isBlank()));
         if (reason.isEmpty() && settings.reasons().requiredFor().contains(type)) {
@@ -123,25 +194,36 @@ public final class PunishmentFactory {
                         ? given
                         : given.replaceAll("\\R+", " "))
                 .orElse(settings.reasons().defaultReason());
-        final Scope scope = draft.scope()
+        final Scope scope = Optional.ofNullable(input.scope())
                 .or(() -> Optional.ofNullable(template).flatMap(TemplateInfo::scope))
                 .orElseGet(() -> this.scopes.defaultScope(
-                        draft.actor().operator() instanceof PlayerOperator player
+                        input.actor().operator() instanceof PlayerOperator player
                                 ? player.uuid()
                                 : null));
         final boolean shadow = type == PunishmentType.MUTE
-                && (draft.shadow() || template != null && template.shadow());
+                && (input.shadow() || template != null && template.shadow());
         final Instant now = this.clock.instant();
+        final Scope variant = template == null ? null : template.variant().orElse(null);
         final CompletableFuture<Victim> victim = template != null && template.ip()
-                ? this.address(draft.victim())
-                : CompletableFuture.completedFuture(draft.victim());
+                ? this.address(input.victim())
+                : CompletableFuture.completedFuture(input.victim());
+        final Origin origin = template == null ? Origin.PLAIN
+                : step == null ? Origin.PRESET : Origin.LADDER_STEP;
         return victim.thenApply(found -> new Prepared.Ready(new NewPunishment(type,
-                shadow, found, scope, text, draft.actor(), now,
+                shadow, found, scope, text, input.actor(), now,
                 duration == null ? null : now.plus(duration),
                 this.scopes.originServer().orElse(null), options.visibility(),
-                template == null ? null : template.name(),
-                resolution == null ? null : resolution.step(),
-                List.copyOf(evidence.values()), null)));
+                template == null ? null : template.name(), input.index(),
+                List.copyOf(evidence.values()), null, variant), origin,
+                template == null ? null : new NewTemplateUse(template.name(), input.index(),
+                        input.victim(), input.actor(), now, variant), template));
+    }
+
+    /** {@code template}, {@code index} and {@code step}: the preset or the ladder's step. */
+    private record Input(PunishmentType type, Victim victim, Actor actor, @Nullable Scope scope,
+            @Nullable String reason, @Nullable Duration duration, boolean shadow,
+            List<EvidenceRef> evidence, @Nullable TemplateInfo template, @Nullable Integer index,
+            @Nullable TemplateStep step) {
     }
 
     public static DraftPunishment asDraft(final NewPunishment prepared) {
@@ -177,6 +259,21 @@ public final class PunishmentFactory {
                     }
                     return Preconditions.checkNotNull(last);
                 }));
+    }
+
+    private static CompletableFuture<Prepared> erased() {
+        return invalid("victim", Code.NOT_ALLOWED,
+                "an erased victim has no address; name the address or player instead");
+    }
+
+    private static CompletableFuture<Prepared> invalid(final String path, final Code code,
+            final String message) {
+        try {
+            Validator.create().add(path, code, message).throwIfAny();
+            throw new IllegalStateException("unreachable");
+        } catch (final ValidationException e) {
+            return CompletableFuture.failedFuture(e);
+        }
     }
 
     private static CompletableFuture<Prepared> refused(final Reason reason) {

@@ -60,12 +60,13 @@ public final class Indexes {
                     SakuraTables.PUNISHMENTS,
                     new OrderField<?>[] {SakuraTables.PUNISHMENTS.CREATED_AT}, false);
 
-    public static final Index PUNISHMENTS_TEMPLATE_IX =
-            Internal.createIndex(DSL.name(SakuraTables.prefix() + "punishments_template_ix"),
-                    SakuraTables.PUNISHMENTS,
+    public static final Index TEMPLATE_USES_TEMPLATE_IX =
+            Internal.createIndex(DSL.name(SakuraTables.prefix() + "template_uses_template_ix"),
+                    SakuraTables.TEMPLATE_USES,
                     new OrderField<?>[] {
-                            SakuraTables.PUNISHMENTS.TEMPLATE,
-                            SakuraTables.PUNISHMENTS.VICTIM_ID
+                            SakuraTables.TEMPLATE_USES.TEMPLATE,
+                            SakuraTables.TEMPLATE_USES.VICTIM_ID,
+                            SakuraTables.TEMPLATE_USES.CREATED_AT
                     }, false);
 
     public static final Index PUNISHMENTS_REVOKER_IX =

@@ -3,27 +3,65 @@
 // The draft holds only what the user did; everything else is read from the payload. Settings
 // and messages are edited per scope: in a scope a key is either set (an override there) or
 // reset (the override removed, so the next layer applies). Global may also publish a server's
-// file values. Templates are held as the whole edited list and compared with the payload by name.
+// file values. Templates are held as the whole edited list and compared with the payload by
+// scope and name: `global` for a template's global definition, a server or category for one of
+// its variants (S62).
 
 import { canonicalJson, jsonEqual, removeKey } from '../json'
 import { FORMAT } from '../protocol/constants'
 import type {
   ChangeSet, JsonValue, MessagesBlock, Payload, Section, SettingField, SettingsBlock,
-  TemplateChange, TemplateDefinition
+  TemplateChange, TemplateDefinition, TemplateItem
 } from '../protocol/schema'
 import { GLOBAL, LOCALE_PATTERN, SCOPE_PATTERN } from '../protocol/schema'
 import { MAX_MESSAGE } from './limits'
 import { scopeName } from './layers'
 import { validateSetting } from './settings'
-import { definitionToForm, formToDefinition, sameDefinition, validateTemplate } from './templates'
+import { definitionToForm, formToDefinition, kindOf, normalizeDefinition, sameDefinition, validateTemplate } from './templates'
 import type { TemplateForm } from './templates'
 
 export type SettingEdit = { kind: 'set', value: JsonValue } | { kind: 'reset' }
 export type MessageEdit = { kind: 'set', text: string } | { kind: 'reset' }
 
-export interface TemplateDraft extends TemplateForm {
+export type TemplateDraft = TemplateForm & {
   /** The name the template had in the payload; null for one created in the editor. */
   origin: string | null
+  /**
+   * Where this definition is in force: `global`, or a variant's server or category (S62). Not
+   * `scope` of the form, which is where its punishments apply.
+   */
+  variant: string
+}
+
+/** A definition's identity: its variant scope and name. */
+export function templateKey(variant: string, name: string): string {
+  return `${variant} ${name}`
+}
+
+/** The path prefix of a definition's issues: `templates.<name>` or `templates[<scope>].<name>`. */
+export function templatePath(variant: string, name: string): string {
+  return variant === GLOBAL ? `templates.${name || '(unnamed)'}` : `templates[${variant}].${name || '(unnamed)'}`
+}
+
+/**
+ * The order the plugin applies template changes in (EditorService, S62): variant deletions,
+ * global creations and updates, variant creations and updates, global deletions. The change set
+ * is written in this order, so its result lines come back in it too.
+ */
+export function templatePhase(variant: string, op: 'create' | 'update' | 'delete'): number {
+  if (variant !== GLOBAL) {
+    return op === 'delete' ? 0 : 2
+  }
+  return op === 'delete' ? 3 : 1
+}
+
+/** Payload items by scope and name. */
+function templateItems(payload: Payload): Map<string, TemplateItem> {
+  return new Map((payload.templates?.items ?? []).map(item => [templateKey(item.scope, item.name), item]))
+}
+
+function byNameThenScope(a: { variant: string, name: string }, b: { variant: string, name: string }): number {
+  return a.name.localeCompare(b.name) || (a.variant === GLOBAL ? -1 : b.variant === GLOBAL ? 1 : a.variant.localeCompare(b.variant))
 }
 
 export interface PublishDraft {
@@ -63,7 +101,8 @@ export function initialDraft(payload: Payload, revision = 1): EditorDraft {
     addedLocales: [],
     templates: (payload.templates?.items ?? []).map(item => ({
       ...definitionToForm(item.name, item.definition),
-      origin: item.name
+      origin: item.name,
+      variant: item.scope
     })),
     lastSequence: 0,
     revision,
@@ -147,7 +186,7 @@ export type ChangeRef
   = | { section: 'settings', scope: string, key: string }
     | { section: 'publish', key: string }
     | { section: 'messages', scope: string, locale: string, key: string }
-    | { section: 'templates', name: string }
+    | { section: 'templates', scope: string, name: string }
 
 export function refId(ref: ChangeRef): string {
   switch (ref.section) {
@@ -158,7 +197,7 @@ export function refId(ref: ChangeRef): string {
     case 'messages':
       return `messages:${ref.scope}:${ref.locale}:${ref.key}`
     case 'templates':
-      return `templates:${ref.name}`
+      return `templates:${ref.scope}:${ref.name}`
   }
 }
 
@@ -234,31 +273,33 @@ export function buildChangeSet(payload: Payload, draft: EditorDraft, sequence = 
   }
 
   if (payload.templates) {
-    const original = new Map(payload.templates.items.map(item => [item.name, item]))
-    const current = new Map(draft.templates.map(form => [form.name, form]))
-    const creates: TemplateChange[] = []
-    const updates: TemplateChange[] = []
-    const deletes: TemplateChange[] = []
-    for (const form of [...draft.templates].sort((a, b) => a.name.localeCompare(b.name))) {
-      const before = original.get(form.name)
+    const original = templateItems(payload)
+    const current = new Set(draft.templates.map(form => templateKey(form.variant, form.name)))
+    const templates: Array<{ phase: number, change: TemplateChange }> = []
+    for (const form of [...draft.templates].sort(byNameThenScope)) {
+      const before = original.get(templateKey(form.variant, form.name))
       const definition = formToDefinition(form)
-      if (done({ section: 'templates', name: form.name })) {
+      if (done({ section: 'templates', scope: form.variant, name: form.name })) {
         continue
       }
       if (!before) {
-        creates.push({ op: 'create', name: form.name, definition })
+        templates.push({ phase: templatePhase(form.variant, 'create'),
+          change: { op: 'create', scope: form.variant, name: form.name, definition } })
       } else if (!sameDefinition(before.definition, definition)) {
-        updates.push({ op: 'update', name: form.name, expectedVersion: before.version, definition })
+        // Creations before updates within a phase.
+        templates.push({ phase: templatePhase(form.variant, 'update') + 0.5,
+          change: { op: 'update', scope: form.variant, name: form.name, expectedVersion: before.version, definition } })
       }
     }
-    for (const item of [...original.values()].sort((a, b) => a.name.localeCompare(b.name))) {
-      if (!current.has(item.name) && !done({ section: 'templates', name: item.name })) {
-        deletes.push({ op: 'delete', name: item.name, expectedVersion: item.version })
+    for (const item of [...original.values()].sort((a, b) => byNameThenScope({ variant: a.scope, name: a.name }, { variant: b.scope, name: b.name }))) {
+      if (!current.has(templateKey(item.scope, item.name)) && !done({ section: 'templates', scope: item.scope, name: item.name })) {
+        templates.push({ phase: templatePhase(item.scope, 'delete'),
+          change: { op: 'delete', scope: item.scope, name: item.name, expectedVersion: item.version } })
       }
     }
-    const templates = [...creates, ...updates, ...deletes]
     if (templates.length > 0) {
-      changes.templates = templates
+      // A stable sort keeps name order within a phase.
+      changes.templates = templates.sort((a, b) => a.phase - b.phase).map(entry => entry.change)
     }
   }
 
@@ -275,7 +316,7 @@ export interface ChangeItem {
   ref: ChangeRef
   section: Section
   kind: 'set' | 'reset' | 'publish' | 'create' | 'update' | 'delete' | 'rename'
-  /** The scope, for settings and messages ("" for templates). */
+  /** The scope: of a setting or message, or the variant of a template (`global` for its global definition). */
   scope: string
   title: string
   before?: string
@@ -368,50 +409,54 @@ export function listAllChanges(payload: Payload, draft: EditorDraft): ChangeItem
     }
   }
   if (payload.templates) {
-    const original = new Map(payload.templates.items.map(item => [item.name, item]))
-    const current = new Set(draft.templates.map(form => form.name))
+    const original = templateItems(payload)
+    const current = new Set(draft.templates.map(form => templateKey(form.variant, form.name)))
     const renamedFrom = new Set<string>()
+    const templates: Array<{ phase: number, item: ChangeItem }> = []
     for (const form of draft.templates) {
-      const before = original.get(form.name)
+      const key = templateKey(form.variant, form.name)
+      const before = original.get(key)
+      const ref: ChangeRef = { section: 'templates', scope: form.variant, name: form.name }
       if (!before) {
-        const renamed = form.origin !== null && form.origin !== form.name
-          && original.has(form.origin) && !current.has(form.origin)
+        // Only a global definition can be renamed: a variant's name is its template's.
+        const renamed = form.variant === GLOBAL && form.origin !== null && form.origin !== form.name
+          && original.has(templateKey(GLOBAL, form.origin)) && !current.has(templateKey(GLOBAL, form.origin))
         if (renamed) {
           renamedFrom.add(form.origin!)
         }
-        items.push({ ref: { section: 'templates', name: form.name }, section: 'templates', scope: '',
+        templates.push({ phase: templatePhase(form.variant, 'create'), item: { ref, section: 'templates', scope: form.variant,
           kind: renamed ? 'rename' : 'create',
           title: renamed ? `${form.origin} → ${form.name}` : form.name,
-          note: renamed ? 'sent as delete + create: the new name starts with fresh history' : 'created' })
+          note: renamed
+            ? 'sent as delete + create: the new name starts with fresh history'
+            : form.variant === GLOBAL ? 'created' : 'variant created' } })
       } else if (!sameDefinition(before.definition, formToDefinition(form))) {
-        items.push({ ref: { section: 'templates', name: form.name }, section: 'templates', scope: '',
-          kind: 'update', title: form.name, note: describeTemplateDiff(before.definition, form) })
+        templates.push({ phase: templatePhase(form.variant, 'update') + 0.5, item: { ref, section: 'templates',
+          scope: form.variant, kind: 'update', title: form.name, note: describeTemplateDiff(before.definition, form) } })
       }
     }
     for (const item of payload.templates.items) {
-      if (!current.has(item.name) && !renamedFrom.has(item.name)) {
-        items.push({ ref: { section: 'templates', name: item.name }, section: 'templates', scope: '',
-          kind: 'delete', title: item.name, note: 'deleted' })
+      if (!current.has(templateKey(item.scope, item.name)) && !(item.scope === GLOBAL && renamedFrom.has(item.name))) {
+        templates.push({ phase: templatePhase(item.scope, 'delete'), item: { ref: { section: 'templates', scope: item.scope, name: item.name },
+          section: 'templates', scope: item.scope, kind: 'delete', title: item.name,
+          note: item.scope === GLOBAL ? 'deleted' : 'variant removed' } })
       }
     }
+    items.push(...templates.sort((a, b) => a.phase - b.phase).map(entry => entry.item))
   }
   return items
 }
 
-const TEMPLATE_LABELS: Record<string, string> = {
-  'type': 'type', 'reason': 'reason', 'ladder': 'ladder', 'ip': 'ip', 'shadow': 'shadow',
-  'scope': 'scope', 'ladder-expiry': 'ladder expiry', 'address-shared': 'address-shared',
-  'permission-required': 'permission-required', 'actions': 'actions',
-  'step-actions': 'step actions', 'groups': 'groups', 'message': 'message',
-  'step-messages': 'step messages'
-}
-
+/**
+ * The definition keys that differ, in the plugin's words: its result names the changed keys of
+ * templates.yml in file order (EditorService.fields), and the demo's simulated result does too.
+ */
 function describeTemplateDiff(before: TemplateDefinition, form: TemplateForm): string {
-  const a = formToDefinition(definitionToForm(form.name, before)) as Record<string, JsonValue>
+  const a = normalizeDefinition(before) as Record<string, JsonValue>
   const b = formToDefinition(form) as Record<string, JsonValue>
   const keys = new Set([...Object.keys(a), ...Object.keys(b)])
   const changed = [...keys].filter(key => canonicalJson(a[key]) !== canonicalJson(b[key]))
-  return `changed: ${changed.map(key => TEMPLATE_LABELS[key] ?? key).join(', ')}`
+  return `changed: ${changed.join(', ')}`
 }
 
 /** Undoes one change of the review list. */
@@ -432,22 +477,27 @@ export function revertChange(payload: Payload, draft: EditorDraft, ref: ChangeRe
       removeKey(draft.messages[ref.scope]?.[ref.locale] ?? {}, ref.key)
       break
     case 'templates': {
-      const original = payload.templates?.items.find(item => item.name === ref.name)
-      const index = draft.templates.findIndex(form => form.name === ref.name)
+      const original = templateItems(payload).get(templateKey(ref.scope, ref.name))
+      const index = draft.templates.findIndex(form => form.variant === ref.scope && form.name === ref.name)
+      const restore = (item: TemplateItem): TemplateDraft => ({
+        ...definitionToForm(item.name, item.definition), origin: item.name, variant: item.scope
+      })
       if (index >= 0) {
         const form = draft.templates[index]!
+        const source = form.origin === null || ref.scope !== GLOBAL
+          ? undefined
+          : templateItems(payload).get(templateKey(GLOBAL, form.origin))
         if (original) {
-          draft.templates.splice(index, 1, { ...definitionToForm(original.name, original.definition), origin: original.name })
-        } else if (form.origin !== null && payload.templates?.items.some(item => item.name === form.origin)) {
+          draft.templates.splice(index, 1, restore(original))
+        } else if (source) {
           // A rename: put the original back under its old name.
-          const source = payload.templates.items.find(item => item.name === form.origin)!
-          draft.templates.splice(index, 1, { ...definitionToForm(source.name, source.definition), origin: source.name })
+          draft.templates.splice(index, 1, restore(source))
         } else {
           draft.templates.splice(index, 1)
         }
       } else if (original) {
-        draft.templates.push({ ...definitionToForm(original.name, original.definition), origin: original.name })
-        draft.templates.sort((a, b) => a.name.localeCompare(b.name))
+        draft.templates.push(restore(original))
+        draft.templates.sort(byNameThenScope)
       }
       break
     }
@@ -458,7 +508,7 @@ export function revertChange(payload: Payload, draft: EditorDraft, ref: ChangeRe
 
 export interface Issue {
   ref: ChangeRef
-  /** The change set path (`settings[server:lobby].set.reasons.default`, `templates.hacking.ladder[0]`). */
+  /** The change set path (`settings[server:lobby].set.reasons.default`, `templates.hacking.steps[0].step`). */
   path: string
   message: string
 }
@@ -539,18 +589,37 @@ function validateAll(payload: Payload, draft: EditorDraft): Issue[] {
       }
     }
   }
-  // Only templates the user touched: the payload's own are valid by construction.
-  const original = new Map((payload.templates?.items ?? []).map(item => [item.name, item]))
-  const names = draft.templates.map(form => form.name)
+  // Only templates the user touched: the payload's own are valid by construction. A variant is
+  // also checked against its global definition (S62), which may have changed since.
+  const original = templateItems(payload)
+  const globals = new Map(draft.templates.filter(form => form.variant === GLOBAL).map(form => [form.name, form]))
   draft.templates.forEach((form, index) => {
-    const before = original.get(form.name)
+    const ref: ChangeRef = { section: 'templates', scope: form.variant, name: form.name }
+    const prefix = templatePath(form.variant, form.name)
+    if (form.variant !== GLOBAL) {
+      const global = globals.get(form.name)
+      if (!SCOPE_PATTERN.test(form.variant)) {
+        issues.push({ ref, path: `${prefix}.name`, message: 'is not in a server or category scope' })
+      }
+      if (!global) {
+        issues.push({ ref, path: `${prefix}.name`,
+          message: 'its global template is deleted or renamed: restore it, or remove this variant' })
+      } else if (kindOf(global) !== kindOf(form)) {
+        issues.push({ ref, path: `${prefix}.type`,
+          message: `a variant has its global template's type: ${kindOf(global)}` })
+      }
+      if (form.groups.length > 0) {
+        issues.push({ ref, path: `${prefix}.groups`, message: 'a variant counts in its global template\'s groups; set them there' })
+      }
+    }
+    const before = original.get(templateKey(form.variant, form.name))
     if (before && sameDefinition(before.definition, formToDefinition(form))) {
       return
     }
-    const others = new Set(names.filter((_, other) => other !== index))
+    const others = new Set(draft.templates.filter((other, at) => at !== index && other.variant === form.variant)
+      .map(other => other.name))
     for (const issue of validateTemplate(form, others)) {
-      issues.push({ ref: { section: 'templates', name: form.name },
-        path: `templates.${form.name || '(unnamed)'}.${issue.path}`, message: issue.message })
+      issues.push({ ref, path: `${prefix}.${issue.path}`, message: issue.message })
     }
   })
   return issues

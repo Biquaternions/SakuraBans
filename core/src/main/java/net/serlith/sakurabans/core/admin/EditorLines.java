@@ -159,14 +159,14 @@ public final class EditorLines {
                         Placeholder.unparsed("locale", reset.locale()),
                         Placeholder.unparsed("key", reset.key()));
                 case EditorService.Change.TemplateCreated created -> this.line(
-                        MessageKey.EDITOR_APPLY_TEMPLATE_CREATED, locale,
+                        MessageKey.EDITOR_APPLY_TEMPLATE_CREATED, locale, where,
                         Placeholder.unparsed("name", created.target()));
                 case EditorService.Change.TemplateUpdated updated -> this.line(
-                        MessageKey.EDITOR_APPLY_TEMPLATE_UPDATED, locale,
+                        MessageKey.EDITOR_APPLY_TEMPLATE_UPDATED, locale, where,
                         Placeholder.unparsed("name", updated.target()),
                         Placeholder.component("fields", this.fields(updated.fields(), locale)));
                 case EditorService.Change.TemplateDeleted deleted -> this.line(
-                        MessageKey.EDITOR_APPLY_TEMPLATE_DELETED, locale,
+                        MessageKey.EDITOR_APPLY_TEMPLATE_DELETED, locale, where,
                         Placeholder.unparsed("name", deleted.target()));
                 case EditorService.Change.Unchanged unchanged -> this.line(
                         MessageKey.EDITOR_APPLY_UNCHANGED, locale, where,

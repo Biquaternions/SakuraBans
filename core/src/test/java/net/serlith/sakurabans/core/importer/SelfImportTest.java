@@ -19,7 +19,7 @@ import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.core.TestConfig;
 import net.serlith.sakurabans.core.model.ImportedPlayer;
-import net.serlith.sakurabans.core.model.TemplateDefinition;
+import net.serlith.sakurabans.core.model.TemplateBuilder;
 import net.serlith.sakurabans.core.storage.DisplayIdCodec;
 import net.serlith.sakurabans.core.storage.SchemaManager;
 import net.serlith.sakurabans.core.storage.StorageService;
@@ -33,6 +33,7 @@ import net.serlith.sakurabans.core.storage.repository.NewPunishment;
 import net.serlith.sakurabans.core.storage.repository.PunishmentMapper;
 import net.serlith.sakurabans.core.storage.repository.PunishmentRepository;
 import net.serlith.sakurabans.core.storage.repository.TemplateRepository;
+import net.serlith.sakurabans.core.util.ReleaseChannel;
 import org.assertj.core.api.Assertions;
 import org.jooq.impl.DSL;
 import org.junit.jupiter.api.Test;
@@ -58,11 +59,12 @@ class SelfImportTest extends ImportTest {
         final Path old = this.dir.resolve("old");
         Files.createDirectories(old);
         final StorageService source = new StorageService(old,
-                TestConfig.load(old, "", this.log), new SchemaManager(this.log.logger()),
+                TestConfig.load(old, "", this.log),
+                new SchemaManager(this.log.logger(), ReleaseChannel.current()),
                 this.executors, this.log.logger());
         source.start();
         try {
-            new TemplateRepository(source, AltPolicy.NONE).create(TemplateDefinition.builder(
+            new TemplateRepository(source, AltPolicy.NONE).create(TemplateBuilder.preset(
                             "lifesteal", PunishmentType.BAN)
                     .ip(true)
                     .scope(CategoryScope.of("lifesteal"))

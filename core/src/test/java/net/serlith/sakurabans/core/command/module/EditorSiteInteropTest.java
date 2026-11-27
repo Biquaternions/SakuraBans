@@ -203,8 +203,8 @@ class EditorSiteInteropTest extends CommandTest {
     private static String create(final String name) {
         return
                 """
-                {"format": 1, "templates": [{"op": "create", "name": "%s",
-                  "definition": {"type": "mute", "reason": "R", "ladder": ["1h"]}}]}
+                {"format": 1, "templates": [{"op": "create", "scope": "global", "name": "%s",
+                  "definition": {"type": "mute", "reason": "R", "duration": "1h"}}]}
                 """.formatted(name);
     }
 
@@ -278,9 +278,13 @@ class EditorSiteInteropTest extends CommandTest {
                     "set": {"reasons.default": "Skywars rules", "webhooks:url": "%s"}}],
                  "messages": [{"scope": "category:minigames", "locale": "en_US",
                    "expectedVersion": 0, "set": {"chat.muted": "<red>Minigames</red>"}}],
-                 "templates": [{"op": "create", "name": "interop_mixed",
-                   "definition": {"type": "mute", "reason": "Mixed",
-                                  "ladder": ["kick", "mute 1h", "ban 7d"]}}]}
+                 "templates": [{"op": "create", "scope": "server:skywars",
+                   "name": "interop_mixed",
+                   "definition": {"type": "ladder", "reason": "Mixed in Skywars",
+                                  "steps": ["warn", "ban 1d"]}},
+                   {"op": "create", "scope": "global", "name": "interop_mixed",
+                   "definition": {"type": "ladder", "reason": "Mixed",
+                                  "steps": ["kick", "mute 1h", "ban 7d"]}}]}
                 """.formatted(secret));
         final List<String> lines = EditorTest.lines(this.applied(code));
 
@@ -289,13 +293,16 @@ class EditorSiteInteropTest extends CommandTest {
                 "Setting reasons.default in server:skywars: No reason specified → Skywars rules",
                 "Setting webhooks:url in server:skywars: set (hidden)",
                 "Message chat.muted (en_US) in category:minigames: set to <red>Minigames</red>",
-                "Template interop_mixed: created", "Applied 5, unchanged 0, conflicts 0.");
+                "Template interop_mixed: created",
+                "Template interop_mixed in server:skywars: created",
+                "Applied 6, unchanged 0, conflicts 0.");
         final JsonObject result = this.result(session, code);
         Assertions.assertThat(result.getAsJsonArray("changes").asList()).extracting(change ->
                 change.getAsJsonObject().get("scope").getAsString() + " "
                         + change.getAsJsonObject().get("action").getAsString())
                 .containsExactly("global published", "server:skywars set",
-                        "server:skywars set", "category:minigames set", " created");
+                        "server:skywars set", "category:minigames set", "global created",
+                        "server:skywars created");
         Assertions.assertThat(result + String.join("\n", lines)).doesNotContain("interop-secret");
 
         // The fresh snapshot shows all of it, the secret only as set.
@@ -320,7 +327,14 @@ class EditorSiteInteropTest extends CommandTest {
                 .getAsJsonArray("items").asList().stream().map(JsonElement::getAsJsonObject)
                 .filter(item -> item.get("name").getAsString().equals("interop_mixed"))
                 .findFirst().orElseThrow().getAsJsonObject("definition")
-                .getAsJsonArray("ladder")).hasToString("[\"kick\",\"1h\",\"ban 7d\"]");
+                .getAsJsonArray("steps")).hasToString("[\"kick\",\"mute 1h\",\"ban 7d\"]");
+        // The variant travels as its own item, with its scope (S62).
+        Assertions.assertThat(fresh.payload().getAsJsonObject("templates")
+                .getAsJsonArray("items").asList().stream().map(JsonElement::getAsJsonObject)
+                .filter(item -> item.get("name").getAsString().equals("interop_mixed"))
+                .map(item -> item.get("scope").getAsString() + " "
+                        + item.getAsJsonObject("definition").get("reason").getAsString()))
+                .containsExactly("global Mixed", "server:skywars Mixed in Skywars");
     }
 
     private FakeCommandActor applied(final String code) {
@@ -426,9 +440,9 @@ class EditorSiteInteropTest extends CommandTest {
     private static String update(final String name, final long version, final String reason) {
         return
                 """
-                {"format": 1, "templates": [{"op": "update", "name": "%s",
+                {"format": 1, "templates": [{"op": "update", "scope": "global", "name": "%s",
                   "expectedVersion": %d,
-                  "definition": {"type": "mute", "reason": "%s", "ladder": ["1h"]}}]}
+                  "definition": {"type": "mute", "reason": "%s", "duration": "1h"}}]}
                 """.formatted(name, version, reason);
     }
 
@@ -455,7 +469,7 @@ class EditorSiteInteropTest extends CommandTest {
         Assertions.assertThat(liveResult.getAsJsonObject("summary").get("conflicts").getAsInt())
                 .isZero();
         Assertions.assertThat(liveResult.get("payloadRevision").getAsLong()).isEqualTo(3);
-        Assertions.assertThat(this.templates.find("rebased").orElseThrow().reason())
+        Assertions.assertThat(this.templates.find("rebased").orElseThrow().template().reason())
                 .isEqualTo("Live");
 
         // By command, the same.
@@ -467,7 +481,7 @@ class EditorSiteInteropTest extends CommandTest {
         Assertions.assertThat(EditorTest.lines(this.applied(command)))
                 .contains("Applied 1, unchanged 0, conflicts 0.");
         Assertions.assertThat(this.snapshot(session).revision()).isEqualTo(4);
-        Assertions.assertThat(this.templates.find("rebased").orElseThrow().reason())
+        Assertions.assertThat(this.templates.find("rebased").orElseThrow().template().reason())
                 .isEqualTo("Command");
 
         // Only the session's token may replace its payload.

@@ -11,6 +11,8 @@ import java.util.OptionalLong;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.function.Supplier;
+import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.AddressRangeVictim;
 import net.serlith.sakurabans.api.model.CompositeVictim;
@@ -23,10 +25,13 @@ import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Scope;
+import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.api.punish.DraftPunishment;
 import net.serlith.sakurabans.api.punish.EditRequest;
 import net.serlith.sakurabans.api.punish.EditResult;
 import net.serlith.sakurabans.api.punish.ExpungeResult;
+import net.serlith.sakurabans.api.punish.LadderRequest;
+import net.serlith.sakurabans.api.punish.LadderResult;
 import net.serlith.sakurabans.api.punish.PunishOptions;
 import net.serlith.sakurabans.api.punish.PunishResult;
 import net.serlith.sakurabans.api.punish.PunishmentEdit;
@@ -38,6 +43,9 @@ import net.serlith.sakurabans.api.punish.RevokeResult;
 import net.serlith.sakurabans.api.punish.RollbackRequest;
 import net.serlith.sakurabans.api.punish.RollbackResult;
 import net.serlith.sakurabans.api.punish.VoidResult;
+import net.serlith.sakurabans.api.template.LadderTemplate;
+import net.serlith.sakurabans.api.template.TemplateInfo;
+import net.serlith.sakurabans.api.template.TemplateStep;
 import net.serlith.sakurabans.core.concurrent.Lifecycle;
 import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.configuration.settings.Settings;
@@ -48,11 +56,15 @@ import net.serlith.sakurabans.core.event.SakuraPunishmentCreatedEvent;
 import net.serlith.sakurabans.core.event.SakuraPunishmentRevokeEvent;
 import net.serlith.sakurabans.core.event.SakuraPunishmentRevokedEvent;
 import net.serlith.sakurabans.core.event.SakuraPunishmentsRolledBackEvent;
+import net.serlith.sakurabans.core.event.SakuraTemplateAppliedEvent;
 import net.serlith.sakurabans.core.model.ApiValues;
 import net.serlith.sakurabans.core.model.SakuraChangeResults;
+import net.serlith.sakurabans.core.model.SakuraLadderResult;
 import net.serlith.sakurabans.core.model.SakuraPunishResult;
 import net.serlith.sakurabans.core.model.SakuraRevokeResult;
 import net.serlith.sakurabans.core.model.SakuraRollbackResult;
+import net.serlith.sakurabans.core.model.SakuraTemplateRef;
+import net.serlith.sakurabans.core.model.StoredTemplate;
 import net.serlith.sakurabans.core.permission.Action;
 import net.serlith.sakurabans.core.permission.AuthorizationService;
 import net.serlith.sakurabans.core.permission.Decision;
@@ -60,14 +72,22 @@ import net.serlith.sakurabans.core.permission.ExemptionService;
 import net.serlith.sakurabans.core.scope.SakuraScopeService;
 import net.serlith.sakurabans.core.storage.DisplayIdCodec;
 import net.serlith.sakurabans.core.storage.repository.ChangeOutcome;
+import net.serlith.sakurabans.core.storage.repository.ExpectedStep;
 import net.serlith.sakurabans.core.storage.repository.InsertOutcome;
+import net.serlith.sakurabans.core.storage.repository.LadderCount;
+import net.serlith.sakurabans.core.storage.repository.NewTemplateUse;
 import net.serlith.sakurabans.core.storage.repository.PunishmentRepository;
+import net.serlith.sakurabans.core.storage.repository.TemplateRepository;
 import net.serlith.sakurabans.core.sync.SyncPacket;
 import net.serlith.sakurabans.core.sync.SyncService;
+import net.serlith.sakurabans.core.template.SakuraTemplateService;
 import net.serlith.sakurabans.core.util.Futures;
 import org.jspecify.annotations.Nullable;
 
 public final class SakuraPunishmentService implements PunishmentService {
+
+    /** How often a ladder apply is counted again after a concurrent one (S64). */
+    static final int APPLY_ATTEMPTS = 3;
 
     private final Lifecycle lifecycle;
     private final Executor worker;
@@ -84,6 +104,10 @@ public final class SakuraPunishmentService implements PunishmentService {
     private final SakuraEventBus events;
     private final SyncService sync;
     private final DisplayIdCodec displayIds;
+    private final SakuraTemplateService templates;
+    private final TemplateRepository templateUses;
+    private final TemplateActions actions;
+    private final ComponentLogger logger;
 
     public SakuraPunishmentService(final Lifecycle lifecycle, final Executor worker,
             final InstantSource clock, final ConfigService config,
@@ -91,7 +115,9 @@ public final class SakuraPunishmentService implements PunishmentService {
             final PunishmentFactory factory, final MuteCache mutes, final Enforcer enforcer,
             final AuthorizationService authorization, final PunishLimits limits,
             final ExemptionService exemption, final SakuraEventBus events,
-            final SyncService sync, final DisplayIdCodec displayIds) {
+            final SyncService sync, final DisplayIdCodec displayIds,
+            final SakuraTemplateService templates, final TemplateRepository templateUses,
+            final TemplateActions actions, final ComponentLogger logger) {
         this.lifecycle = lifecycle;
         this.worker = worker;
         this.clock = clock;
@@ -107,6 +133,10 @@ public final class SakuraPunishmentService implements PunishmentService {
         this.events = events;
         this.sync = sync;
         this.displayIds = displayIds;
+        this.templates = templates;
+        this.templateUses = templateUses;
+        this.actions = actions;
+        this.logger = logger;
     }
 
     @Override
@@ -120,58 +150,226 @@ public final class SakuraPunishmentService implements PunishmentService {
         } catch (final RuntimeException e) {
             return CompletableFuture.failedFuture(e);
         }
-        // With a template the step decides the type, so it's checked once it is known.
         return this.whenRunning()
-                .thenCompose(ignored -> checkedDraft.template().isPresent()
-                        ? CompletableFuture.completedFuture(true)
-                        : this.authorize(checkedDraft.actor(), new Action.Punish(
-                                checkedDraft.type(),
-                                this.factory.requestedScope(checkedDraft).orElse(null))))
+                .thenCompose(ignored -> this.authorize(checkedDraft.actor(), new Action.Punish(
+                        checkedDraft.type(),
+                        this.factory.requestedScope(checkedDraft).orElse(null),
+                        this.factory.requiredTemplate(checkedDraft))))
                 .thenCompose(allowed -> allowed
                         ? this.prepareAndStore(checkedDraft, checkedOptions)
                         : CompletableFuture.completedFuture(new SakuraPunishResult.Failure(
                                 PunishResult.Failure.Reason.FORBIDDEN)));
     }
 
+    @Override
+    public CompletableFuture<LadderResult> applyLadder(final LadderRequest request,
+            final PunishOptions options) {
+        final LadderRequest checked;
+        final PunishOptions checkedOptions;
+        try {
+            checked = ApiValues.ladder(request);
+            checkedOptions = ApiValues.options(options);
+        } catch (final RuntimeException e) {
+            return CompletableFuture.failedFuture(e);
+        }
+        return this.whenRunning().thenCompose(ignored -> {
+            // The variant in force where it is applied (S62); progress is shared by name.
+            final StoredTemplate found = this.templates.resolve(checked.ladder(),
+                    checked.scope().orElse(null), checked.actor()).orElse(null);
+            if (found == null) {
+                return ladderFailure(PunishResult.Failure.Reason.UNKNOWN_TEMPLATE);
+            }
+            if (!(found.template() instanceof LadderTemplate ladder)) {
+                return ladderFailure(PunishResult.Failure.Reason.TEMPLATE_TYPE_MISMATCH);
+            }
+            return this.authorize(checked.actor(), new Action.ApplyLadder(ladder.name(),
+                            ladder.permissionRequired(), checked.scope()
+                                    .or(ladder::scope).orElse(null)))
+                    .thenCompose(allowed -> allowed
+                            ? this.applyCounted(checked, ladder, checkedOptions, 1)
+                            : ladderFailure(PunishResult.Failure.Reason.FORBIDDEN));
+        });
+    }
+
+    /**
+     * Counts the step, applies it, and stores the use only if the count still holds under the
+     * victim's lock (S64). The step is counted up front because what is checked depends on its
+     * type (exemption, limits, the create event); when a concurrent apply on the same victim
+     * was stored in between, the whole apply runs again from the count. After
+     * {@link #APPLY_ATTEMPTS} attempts the last count is stored as it is. An
+     * {@code address-shared} ladder also counts its alts' and addresses' uses, which aren't
+     * under this victim's lock: an apply on an alt at the same moment may still get the same
+     * step.
+     */
+    private CompletableFuture<LadderResult> applyCounted(final LadderRequest request,
+            final LadderTemplate ladder, final PunishOptions options, final int attempt) {
+        final LadderCount count = this.templates.counting(ladder);
+        return this.templates.step(request.victim(), count)
+                .thenCompose(step -> this.applyStep(request, ladder, step,
+                        new ExpectedStep(count, step), options))
+                .thenCompose(applied -> switch (applied) {
+                    case Applied.Done done -> CompletableFuture.completedFuture(done.result());
+                    case Applied.StepChanged changed when attempt < APPLY_ATTEMPTS -> {
+                        this.logger.debug("Step {} of {} for {} was taken meanwhile (now {});"
+                                + " applying again", changed.expected() + 1, ladder.name(),
+                                logged(request.victim()), changed.step() + 1);
+                        yield this.applyCounted(request, ladder, options, attempt + 1);
+                    }
+                    case Applied.StepChanged changed -> {
+                        this.logger.warn("The step of {} for {} changed during {} attempts;"
+                                + " applying step {} as last counted", ladder.name(),
+                                logged(request.victim()), APPLY_ATTEMPTS,
+                                changed.expected() + 1);
+                        yield changed.storeAnyway().get().thenApply(stored ->
+                                ((Applied.Done) stored).result());
+                    }
+                });
+    }
+
+    /** A victim in a log line: its UUID, never an address (S64). */
+    private static String logged(final Victim victim) {
+        return switch (victim) {
+            case PlayerVictim player -> player.uuid().toString();
+            case CompositeVictim composite -> composite.uuid().toString();
+            default -> "an address";
+        };
+    }
+
+    /** What applying a counted step gave. */
+    private sealed interface Applied {
+
+        record Done(LadderResult result) implements Applied {
+        }
+
+        /**
+         * Nothing stored: the step counted ({@code expected}) is no longer the victim's.
+         * {@code storeAnyway} stores the same use without checking again.
+         */
+        record StepChanged(int expected, int step,
+                Supplier<CompletableFuture<Applied>> storeAnyway) implements Applied {
+        }
+    }
+
+    private CompletableFuture<Applied> applyStep(final LadderRequest request,
+            final LadderTemplate ladder, final int step, final ExpectedStep expected,
+            final PunishOptions options) {
+        final TemplateStep applied = ladder.step(step);
+        if (applied.type().isEmpty()) {
+            // No punishment: no exemption, cooldown or limit; only the use and its actions.
+            final String reason = request.reason().map(String::strip)
+                    .filter(text -> !text.isEmpty())
+                    .or(applied::reason)
+                    .orElse(ladder.reason());
+            final Scope variant = ladder.variant().orElse(null);
+            final NewTemplateUse use = new NewTemplateUse(ladder.name(), step, request.victim(),
+                    request.actor(), this.clock.instant(), variant);
+            return this.recordUse(request, ladder, use, reason, expected);
+        }
+        return this.factory.prepare(request, ladder, step, options)
+                .thenApply(prepared -> prepared instanceof PunishmentFactory.Prepared.Ready ready
+                        ? this.limits.apply(ready, options)
+                        : prepared)
+                .thenCompose(this::unlessExempt)
+                .thenComposeAsync(prepared -> {
+                    if (prepared instanceof PunishmentFactory.Prepared.Refused(
+                            PunishResult.Failure.Reason reason)) {
+                        return CompletableFuture.completedFuture(
+                                new Applied.Done(new SakuraLadderResult.Failure(reason, null)));
+                    }
+                    final PunishmentFactory.Prepared.Ready ready =
+                            (PunishmentFactory.Prepared.Ready) prepared;
+                    if (this.cancelled(ready, options)) {
+                        return CompletableFuture.completedFuture(new Applied.Done(
+                                new SakuraLadderResult.Failure(
+                                        PunishResult.Failure.Reason.CANCELLED, null)));
+                    }
+                    return this.storeStep(ready, options, step, expected);
+                }, this.worker);
+    }
+
+    private CompletableFuture<Applied> recordUse(final LadderRequest request,
+            final LadderTemplate ladder, final NewTemplateUse use, final String reason,
+            final @Nullable ExpectedStep expected) {
+        return this.templateUses.recordUse(use, expected).thenComposeAsync(outcome -> {
+            if (outcome instanceof TemplateRepository.UseOutcome.StepChanged changed) {
+                return CompletableFuture.completedFuture(new Applied.StepChanged(
+                        Preconditions.checkNotNull(expected).step(), changed.step(),
+                        () -> this.recordUse(request, ladder, use, reason, null)));
+            }
+            this.applied(ladder, new SakuraTemplateAppliedEvent(null, request.victim(),
+                    new SakuraTemplateRef(ladder.name(), use.step(), use.variant()),
+                    request.actor(), reason));
+            return CompletableFuture.completedFuture(
+                    new Applied.Done(new SakuraLadderResult.ActionsOnly(use.step())));
+        }, this.worker);
+    }
+
+    private CompletableFuture<Applied> storeStep(final PunishmentFactory.Prepared.Ready ready,
+            final PunishOptions options, final int step, final @Nullable ExpectedStep expected) {
+        return this.punishments.insert(ready.punishment(), options.override(), ready.use(),
+                        expected)
+                .thenCompose(outcome -> {
+                    if (outcome instanceof InsertOutcome.StepChanged changed) {
+                        return CompletableFuture.completedFuture(new Applied.StepChanged(
+                                Preconditions.checkNotNull(expected).step(), changed.step(),
+                                () -> this.storeStep(ready, options, step, null)));
+                    }
+                    return this.stored(outcome, ready, options).thenApply(result ->
+                            new Applied.Done(ladderResult(result, step)));
+                });
+    }
+
+    private static LadderResult ladderResult(final PunishResult result, final int step) {
+        return switch (result) {
+            case PunishResult.Success success -> new SakuraLadderResult.Punished(
+                    success.punishment(), success.superseded().orElse(null), step);
+            case PunishResult.Failure failure -> SakuraLadderResult.Failure.of(failure);
+        };
+    }
+
+    private static CompletableFuture<LadderResult> ladderFailure(
+            final PunishResult.Failure.Reason reason) {
+        return CompletableFuture.completedFuture(new SakuraLadderResult.Failure(reason, null));
+    }
+
     private CompletableFuture<PunishResult> prepareAndStore(final DraftPunishment draft,
             final PunishOptions options) {
-        return this.prepare(draft, options).thenComposeAsync(prepared -> {
-            if (prepared instanceof PunishmentFactory.Prepared.Refused(
-                    PunishResult.Failure.Reason reason)) {
-                return CompletableFuture.completedFuture(
-                        new SakuraPunishResult.Failure(reason));
-            }
-            final PunishmentFactory.Prepared.Ready ready =
-                    (PunishmentFactory.Prepared.Ready) prepared;
-            if (this.events.post(new SakuraPunishmentCreateEvent(
-                    PunishmentFactory.asDraft(ready.punishment()), options)).cancelled()) {
-                return CompletableFuture.completedFuture(
-                        new SakuraPunishResult.Failure(PunishResult.Failure.Reason.CANCELLED));
-            }
-            return this.store(ready, options);
-        }, this.worker);
+        return this.prepare(draft, options).thenComposeAsync(prepared ->
+                this.createAndStore(prepared, options), this.worker);
+    }
+
+    private CompletableFuture<PunishResult> createAndStore(
+            final PunishmentFactory.Prepared prepared, final PunishOptions options) {
+        if (prepared instanceof PunishmentFactory.Prepared.Refused(
+                PunishResult.Failure.Reason reason)) {
+            return CompletableFuture.completedFuture(new SakuraPunishResult.Failure(reason));
+        }
+        final PunishmentFactory.Prepared.Ready ready = (PunishmentFactory.Prepared.Ready) prepared;
+        if (this.cancelled(ready, options)) {
+            return CompletableFuture.completedFuture(
+                    new SakuraPunishResult.Failure(PunishResult.Failure.Reason.CANCELLED));
+        }
+        return this.punishments.insert(ready.punishment(), options.override(), ready.use())
+                .thenCompose(outcome -> this.stored(outcome, ready, options));
+    }
+
+    /**
+     * Posts the create event. A ladder step applied again after a concurrent apply (S64) posts
+     * it once per attempt.
+     */
+    private boolean cancelled(final PunishmentFactory.Prepared.Ready ready,
+            final PunishOptions options) {
+        return this.events.post(new SakuraPunishmentCreateEvent(
+                PunishmentFactory.asDraft(ready.punishment()), options)).cancelled();
     }
 
     private CompletableFuture<PunishmentFactory.Prepared> prepare(
             final DraftPunishment draft, final PunishOptions options) {
         return this.factory.prepare(draft, options)
-                .thenCompose(prepared -> this.authorizedType(draft, prepared))
                 .thenApply(prepared -> prepared instanceof PunishmentFactory.Prepared.Ready ready
                         ? this.limits.apply(ready, options)
                         : prepared)
                 .thenCompose(this::unlessExempt);
-    }
-
-    private CompletableFuture<PunishmentFactory.Prepared> authorizedType(
-            final DraftPunishment draft, final PunishmentFactory.Prepared prepared) {
-        if (draft.template().isEmpty()
-                || !(prepared instanceof PunishmentFactory.Prepared.Ready ready)) {
-            return CompletableFuture.completedFuture(prepared);
-        }
-        return this.authorize(draft.actor(), new Action.Punish(ready.punishment().type(),
-                        this.factory.requestedScope(draft).orElse(null)))
-                .thenApply(allowed -> allowed ? prepared : new PunishmentFactory.Prepared.Refused(
-                        PunishResult.Failure.Reason.FORBIDDEN));
     }
 
     private CompletableFuture<PunishmentFactory.Prepared> unlessExempt(
@@ -194,20 +392,20 @@ public final class SakuraPunishmentService implements PunishmentService {
                         : prepared);
     }
 
-    private CompletableFuture<PunishResult> store(final PunishmentFactory.Prepared.Ready ready,
-            final PunishOptions options) {
-        return this.punishments.insert(ready.punishment(), options.override())
-                .thenCompose(outcome -> switch (outcome) {
-                    case InsertOutcome.Rejected rejected -> CompletableFuture.completedFuture(
-                            new SakuraPunishResult.Failure(
-                                    PunishResult.Failure.Reason.ALREADY_PUNISHED,
-                                    rejected.existing()));
-                    case InsertOutcome.Inserted inserted -> this.created(inserted, options);
-                });
+    private CompletableFuture<PunishResult> stored(final InsertOutcome outcome,
+            final PunishmentFactory.Prepared.Ready ready, final PunishOptions options) {
+        return switch (outcome) {
+            case InsertOutcome.Rejected rejected -> CompletableFuture.completedFuture(
+                    new SakuraPunishResult.Failure(PunishResult.Failure.Reason.ALREADY_PUNISHED,
+                            rejected.existing()));
+            case InsertOutcome.Inserted inserted -> this.created(inserted, options, ready);
+            case InsertOutcome.StepChanged changed ->
+                    throw new IllegalStateException("no step was expected");
+        };
     }
 
     private CompletableFuture<PunishResult> created(final InsertOutcome.Inserted inserted,
-            final PunishOptions options) {
+            final PunishOptions options, final PunishmentFactory.Prepared.Ready ready) {
         final Punishment punishment = inserted.punishment();
         final Punishment superseded = inserted.superseded();
         this.limits.issued(punishment);
@@ -224,8 +422,24 @@ public final class SakuraPunishmentService implements PunishmentService {
         }
         return local.thenApplyAsync(ignored -> {
             this.events.post(new SakuraPunishmentCreatedEvent(punishment, superseded));
+            final NewTemplateUse use = ready.use();
+            final TemplateInfo template = ready.template();
+            if (use != null && template != null) {
+                this.applied(template, new SakuraTemplateAppliedEvent(punishment, use.victim(),
+                        punishment.template().orElseThrow(), use.actor(), punishment.reason()));
+            }
             return new SakuraPunishResult.Success(punishment, superseded);
         }, this.worker);
+    }
+
+    /**
+     * After a use is stored: its event, then the template's actions (S64: run here, with the
+     * definition that was applied, right after the event's handlers, where the actions'
+     * {@code MONITOR} subscription used to run them).
+     */
+    private void applied(final TemplateInfo template, final SakuraTemplateAppliedEvent event) {
+        this.events.post(event);
+        this.actions.run(template, event);
     }
 
     @Override

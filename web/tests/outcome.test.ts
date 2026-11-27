@@ -64,7 +64,7 @@ describe('after an applied result', () => {
     const sentRefs = [
       ...Object.keys(again.settings?.set ?? {}).map(key => `settings:${key}`),
       ...(again.settings?.reset ?? []).map(key => `settings:${key}`),
-      ...(again.templates ?? []).map(change => `templates:${change.name}`)
+      ...(again.templates ?? []).map(change => `templates:${change.scope}:${change.name}`)
     ]
     expect(sentRefs.every(ref => conflicts.some(conflict => refId(conflict!) === ref))).toBe(true)
     expect(validateDraft(p, draft)).toEqual([])
@@ -88,7 +88,8 @@ describe('after a refused result', () => {
       errors: [
         { path: `settings[${blockIndex}].set.${setKey}`, message: 'too long' },
         { path: `messages[0].set.${messageKey}`, message: 'bad tag' },
-        { path: `templates[${template}].definition.ladder[0]`, message: 'not a duration' },
+        { path: `templates[${template}].definition.steps[0].step`, message: 'not a duration' },
+        { path: `templates[${template}].definition.steps[1].actions[0]`, message: 'must not be blank' },
         { path: 'permissions', message: 'no permission' }
       ],
       summary: { applied: 0, unchanged: 0, conflicts: 0 },
@@ -96,10 +97,12 @@ describe('after a refused result', () => {
     })
     expect(listChanges(p, draft)).toHaveLength(before)
     const name = changes.templates![template]!.name
+    const scope = changes.templates![template]!.scope
     expect(effect.issues.map(issue => [issue.ref, issue.path])).toEqual([
       [{ section: 'settings', scope: block.scope, key: setKey }, `settings[${block.scope}].set.${setKey}`],
       [{ section: 'messages', scope: message.scope, locale: message.locale, key: messageKey }, `messages[${message.scope}][${message.locale}].set.${messageKey}`],
-      [{ section: 'templates', name }, `templates.${name}.ladder[0]`]
+      [{ section: 'templates', scope, name }, `templates.${name}.steps[0].step`],
+      [{ section: 'templates', scope, name }, `templates.${name}.steps[1].actions[0]`]
     ])
     expect(effect.unmapped).toEqual([{ path: 'permissions', message: 'no permission' }])
   })

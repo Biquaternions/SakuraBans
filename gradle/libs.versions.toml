@@ -24,6 +24,8 @@ luckperms = "5.5"
 
 paper = "26.3.build.+"
 velocity = "4.3.1"
+# Velocity only, compile-only: dialogs where the proxy has the packetevents plugin (S61).
+packetevents = "2.14.0"
 adventure = "5.2.0"
 slf4j = "2.0.17"
 
@@ -61,6 +63,7 @@ luckperms-api = { module = "net.luckperms:api", version.ref = "luckperms" }
 
 paper-api = { module = "io.papermc.paper:paper-api", version.ref = "paper" }
 velocity-api = { module = "com.velocitypowered:velocity-api", version.ref = "velocity" }
+packetevents-api = { module = "com.github.retrooper:packetevents-api", version.ref = "packetevents" }
 adventure-bom = { module = "net.kyori:adventure-bom", version.ref = "adventure" }
 adventure-api = { module = "net.kyori:adventure-api" }
 adventure-text-minimessage = { module = "net.kyori:adventure-text-minimessage" }

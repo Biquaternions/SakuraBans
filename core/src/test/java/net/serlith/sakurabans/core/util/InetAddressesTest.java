@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -41,6 +43,20 @@ class InetAddressesTest {
         "256.1.1.1", "1.2.3.4 ", "0x7f.0.0.1", "fe80::1%eth0", "1::2::3", "::g"})
     void rejectsHostNamesAndSloppyLiterals(final String text) {
         assertThat(InetAddresses.parseLiteral(text)).isEmpty();
+    }
+
+    // InetAddress resolves a named zone against this machine's interfaces, so a name that
+    // exists here must be rejected as well (the GitHub runner has eth0).
+    @Test
+    void rejectsTheZonesOfThisMachinesInterfaces() throws Exception {
+        final List<String> names = NetworkInterface.networkInterfaces()
+                .map(NetworkInterface::getName)
+                .toList();
+
+        assertThat(names).allSatisfy(name ->
+                assertThat(InetAddresses.parseLiteral("fe80::1%" + name)).isEmpty());
+        assertThat(InetAddresses.parseLiteral("[fe80::1%" + names.getFirst() + "]")).isEmpty();
+        assertThat(InetAddresses.parseLiteral("fe80::1%")).isEmpty();
     }
 
     @Test

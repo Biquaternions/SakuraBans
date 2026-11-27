@@ -29,12 +29,15 @@ import org.incendo.cloud.velocity.VelocityCommandManager;
             @Dependency(id = "luckperms", optional = true),
             @Dependency(id = "floodgate", optional = true),
             // Lets mutes cancel signed chat without kicking (D29); without it, chat passes.
-            @Dependency(id = SakuraBansVelocity.SIGNED_VELOCITY, optional = true)
+            @Dependency(id = SakuraBansVelocity.SIGNED_VELOCITY, optional = true),
+            // Sends template dialogs (S61); without it, they are sent as chat.
+            @Dependency(id = SakuraBansVelocity.PACKET_EVENTS, optional = true)
         }
 )
 public final class SakuraBansVelocity {
 
     static final String SIGNED_VELOCITY = "signedvelocity";
+    static final String PACKET_EVENTS = "packetevents";
 
     private final ProxyServer proxy;
     private final ComponentLogger logger;
@@ -57,7 +60,9 @@ public final class SakuraBansVelocity {
                 this.container, this.proxy, ExecutionCoordinator.simpleCoordinator(),
                 new VelocitySenderMapper());
         this.core.commands().install(commands);
-        final VelocityPlatform platform = new VelocityPlatform(this.proxy, this.logger);
+        final VelocityPlatform platform = new VelocityPlatform(this.proxy, this.logger,
+                VelocityNotices.create(
+                        this.proxy.getPluginManager().isLoaded(PACKET_EVENTS), this.logger));
         this.core.start(platform);
         final SignedChatPolicy signedChat = new SignedChatPolicy(
                 this.proxy.getPluginManager().isLoaded(SIGNED_VELOCITY));

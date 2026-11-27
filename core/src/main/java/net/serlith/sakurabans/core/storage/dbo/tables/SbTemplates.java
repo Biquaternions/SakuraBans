@@ -4,7 +4,9 @@ import java.io.Serial;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import net.serlith.sakurabans.api.model.PunishmentType;
+import net.serlith.sakurabans.api.template.TemplateDisplay;
+import net.serlith.sakurabans.core.model.TemplateKind;
+import net.serlith.sakurabans.core.storage.dbo.DurationMode;
 import net.serlith.sakurabans.core.storage.dbo.Keys;
 import net.serlith.sakurabans.core.storage.dbo.SbTable;
 import net.serlith.sakurabans.core.storage.dbo.SbTypes;
@@ -31,8 +33,15 @@ public final class SbTemplates extends SbTable<SbTemplatesRecord> {
     public final TableField<SbTemplatesRecord, String> NAME = createField(
             DSL.name("name"), SQLDataType.VARCHAR(64).nullable(false), this, "");
 
-    public final TableField<SbTemplatesRecord, PunishmentType> TYPE = createField(
-            DSL.name("type"), SbTypes.PUNISHMENT_TYPE.nullable(false), this, "");
+    public final TableField<SbTemplatesRecord, TemplateKind> KIND = createField(
+            DSL.name("kind"), SbTypes.TEMPLATE_KIND.nullable(false), this, "");
+
+    /** A preset's duration; always open for a ladder. */
+    public final TableField<SbTemplatesRecord, DurationMode> DURATION_MODE = createField(
+            DSL.name("duration_mode"), SbTypes.DURATION_MODE.nullable(false), this, "");
+
+    public final TableField<SbTemplatesRecord, Duration> DURATION_MS = createField(
+            DSL.name("duration_ms"), SbTypes.DURATION.nullable(true), this, "");
 
     public final TableField<SbTemplatesRecord, Boolean> IP = createField(
             DSL.name("ip"), SbTypes.FLAG.nullable(false), this, "");
@@ -40,6 +49,14 @@ public final class SbTemplates extends SbTable<SbTemplatesRecord> {
     public final TableField<SbTemplatesRecord, Boolean> SHADOW = createField(
             DSL.name("shadow"), SbTypes.FLAG.nullable(false), this, "");
 
+    /**
+     * Where the definition is in force (S62): the global scope row for the global definition,
+     * a server or category for a variant. Not {@link #SCOPE_ID}, where punishments apply.
+     */
+    public final TableField<SbTemplatesRecord, Integer> VARIANT_SCOPE_ID = createField(
+            DSL.name("variant_scope_id"), SQLDataType.INTEGER.nullable(false), this, "");
+
+    /** Where its punishments apply when the command names no scope; null: the default. */
     public final TableField<SbTemplatesRecord, Integer> SCOPE_ID = createField(
             DSL.name("scope_id"), SQLDataType.INTEGER.nullable(true), this, "");
 
@@ -60,6 +77,9 @@ public final class SbTemplates extends SbTable<SbTemplatesRecord> {
 
     public final TableField<SbTemplatesRecord, String> MESSAGE = createField(
             DSL.name("message"), SQLDataType.VARCHAR(4096).nullable(true), this, "");
+
+    public final TableField<SbTemplatesRecord, TemplateDisplay> DISPLAY = createField(
+            DSL.name("display"), SbTypes.TEMPLATE_DISPLAY.nullable(false), this, "");
 
     public final TableField<SbTemplatesRecord, Long> VERSION = createField(
             DSL.name("version"), SQLDataType.BIGINT.nullable(false), this, "");
@@ -91,12 +111,13 @@ public final class SbTemplates extends SbTable<SbTemplatesRecord> {
 
     @Override
     public List<UniqueKey<SbTemplatesRecord>> getUniqueKeys() {
-        return List.of(Keys.TEMPLATES_NAME_UQ);
+        return List.of(Keys.TEMPLATES_VARIANT_NAME_UQ);
     }
 
     @Override
     public List<ForeignKey<SbTemplatesRecord, ?>> getReferences() {
         return List.of(
+                Keys.TEMPLATES_VARIANT_SCOPE_FK,
                 Keys.TEMPLATES_SCOPE_FK);
     }
 
@@ -104,7 +125,9 @@ public final class SbTemplates extends SbTable<SbTemplatesRecord> {
     public List<Constraint> checks() {
         return List.of(
                 this.check("version_ck",
-                        this.VERSION.ge(1L)));
+                        this.VERSION.ge(1L)),
+                this.check("duration_ck",
+                        this.DURATION_MS.isNull().or(this.DURATION_MS.gt(Duration.ZERO))));
     }
 
     @Override

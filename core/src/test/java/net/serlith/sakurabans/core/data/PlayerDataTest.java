@@ -32,6 +32,7 @@ import net.serlith.sakurabans.api.validation.ValidationException;
 import net.serlith.sakurabans.core.ServiceTest;
 import net.serlith.sakurabans.core.enforce.LoginDecision;
 import net.serlith.sakurabans.core.model.LoginAttempt;
+import net.serlith.sakurabans.core.model.TemplateBuilder;
 import net.serlith.sakurabans.core.storage.dbo.OperatorKind;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import net.serlith.sakurabans.core.storage.dbo.VictimKind;
@@ -145,6 +146,12 @@ class PlayerDataTest extends ServiceTest {
                 STEVE_STAFF);
         this.service.attachEvidence(issued.id(), EvidenceRef.of("https://example.org/w"),
                 STEVE_STAFF).join();
+        // His template use as staff keeps his UUID but not his name either.
+        this.templates.create(TemplateBuilder.preset("spam", PunishmentType.MUTE)
+                .reason("Spam").build(), CONSOLE).join();
+        Assertions.assertThat(this.service.punish(DraftPunishment.builder(PunishmentType.MUTE,
+                PlayerVictim.of(ALEX), STEVE_STAFF).template("spam").build(),
+                PunishOptions.defaults()).join()).isInstanceOf(PunishResult.Success.class);
         this.allowList.allow(this.elsewhere, STEVE_STAFF, null).join();
         this.allowList.allow(this.home, MODERATOR, null).join();
         this.allowList.allow(STEVE, MODERATOR, "streamer").join();
@@ -186,6 +193,10 @@ class PlayerDataTest extends ServiceTest {
         Assertions.assertThat(this.count(SakuraTables.VICTIMS,
                 SakuraTables.VICTIMS.ADDRESS.in(this.home.getAddress(),
                         this.other.getAddress()))).isZero();
+        Assertions.assertThat(this.count(SakuraTables.TEMPLATE_USES,
+                SakuraTables.TEMPLATE_USES.OPERATOR_UUID.eq(STEVE)
+                        .and(SakuraTables.TEMPLATE_USES.OPERATOR_NAME.eq("erased"))))
+                .isEqualTo(1);
         Assertions.assertThat(this.count(SakuraTables.ALLOWED_PLAYERS,
                 SakuraTables.ALLOWED_PLAYERS.UUID.eq(STEVE))).isEqualTo(1);
         Assertions.assertThat(this.count(SakuraTables.ALLOWED_ADDRESSES,

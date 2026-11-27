@@ -76,28 +76,27 @@
   "templates": [
     {
       "op": "create",
+      "scope": "global",
       "name": "advertising",
       "definition": {
         "type": "mute",
         "reason": "Advertising",
-        "ladder": [
-          "kick",
-          "1d",
-          "permanent"
-        ],
-        "message": "<red>No advertising.</red>"
+        "duration": "1d",
+        "message": "<red>No advertising.</red>",
+        "display": "dialog"
       }
     },
     {
       "op": "update",
+      "scope": "global",
       "name": "hacking",
       "expectedVersion": 4,
       "definition": {
-        "type": "ban",
+        "type": "ladder",
         "reason": "Cheating",
-        "ladder": [
-          "14d",
-          "permanent"
+        "steps": [
+          "ban 14d",
+          "ban permanent"
         ],
         "address-shared": true,
         "groups": {
@@ -106,7 +105,20 @@
       }
     },
     {
+      "op": "update",
+      "scope": "server:skywars",
+      "name": "spam",
+      "expectedVersion": 1,
+      "definition": {
+        "type": "mute",
+        "reason": "Spamming in Skywars",
+        "duration": "2d",
+        "message": "<red>Muted in Skywars for spamming.</red>"
+      }
+    },
+    {
       "op": "delete",
+      "scope": "global",
       "name": "lifesteal",
       "expectedVersion": 1
     }

@@ -15,8 +15,8 @@ const features = [
   },
   {
     icon: 'i-lucide-list-ordered',
-    title: 'Templates with ladders',
-    description: 'Named rules such as "hacking" escalate step by step (7 days, 30 days, permanent). Templates in a group share progress; each step can run console commands.',
+    title: 'Templates and ladders',
+    description: 'Presets such as "spam" fill in a punishment with -t; ladders such as "misconduct" escalate with /punish, from a warning to a kick, a mute and a ban, each step with its own message and console commands. Templates in a group share progress.',
     to: '/docs/guides/templates'
   },
   {

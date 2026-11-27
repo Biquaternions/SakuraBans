@@ -24,9 +24,10 @@ import org.jspecify.annotations.Nullable;
  * A punishment to be created. Build one with {@link #builder(PunishmentType, Victim, Actor)}
  * and pass it to {@link PunishmentService#punish(DraftPunishment, PunishOptions)}.
  *
- * <p>Values left empty are filled in by SakuraBans from its configuration or the template: the
- * template's or the default scope, the template's or the default reason, the template's duration
- * and shadow flag.
+ * <p>Values left empty are filled in by SakuraBans from its configuration or the preset: the
+ * preset's or the default scope, the preset's or the default reason, the preset's duration and
+ * shadow flag. Ladders are applied with
+ * {@link PunishmentService#applyLadder(LadderRequest, PunishOptions)} instead.
  */
 public interface DraftPunishment {
 
@@ -60,7 +61,9 @@ public interface DraftPunishment {
     boolean shadow();
 
     /**
-     * Where it applies.
+     * Where it applies. A scope given here also picks the preset's variant (see
+     * {@link net.serlith.sakurabans.api.template.TemplateService}); without one, the variant
+     * comes from where it is issued.
      *
      * @return the scope, or empty for the template's or the configured default scope
      */
@@ -76,13 +79,21 @@ public interface DraftPunishment {
     /**
      * How long it lasts.
      *
-     * @return the duration, or empty for permanent (or the template's duration if a template is
-     *         set)
+     * @return the duration, or empty for permanent (or the preset's duration, or a warning's
+     *         configured expiry)
      */
     Optional<Duration> duration();
 
     /**
-     * The template to apply. The template decides the duration from the victim's ladder step.
+     * The preset to apply: a {@link net.serlith.sakurabans.api.template.PresetTemplate} of this
+     * draft's type. Another type or a ladder fails with {@code TEMPLATE_TYPE_MISMATCH}. A preset
+     * with a fixed or permanent duration refuses a duration in the draft; one that leaves it open
+     * takes the draft's. A preset with {@code permission-required} also needs
+     * {@code sakurabans.template.<name>}, checked like the type's permission, whether the draft
+     * comes from a command or through the API, as for a ladder: a player operator (or a custom
+     * operator with a UUID) needs the node, online on this server or, when not online, in
+     * LuckPerms, else the result is {@code FORBIDDEN}; the console and a custom operator
+     * without a UUID pass. The node is the template's name, whichever variant is used.
      *
      * @return the template name, lower case, or empty
      */
@@ -256,8 +267,7 @@ public interface DraftPunishment {
          *
          * @return every problem: {@code victim} an {@link ErasedAddressVictim}, {@code reason}
          *         too long, {@code shadow} on a type other than a mute, {@code template} not an
-         *         identifier, {@code duration} not positive, not allowed on a kick, or exclusive
-         *         with a template
+         *         identifier, {@code duration} not positive or not allowed on a kick
          */
         public List<FieldError> validate() {
             final Validator errors = Validator.create();
@@ -273,8 +283,6 @@ public interface DraftPunishment {
                         "must be positive");
                 errors.check(!this.type.instant(), "duration", Code.NOT_ALLOWED,
                         this.type + " can't have a duration");
-                errors.check(this.template == null, "duration", Code.EXCLUSIVE,
-                        "a template decides the duration; don't set both");
             }
             return errors.errors();
         }

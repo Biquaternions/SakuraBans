@@ -23,6 +23,7 @@ import net.serlith.sakurabans.core.command.module.EditorCommands;
 import net.serlith.sakurabans.core.command.module.GdprCommands;
 import net.serlith.sakurabans.core.command.module.HistoryCommands;
 import net.serlith.sakurabans.core.command.module.ImportCommands;
+import net.serlith.sakurabans.core.command.module.LadderCommands;
 import net.serlith.sakurabans.core.command.module.OverrideCommands;
 import net.serlith.sakurabans.core.command.module.PunishCommands;
 import net.serlith.sakurabans.core.command.module.RevokeCommands;
@@ -95,6 +96,9 @@ public abstract class CommandTest extends ServiceTest {
                 new PunishCommands(registrar, runner, replies, flags, targetParser, targets,
                         this.service, this.names, this.config, this.scopes,
                         new ScopeAccess(this.config), this.templates),
+                new LadderCommands(registrar, runner, replies, flags, targetParser, targets,
+                        this.service, this.names, this.scopes, new ScopeAccess(this.config),
+                        this.templates),
                 new RevokeCommands(registrar, runner, replies, flags, targetParser, targets,
                         this.service, this.scopes, new ScopeAccess(this.config)),
                 new CheckCommands(registrar, runner, replies, pager, targetParser, targets,
@@ -109,7 +113,8 @@ public abstract class CommandTest extends ServiceTest {
                         this.placeholders),
                 new TemplateCommands(registrar, runner, this.templates,
                         new TemplateFiles(this.dir), new ConfirmationTracker(this.clock),
-                        this.executors.worker(), this.clock),
+                        this.executors.worker(), this.clock, targetParser, targets,
+                        new ScopeParser(this.scopes)),
                 new EditCommands(registrar, runner, replies, this.placeholders,
                         new Formats(this.messages, this.config), this.service,
                         new AuditRepository(this.storage),

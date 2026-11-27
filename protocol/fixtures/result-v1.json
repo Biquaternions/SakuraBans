@@ -76,21 +76,28 @@
     },
     {
       "section": "templates",
-      "scope": "",
+      "scope": "global",
       "target": "advertising",
       "action": "created",
       "detail": ""
     },
     {
       "section": "templates",
-      "scope": "",
+      "scope": "global",
       "target": "hacking",
       "action": "updated",
-      "detail": "reason, ladder, ladder-expiry, message, step-messages"
+      "detail": "reason, steps, expiry, message"
     },
     {
       "section": "templates",
-      "scope": "",
+      "scope": "server:skywars",
+      "target": "spam",
+      "action": "updated",
+      "detail": "duration"
+    },
+    {
+      "section": "templates",
+      "scope": "global",
       "target": "lifesteal",
       "action": "conflict",
       "detail": ""
@@ -98,7 +105,7 @@
   ],
   "errors": [],
   "summary": {
-    "applied": 12,
+    "applied": 13,
     "unchanged": 0,
     "conflicts": 1
   },

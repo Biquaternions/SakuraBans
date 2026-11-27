@@ -28,21 +28,42 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Release channel
+        id: release
+        # A tag v1.0.0-alpha.3 builds alpha 3 and v1.0.0 the release; everything else is a
+        # dev build numbered by the workflow run.
+        run: |
+          channel=dev
+          number="$GITHUB_RUN_NUMBER"
+          if [[ "$GITHUB_REF" =~ ^refs/tags/v[0-9]+(\.[0-9]+)*-(alpha|beta|rc)\.([0-9]+)$ ]]; then
+            channel="${BASH_REMATCH[2]}"
+            number="${BASH_REMATCH[3]}"
+          elif [[ "$GITHUB_REF" =~ ^refs/tags/v[0-9]+(\.[0-9]+)*$ ]]; then
+            channel=release
+            number=
+          fi
+          echo "args=-Pchannel=$channel${number:+ -PbuildNumber=$number}" >> "$GITHUB_OUTPUT"
+
       - name: Build
-        run: ./gradlew build -x integrationTest
+        run: ./gradlew build -x integrationTest ${{ steps.release.outputs.args }}
 
       - name: Upload the Paper jar
         uses: actions/upload-artifact@v4
         with:
           name: SakuraBans-paper
-          path: platforms/paper/build/libs/*-all.jar
+          # Not the thin jar (the module's own classes only).
+          path: |
+            platforms/paper/build/libs/SakuraBans-Paper-*.jar
+            !platforms/paper/build/libs/*-thin.jar
           if-no-files-found: error
 
       - name: Upload the Velocity jar
         uses: actions/upload-artifact@v4
         with:
           name: SakuraBans-velocity
-          path: platforms/velocity/build/libs/*-all.jar
+          path: |
+            platforms/velocity/build/libs/SakuraBans-Velocity-*.jar
+            !platforms/velocity/build/libs/*-thin.jar
           if-no-files-found: error
 
       - name: Upload test reports

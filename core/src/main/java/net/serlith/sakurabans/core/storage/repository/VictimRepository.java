@@ -82,6 +82,20 @@ public final class VictimRepository {
                 .execute();
     }
 
+    /**
+     * The victim's row, created if needed, locked ({@code FOR UPDATE}) until the transaction
+     * ends: applies of a ladder to one victim store their uses one after the other (S64).
+     */
+    static long lock(final DSLContext dsl, final Victim victim) {
+        final long id = resolve(dsl, victim);
+        dsl.select(SakuraTables.VICTIMS.ID)
+                .from(SakuraTables.VICTIMS)
+                .where(SakuraTables.VICTIMS.ID.eq(id))
+                .forUpdate()
+                .fetchSingle();
+        return id;
+    }
+
     static Optional<Long> lookup(final DSLContext dsl, final Victim victim) {
         return dsl.select(SakuraTables.VICTIMS.ID)
                 .from(SakuraTables.VICTIMS)

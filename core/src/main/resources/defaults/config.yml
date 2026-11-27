@@ -189,9 +189,9 @@ commands:
   # Changes need a restart. The /sb subcommands (help, status, reload, info, edit, delete,
   # evidence, allow, templates, settings, messages, editor, applyedits, gdpr, import and unlink)
   # follow the sakurabans labels.
-  # Commands: sakurabans, ban, tempban, ipban, mute, tempmute, ipmute, warn, kick, unban, pardon
-  # (unban under vanilla's name), unmute, unwarn, checkban, checkmute, checkwarn, history,
-  # staffhistory, warns, banlist, mutelist, warnlist, alts, iphistory, namehistory, lastuuid,
-  # ipreport, lockdown, staffrollback, prunehistory.
+  # Commands: sakurabans, ban, tempban, ipban, mute, tempmute, ipmute, warn, kick, punish
+  # (ladders), unban, pardon (unban under vanilla's name), unmute, unwarn, checkban, checkmute,
+  # checkwarn, history, staffhistory, warns, banlist, mutelist, warnlist, alts, iphistory,
+  # namehistory, lastuuid, ipreport, lockdown, staffrollback, prunehistory.
   labels:
     sakurabans: [sakurabans, sb]

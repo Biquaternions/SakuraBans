@@ -18,7 +18,7 @@ import java.util.Map;
 import java.util.UUID;
 import net.serlith.sakurabans.core.configuration.SettingsSchema;
 import net.serlith.sakurabans.core.configuration.TemplateFiles;
-import net.serlith.sakurabans.core.model.SakuraTemplateInfo;
+import net.serlith.sakurabans.core.util.Scopes;
 import org.assertj.core.api.Assertions;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
@@ -105,13 +105,15 @@ class EditorProtocolTest {
         for (final JsonElement item : fixture.getAsJsonObject("templates")
                 .getAsJsonArray("items")) {
             final JsonObject object = item.getAsJsonObject();
+            final String scope = object.get("scope").getAsString();
             final String name = object.get("name").getAsString();
             final long version = object.get("version").getAsLong();
             final TemplateFiles.Read read = TemplateFiles.definition(name,
-                    EditorJson.plain(object.get("definition")), "templates." + name);
+                    EditorJson.plain(object.get("definition")), "templates." + name,
+                    Scopes.parse(scope).orElseThrow());
             Assertions.assertThat(read.errors()).isEmpty();
-            templates.add(new EditorPayload.Template(name, version, TemplateFiles.tree(
-                    SakuraTemplateInfo.of(read.templates().getFirst(), version))));
+            templates.add(new EditorPayload.Template(scope, name, version, TemplateFiles.tree(
+                    read.templates().getFirst())));
         }
         return new EditorPayload(
                 new EditorPayload.Meta("1.0.0", "paper", "lobby", "Alex",
@@ -169,13 +171,17 @@ class EditorProtocolTest {
                 new EditorChanges.LocaleChange("server:skywars", "en_US", 0,
                         Map.of("screen.ban", "<red>Banned from Skywars.</red>"), List.of()));
         Assertions.assertThat(changes.templates()).containsExactly(
-                new EditorChanges.TemplateChange.Create("advertising", map("type", "mute",
-                        "reason", "Advertising", "ladder", List.of("kick", "1d", "permanent"),
-                        "message", "<red>No advertising.</red>")),
-                new EditorChanges.TemplateChange.Update("hacking", 4, map("type", "ban",
-                        "reason", "Cheating", "ladder", List.of("14d", "permanent"),
+                new EditorChanges.TemplateChange.Create("global", "advertising", map("type", "mute",
+                        "reason", "Advertising", "duration", "1d",
+                        "message", "<red>No advertising.</red>", "display", "dialog")),
+                new EditorChanges.TemplateChange.Update("global", "hacking", 4, map(
+                        "type", "ladder",
+                        "reason", "Cheating", "steps", List.of("ban 14d", "ban permanent"),
                         "address-shared", true, "groups", Map.of("cheating", 2L))),
-                new EditorChanges.TemplateChange.Delete("lifesteal", 1));
+                new EditorChanges.TemplateChange.Update("server:skywars", "spam", 1, map(
+                        "type", "mute", "reason", "Spamming in Skywars", "duration", "2d",
+                        "message", "<red>Muted in Skywars for spamming.</red>")),
+                new EditorChanges.TemplateChange.Delete("global", "lifesteal", 1));
     }
 
     @Test
@@ -202,14 +208,15 @@ class EditorProtocolTest {
                 new EditorService.Change.MessageReset("global", "en_US", "screen.ban"),
                 new EditorService.Change.MessageSet("server:skywars", "en_US", "screen.ban",
                         "<red>Banned from Skywars.</red>"),
-                new EditorService.Change.TemplateCreated("advertising"),
-                new EditorService.Change.TemplateUpdated("hacking", List.of(
+                new EditorService.Change.TemplateCreated("global", "advertising"),
+                new EditorService.Change.TemplateUpdated("global", "hacking", List.of(
                         new EditorService.FieldChange("reason", "Unfair advantage", "Cheating"),
-                        new EditorService.FieldChange("ladder", null, null),
-                        new EditorService.FieldChange("ladder-expiry", "1y", null),
-                        new EditorService.FieldChange("message", "x", null),
-                        new EditorService.FieldChange("step-messages", null, null))),
-                new EditorService.Change.Conflict(EditorService.Section.TEMPLATES, "",
+                        new EditorService.FieldChange("steps", null, null),
+                        new EditorService.FieldChange("expiry", "1y", null),
+                        new EditorService.FieldChange("message", "x", null))),
+                new EditorService.Change.TemplateUpdated("server:skywars", "spam", List.of(
+                        new EditorService.FieldChange("duration", "1d", "2d"))),
+                new EditorService.Change.Conflict(EditorService.Section.TEMPLATES, "global",
                         "lifesteal", EditorService.Change.Why.CHANGED, null));
         final EditorService.Applied.Done done = new EditorService.Applied.Done(changes);
         final EditorResult result = new EditorResult(1795651260000L, true, true,
@@ -233,7 +240,8 @@ class EditorProtocolTest {
                         .extracting(error -> error.path()).containsExactlyInAnyOrder("extra",
                                 "settings[0].scope", "settings[0].expectedVersion",
                                 "settings[0].set", "messages[0].scope", "messages[0].locale",
-                                "messages[0].expectedVersion", "templates[0].op"));
+                                "messages[0].expectedVersion", "templates[0].op",
+                                "templates[0].scope"));
         Assertions.assertThat(EditorChanges.parse("{\"format\": 2}"))
                 .isEqualTo(new EditorChanges.Parsed.OtherFormat(2));
         Assertions.assertThat(EditorChanges.parse("not json"))

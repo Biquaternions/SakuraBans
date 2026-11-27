@@ -9,6 +9,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.AddressVictim;
 import net.serlith.sakurabans.api.model.CategoryScope;
@@ -25,9 +26,14 @@ import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.api.model.Visibility;
 import net.serlith.sakurabans.api.punish.DraftPunishment;
+import net.serlith.sakurabans.api.punish.LadderRequest;
+import net.serlith.sakurabans.api.punish.LadderResult;
 import net.serlith.sakurabans.api.punish.OverridePolicy;
 import net.serlith.sakurabans.api.punish.PunishOptions;
 import net.serlith.sakurabans.api.punish.PunishResult;
+import net.serlith.sakurabans.api.template.LadderTemplate;
+import net.serlith.sakurabans.api.template.PresetTemplate;
+import net.serlith.sakurabans.api.template.TemplateDuration;
 import net.serlith.sakurabans.api.template.TemplateInfo;
 import net.serlith.sakurabans.api.validation.ValidationException;
 import net.serlith.sakurabans.api.validation.Validator;
@@ -44,6 +50,8 @@ import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.message.MessageKey;
 import net.serlith.sakurabans.core.message.Placeholders;
 import net.serlith.sakurabans.core.model.ResolvedTarget;
+import net.serlith.sakurabans.core.model.SakuraPunishResult;
+import net.serlith.sakurabans.core.model.StoredTemplate;
 import net.serlith.sakurabans.core.model.TargetInput;
 import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.player.NameCache;
@@ -57,6 +65,7 @@ import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.parser.flag.CommandFlag;
 import org.incendo.cloud.parser.flag.FlagContext;
+import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.permission.Permission;
 import org.incendo.cloud.suggestion.SuggestionProvider;
 import org.jspecify.annotations.Nullable;
@@ -85,16 +94,13 @@ public final class PunishCommands implements CommandModule {
 
     private final CommandRegistrar registrar;
     private final CommandRunner runner;
-    private final Replies replies;
     private final PunishFlags flags;
     private final TargetParser targetParser;
     private final TargetResolver targets;
     private final SakuraPunishmentService punishments;
-    private final NameCache names;
     private final ConfigService config;
-    private final SakuraScopeService scopes;
-    private final ScopeAccess scopeAccess;
     private final SakuraTemplateService templates;
+    private final PunishSupport support;
 
     public PunishCommands(final CommandRegistrar registrar, final CommandRunner runner,
             final Replies replies, final PunishFlags flags, final TargetParser targetParser,
@@ -104,16 +110,13 @@ public final class PunishCommands implements CommandModule {
             final SakuraTemplateService templates) {
         this.registrar = registrar;
         this.runner = runner;
-        this.replies = replies;
         this.flags = flags;
         this.targetParser = targetParser;
         this.targets = targets;
         this.punishments = punishments;
-        this.names = names;
         this.config = config;
-        this.scopes = scopes;
-        this.scopeAccess = scopeAccess;
         this.templates = templates;
+        this.support = new PunishSupport(registrar, runner, replies, names, scopes, scopeAccess);
     }
 
     @Override
@@ -158,7 +161,7 @@ public final class PunishCommands implements CommandModule {
                 this.flags.sender(),
                 this.flags.senderUuid(),
                 this.flags.skip(type),
-                this.flags.template(this.templateNames(type)),
+                this.flags.template(this.templateNames(spec)),
                 this.flags.evidence(type)));
         if (spec.mode() != Mode.ADDRESS) {
             flagList.add(this.flags.ip(type));
@@ -185,47 +188,34 @@ public final class PunishCommands implements CommandModule {
         final Duration duration = spec.mode() == Mode.TEMPORARY
                 ? context.<Duration>get("duration")
                 : flags.<Duration>getValue(PunishFlags.DURATION).orElse(null);
-        final String reason = flags.<String>getValue(PunishFlags.REASON).map(String::strip)
-                .filter(text -> !text.isEmpty()).orElse(null);
-        final Shortcut shortcut = this.shortcut(actor, type, reason,
-                flags.<String>getValue(PunishFlags.TEMPLATE).orElse(null));
-        if (shortcut == null) {
-            return CompletableFuture.completedFuture(null);
-        }
-        // The scope that results: the command's, else the template's, else the default.
-        final Optional<Scope> scope = this.scope(flags);
-        final Optional<Scope> checked = scope.or(() -> Optional.ofNullable(shortcut.template())
-                .flatMap(TemplateInfo::scope));
-        if (checked.isPresent() && !this.scopeAccess.mayUse(actor, checked.get())) {
-            this.runner.send(actor, MessageKey.COMMAND_SCOPE_NO_PERMISSION,
-                    Placeholder.unparsed("scope", this.scopes.format(checked.get())));
-            return CompletableFuture.completedFuture(null);
-        }
-        if (checked.isEmpty() && !this.scopeAccess.mayUseDefault(actor)) {
-            this.runner.send(actor, MessageKey.COMMAND_SCOPE_DEFAULT_NO_PERMISSION);
-            return CompletableFuture.completedFuture(null);
-        }
-        final Actor issuer = this.issuer(actor, flags);
+        final String reason = PunishSupport.reason(flags);
+        final TargetInput input = context.get("target");
+        final Optional<Scope> scope = PunishSupport.scope(flags);
+        final Actor issuer = PunishSupport.issuer(actor, flags);
         if (issuer == null) {
             this.runner.send(actor, MessageKey.COMMAND_SENDER_NEEDS_NAME);
             return CompletableFuture.completedFuture(null);
         }
-        final List<EvidenceRef> evidence = new ArrayList<>();
-        for (final String text : flags.<String>getAll(PunishFlags.EVIDENCE)) {
-            try {
-                evidence.add(EvidenceRef.of(text));
-            } catch (final ValidationException e) {
-                this.runner.send(actor, MessageKey.COMMAND_INVALID,
-                        Placeholder.unparsed("details", e.getMessage()));
-                return CompletableFuture.completedFuture(null);
-            }
+        final Shortcut shortcut = this.shortcut(actor, spec, reason,
+                flags.<String>getValue(PunishFlags.TEMPLATE).orElse(null), duration != null,
+                input, scope.orElse(null), issuer);
+        if (shortcut == null) {
+            return CompletableFuture.completedFuture(null);
+        }
+        if (!this.support.scopeAllowed(actor, scope.orElse(null), shortcut.template())) {
+            return CompletableFuture.completedFuture(null);
+        }
+        final List<EvidenceRef> evidence = this.support.evidence(actor, flags);
+        if (evidence == null) {
+            return CompletableFuture.completedFuture(null);
         }
         final boolean address = spec.mode() == Mode.ADDRESS || flags.isPresent(PunishFlags.IP)
                 || this.config.settings().enforcement().compositeByDefault()
                         && type != PunishmentType.KICK;
-        final TargetInput input = context.get("target");
         return this.targets.resolve(input).thenCompose(target -> {
-            final Victim victim = this.victim(actor, type, target, address);
+            final Victim victim = this.support.victim(actor,
+                    Permissions.flag(type, PunishFlags.IP), Permissions.range(type), target,
+                    address);
             if (victim == null) {
                 return CompletableFuture.completedFuture(null);
             }
@@ -241,37 +231,50 @@ public final class PunishCommands implements CommandModule {
                         .evidence(evidence)
                         .build();
             } catch (final ValidationException e) {
-                this.invalid(actor, e);
+                this.support.invalid(actor, e);
                 return CompletableFuture.completedFuture(null);
             }
-            return this.punishments.punish(draft, this.options(flags))
-                    .thenAccept(result -> this.reply(actor, result))
-                    .exceptionally(failure -> {
-                        if (Futures.unwrap(failure) instanceof ValidationException e) {
-                            this.invalid(actor, e);
-                            return null;
-                        }
-                        throw new CompletionException(failure);
-                    });
+            return this.punishments.punish(draft, PunishSupport.options(flags))
+                    .thenAccept(result -> this.support.reply(actor, result))
+                    .exceptionally(failure -> this.support.invalidOrRethrow(actor, failure));
         });
     }
 
     private record Shortcut(@Nullable TemplateInfo template, @Nullable String reason) {
     }
 
-    private @Nullable Shortcut shortcut(final CommandActor actor, final PunishmentType type,
-            final @Nullable String reason, final @Nullable String given) {
+    private @Nullable Shortcut shortcut(final CommandActor actor, final Spec spec,
+            final @Nullable String reason, final @Nullable String given,
+            final boolean withDuration, final TargetInput input, final @Nullable Scope scope,
+            final Actor issuer) {
         if (given == null) {
             return new Shortcut(null, reason);
         }
         final String name = given.strip().toLowerCase(Locale.ROOT);
-        final TemplateInfo template = this.templates.template(name).orElse(null);
+        // The variant the service will use (S62): the same scope and issuer.
+        final TemplateInfo template = this.templates.resolve(name, scope, issuer)
+                .map(StoredTemplate::template).orElse(null);
         if (template != null) {
-            if (!SakuraTemplateService.usableFor(template, type)) {
+            final TagResolver[] names = {Placeholder.unparsed("name", template.name()),
+                    Placeholder.unparsed("player", inputText(input))};
+            if (!(template instanceof PresetTemplate preset)) {
+                this.runner.send(actor, MessageKey.PUNISH_FAILURE_TEMPLATE_LADDER,
+                        TagResolver.resolver(names),
+                        this.support.command(LadderCommands.PUNISH));
+                return null;
+            }
+            if (preset.type() != spec.type()) {
                 this.runner.send(actor, MessageKey.PUNISH_FAILURE_TEMPLATE_TYPE,
-                        Placeholder.unparsed("name", template.name()),
+                        TagResolver.resolver(names),
+                        this.support.command(PunishSupport.plain(preset.type())),
                         Placeholder.component("type", this.runner.render(actor,
-                                Placeholders.typeKey(template.type()))));
+                                Placeholders.typeKey(preset.type()))));
+                return null;
+            }
+            if (withDuration && !(preset.duration() instanceof TemplateDuration.Open)) {
+                this.runner.send(actor, MessageKey.PUNISH_FAILURE_TEMPLATE_DURATION,
+                        TagResolver.resolver(names),
+                        this.support.command(PunishSupport.plain(preset.type())));
                 return null;
             }
             if (template.permissionRequired()
@@ -291,12 +294,15 @@ public final class PunishCommands implements CommandModule {
         return new Shortcut(null, reason == null ? text : text + " " + reason);
     }
 
-    private SuggestionProvider<CommandActor> templateNames(final PunishmentType type) {
+    /** Presets of the command's type; a temp command only those that leave the duration open. */
+    private SuggestionProvider<CommandActor> templateNames(final Spec spec) {
         return SuggestionProvider.blockingStrings((context, input) -> {
             final CommandActor actor = context.sender();
             final List<String> names = new ArrayList<>();
             for (final TemplateInfo template : this.templates.templates()) {
-                if (SakuraTemplateService.usableFor(template, type)
+                if (template instanceof PresetTemplate preset && preset.type() == spec.type()
+                        && (spec.mode() != Mode.TEMPORARY
+                                || preset.duration() instanceof TemplateDuration.Open)
                         && (!template.permissionRequired()
                         || actor.hasPermission(Permissions.template(template.name())))) {
                     names.add(template.name());
@@ -307,139 +313,6 @@ public final class PunishCommands implements CommandModule {
                     .forEach(names::add);
             return names;
         });
-    }
-
-    private @Nullable Victim victim(final CommandActor actor, final PunishmentType type,
-            final ResolvedTarget target, final boolean address) {
-        return switch (target) {
-            case ResolvedTarget.Player player -> {
-                if (player.name() != null) {
-                    this.names.put(player.uuid(), player.name());
-                }
-                if (!address) {
-                    yield PlayerVictim.of(player.uuid());
-                }
-                if (!actor.hasPermission(Permissions.flag(type, PunishFlags.IP))) {
-                    this.runner.send(actor, MessageKey.COMMAND_ADDRESS_NO_PERMISSION);
-                    yield null;
-                }
-                if (player.lastAddress() == null) {
-                    this.runner.send(actor, MessageKey.COMMAND_NO_ADDRESS,
-                            Placeholder.unparsed("name", displayName(player)));
-                    yield null;
-                }
-                yield CompositeVictim.of(player.uuid(), player.lastAddress());
-            }
-            case ResolvedTarget.Address found -> {
-                if (!actor.hasPermission(Permissions.flag(type, PunishFlags.IP))) {
-                    this.runner.send(actor, MessageKey.COMMAND_ADDRESS_NO_PERMISSION);
-                    yield null;
-                }
-                yield AddressVictim.of(found.address());
-            }
-            case ResolvedTarget.Range range -> {
-                if (!actor.hasPermission(Permissions.range(type))) {
-                    this.runner.send(actor, MessageKey.COMMAND_RANGE_NO_PERMISSION);
-                    yield null;
-                }
-                yield range.range();
-            }
-            case ResolvedTarget.PunishmentId id -> {
-                this.runner.send(actor, MessageKey.COMMAND_ID_NOT_ALLOWED);
-                yield null;
-            }
-            case ResolvedTarget.Unknown unknown -> {
-                this.runner.send(actor, MessageKey.COMMAND_UNKNOWN_TARGET,
-                        Placeholder.unparsed("input", inputText(unknown.input())));
-                yield null;
-            }
-        };
-    }
-
-    private Optional<Scope> scope(final FlagContext flags) {
-        if (flags.isPresent(PunishFlags.GLOBAL)) {
-            return Optional.of(GlobalScope.INSTANCE);
-        }
-        final Optional<Scope> server = flags.<String>getValue(PunishFlags.SERVER)
-                .flatMap(Validator::normalizeIdentifier)
-                .map(ServerScope::of);
-        if (server.isPresent()) {
-            return server;
-        }
-        final Optional<Scope> category = flags.<String>getValue(PunishFlags.CATEGORY)
-                .flatMap(Validator::normalizeIdentifier)
-                .map(CategoryScope::of);
-        if (category.isPresent()) {
-            return category;
-        }
-        return flags.getValue(PunishFlags.SCOPE);
-    }
-
-    private @Nullable Actor issuer(final CommandActor actor, final FlagContext flags) {
-        final Optional<String> name = flags.getValue(PunishFlags.SENDER);
-        final Optional<UUID> uuid = flags.getValue(PunishFlags.SENDER_UUID);
-        if (name.isEmpty()) {
-            return uuid.isPresent() ? null : actor.asActor();
-        }
-        final Operator operator = uuid
-                .<Operator>map(id -> PlayerOperator.of(id, name.get()))
-                .orElseGet(() -> CustomOperator.of(name.get(), null));
-        return Actor.of(operator, CommandActor.SOURCE_CONSOLE);
-    }
-
-    private PunishOptions options(final FlagContext flags) {
-        return PunishOptions.builder()
-                .visibility(flags.isPresent(PunishFlags.HIDE) ? Visibility.HIDDEN
-                        : flags.isPresent(PunishFlags.SILENT) ? Visibility.SILENT
-                        : Visibility.NORMAL)
-                .override(flags.isPresent(PunishFlags.OVERRIDE) ? OverridePolicy.REPLACE
-                        : flags.isPresent(PunishFlags.IF_LONGER)
-                                ? OverridePolicy.REPLACE_IF_LONGER
-                                : OverridePolicy.REJECT)
-                .enforce(!flags.isPresent(PunishFlags.SKIP))
-                .build();
-    }
-
-    private void reply(final CommandActor actor, final PunishResult result) {
-        switch (result) {
-            // The punishment's own type: a template's step may make a /ban a kick.
-            case PunishResult.Success success -> this.runner.send(actor, switch (
-                    success.punishment().type()) {
-                case BAN -> MessageKey.PUNISH_BAN;
-                case MUTE -> MessageKey.PUNISH_MUTE;
-                case WARN -> MessageKey.PUNISH_WARN;
-                case KICK -> MessageKey.PUNISH_KICK;
-            }, this.replies.punishment(actor, success.punishment()));
-            case PunishResult.Failure failure -> {
-                if (failure.conflicting().isPresent()) {
-                    this.runner.send(actor, MessageKey.PUNISH_FAILURE_ALREADY_PUNISHED,
-                            this.replies.punishment(actor, failure.conflicting().get()));
-                } else {
-                    this.runner.send(actor, failureKey(failure.reason()));
-                }
-            }
-        }
-    }
-
-    private void invalid(final CommandActor actor, final ValidationException e) {
-        this.runner.send(actor, MessageKey.COMMAND_INVALID, Placeholder.unparsed("details",
-                String.join("; ", e.errors().stream()
-                        .map(error -> error.path() + " " + error.message()).toList())));
-    }
-
-    private static MessageKey failureKey(final PunishResult.Failure.Reason reason) {
-        return switch (reason) {
-            // Only reached without a conflicting punishment, so the message has no placeholders.
-            case ALREADY_PUNISHED -> MessageKey.PUNISH_FAILURE_ALREADY_PUNISHED_GENERIC;
-            case EXEMPT -> MessageKey.PUNISH_FAILURE_EXEMPT;
-            case CANCELLED -> MessageKey.PUNISH_FAILURE_CANCELLED;
-            case LIMIT_EXCEEDED -> MessageKey.PUNISH_FAILURE_LIMIT_EXCEEDED;
-            case COOLDOWN -> MessageKey.PUNISH_FAILURE_COOLDOWN;
-            case REASON_REQUIRED -> MessageKey.PUNISH_FAILURE_REASON_REQUIRED;
-            case TEMPLATE_REQUIRED -> MessageKey.PUNISH_FAILURE_TEMPLATE_REQUIRED;
-            case UNKNOWN_TEMPLATE -> MessageKey.PUNISH_FAILURE_UNKNOWN_TEMPLATE;
-            case FORBIDDEN -> MessageKey.PUNISH_FAILURE_FORBIDDEN;
-        };
     }
 
     static String displayName(final ResolvedTarget.Player player) {

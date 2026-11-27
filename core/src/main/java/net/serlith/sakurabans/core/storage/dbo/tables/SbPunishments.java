@@ -78,6 +78,11 @@ public final class SbPunishments extends SbTable<SbPunishmentsRecord> {
     public final TableField<SbPunishmentsRecord, Short> TEMPLATE_STEP = createField(
             DSL.name("template_step"), SQLDataType.SMALLINT.nullable(true), this, "");
 
+    /** The variant of the template it came from (S62); null: the global definition. */
+    public final TableField<SbPunishmentsRecord, Integer> TEMPLATE_VARIANT_SCOPE_ID =
+            createField(DSL.name("template_variant_scope_id"),
+                    SQLDataType.INTEGER.nullable(true), this, "");
+
     public final TableField<SbPunishmentsRecord, Instant> ENDED_AT = createField(
             DSL.name("ended_at"), SbTypes.INSTANT.nullable(true), this, "");
 
@@ -151,7 +156,8 @@ public final class SbPunishments extends SbTable<SbPunishmentsRecord> {
     public List<ForeignKey<SbPunishmentsRecord, ?>> getReferences() {
         return List.of(
                 Keys.PUNISHMENTS_VICTIM_FK,
-                Keys.PUNISHMENTS_SCOPE_FK);
+                Keys.PUNISHMENTS_SCOPE_FK,
+                Keys.PUNISHMENTS_TEMPLATE_VARIANT_FK);
     }
 
     @Override
@@ -160,7 +166,6 @@ public final class SbPunishments extends SbTable<SbPunishmentsRecord> {
                 Indexes.PUNISHMENTS_VICTIM_IX,
                 Indexes.PUNISHMENTS_OPERATOR_IX,
                 Indexes.PUNISHMENTS_CREATED_IX,
-                Indexes.PUNISHMENTS_TEMPLATE_IX,
                 Indexes.PUNISHMENTS_REVOKER_IX);
     }
 

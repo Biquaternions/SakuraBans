@@ -1,16 +1,18 @@
 <script setup lang="ts">
 // Global, each category and each server the network knows, with how many overrides (and
-// pending changes) each has; a scope can be added by typing a server or category name.
+// pending changes) each has; a scope can be added by typing a server or category name. For
+// templates the count is of variants (S62): definitions in force there instead of the global one.
 import { changesPerScope } from '#shared/editor/draft'
 import { effectiveCategories, scopeKind, scopeName, uploadingServer } from '#shared/editor/layers'
 import { IDENTIFIER_HINT, isIdentifier } from '#shared/editor/limits'
 import { GLOBAL } from '#shared/protocol/schema'
 
-const props = defineProps<{
-  section: 'settings' | 'messages'
+const props = withDefaults(defineProps<{
+  section: 'settings' | 'messages' | 'templates'
   /** Messages: overrides are counted for this locale. */
   locale?: string
-}>()
+  label?: string
+}>(), { locale: undefined, label: 'Scope' })
 
 const scope = defineModel<string>({ required: true })
 
@@ -32,6 +34,8 @@ const known = computed(() => {
   const listed = [
     ...(p.settings?.scopes ?? []).map(item => item.scope),
     ...(p.messages?.scopes ?? []).map(item => item.scope),
+    ...(p.templates?.items ?? []).map(item => item.scope),
+    ...store.draft.templates.map(form => form.variant),
     ...Object.keys(store.draft.settings),
     ...Object.keys(store.draft.messages),
     ...store.addedScopes.value
@@ -50,27 +54,31 @@ function overrideCount(item: string): number {
   if (props.section === 'settings') {
     return Object.keys(p.settings?.scopes.find(entry => entry.scope === item)?.overrides ?? {}).length
   }
+  if (props.section === 'templates') {
+    return item === GLOBAL ? 0 : (p.templates?.items ?? []).filter(entry => entry.scope === item).length
+  }
   return Object.keys(p.messages?.scopes.find(entry => entry.scope === item && entry.locale === props.locale)?.overrides ?? {}).length
 }
 
 const pending = computed(() => changesPerScope(store.changes.value, props.section))
 
-function label(item: string): string {
+function itemLabel(item: string): string {
   const base = item === GLOBAL ? 'Global' : scopeName(item)
   const count = overrideCount(item)
   const changes = pending.value.get(item) ?? 0
-  const parts = [count > 0 ? `${count} override${count === 1 ? '' : 's'}` : '', changes > 0 ? `${changes} change${changes === 1 ? '' : 's'}` : '']
+  const noun = props.section === 'templates' ? 'variant' : 'override'
+  const parts = [count > 0 ? `${count} ${noun}${count === 1 ? '' : 's'}` : '', changes > 0 ? `${changes} change${changes === 1 ? '' : 's'}` : '']
     .filter(Boolean)
   return parts.length > 0 ? `${base} · ${parts.join(', ')}` : base
 }
 
 const items = computed(() => [
-  [{ label: label(GLOBAL), value: GLOBAL, icon: 'i-lucide-globe' }],
+  [{ label: itemLabel(GLOBAL), value: GLOBAL, icon: 'i-lucide-globe' }],
   known.value.categories.length > 0
-    ? [{ type: 'label' as const, label: 'Categories', value: '', icon: '' }, ...known.value.categories.map(name => ({ label: label(`category:${name}`), value: `category:${name}`, icon: 'i-lucide-folder' }))]
+    ? [{ type: 'label' as const, label: 'Categories', value: '', icon: '' }, ...known.value.categories.map(name => ({ label: itemLabel(`category:${name}`), value: `category:${name}`, icon: 'i-lucide-folder' }))]
     : [],
   known.value.servers.length > 0
-    ? [{ type: 'label' as const, label: 'Servers', value: '', icon: '' }, ...known.value.servers.map(name => ({ label: label(`server:${name}`), value: `server:${name}`, icon: 'i-lucide-server' }))]
+    ? [{ type: 'label' as const, label: 'Servers', value: '', icon: '' }, ...known.value.servers.map(name => ({ label: itemLabel(`server:${name}`), value: `server:${name}`, icon: 'i-lucide-server' }))]
     : []
 ].filter(group => group.length > 0))
 
@@ -94,7 +102,7 @@ function add() {
 <template>
   <div class="flex flex-wrap items-end gap-2">
     <UFormField
-      label="Scope"
+      :label="label"
       class="min-w-64 flex-1 sm:flex-none"
     >
       <USelectMenu

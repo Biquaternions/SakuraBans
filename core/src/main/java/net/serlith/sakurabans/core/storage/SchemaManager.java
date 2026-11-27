@@ -13,6 +13,7 @@ import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
 import net.serlith.sakurabans.core.storage.dbo.SbTable;
 import net.serlith.sakurabans.core.storage.dbo.ScopeKind;
 import net.serlith.sakurabans.core.util.BuildConstants;
+import net.serlith.sakurabans.core.util.ReleaseChannel;
 import org.jooq.Constraint;
 import org.jooq.ConstraintForeignKeyOnStep;
 import org.jooq.DSLContext;
@@ -31,10 +32,12 @@ public final class SchemaManager {
 
     private final SchemaUpdater updater;
     private final ComponentLogger logger;
+    private final ReleaseChannel channel;
 
-    public SchemaManager(final ComponentLogger logger) {
+    public SchemaManager(final ComponentLogger logger, final ReleaseChannel channel) {
         this.updater = new SchemaUpdater();
         this.logger = logger;
+        this.channel = channel;
     }
 
     public void prepare(final DSLContext dsl, final @Nullable String schema) {
@@ -49,6 +52,12 @@ public final class SchemaManager {
             throw new StorageException("The database was set up by a newer SakuraBans (schema"
                     + " version " + found.get() + "; this version knows up to " + current
                     + "). Update SakuraBans or use another database.");
+        }
+        if (found.isPresent() && found.get() < current && !this.channel.migratesSchema()) {
+            throw new StorageException("The database was set up by an older SakuraBans (schema"
+                    + " version " + found.get() + "; this build uses " + current + "). "
+                    + this.channel.label() + " builds don't update a database: drop its"
+                    + " SakuraBans tables (or use a new database) and start again.");
         }
         if (found.isPresent() && found.get() < current) {
             this.logger.info("Updating the database schema from version {} to {}", found.get(),

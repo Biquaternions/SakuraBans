@@ -46,7 +46,7 @@ public final class CoreBootstrap {
                         components.commands(), components.scopeService(), components.sync(),
                         components.syncReceiver(), components.allowList(), components.ranges(),
                         components.templates(),
-                        components.templateActions(), components.warningActions(),
+                        components.warningActions(),
                         components.displayIds(), components.lockdowns(), components.webhooks(),
                         components.settingsService(), components.messageTemplates(),
                         components.editorClient(), components.editorWatcher(),

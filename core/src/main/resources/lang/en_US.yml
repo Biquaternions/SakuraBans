@@ -86,6 +86,13 @@ victim:
   warned: '<prefix><red>You were warned by <operator>: <reason></red>'
   warned_away: '<prefix><red>While you were away, <operator> warned you (<created>): <reason></red>'
 
+# A template with "display: dialog" shows the mute notice or the warning above (or the template's
+# own message) in a dialog with this title and button. Without one, it is sent as chat.
+dialog:
+  muted_title: '<red>You were muted</red>'
+  warned_title: '<gold>You were warned</gold>'
+  close: 'Close'
+
 # When a muted player chats or runs a blocked command.
 chat:
   muted: '<prefix><red>You are muted: <reason></red>'
@@ -161,6 +168,7 @@ command:
     ipmute: 'Mute a player together with their address'
     warn: 'Warn a player'
     kick: 'Kick a player'
+    punish: 'Apply the next step of a ladder'
     unban: 'Lift a ban'
     pardon: 'Lift a ban (same as unban)'
     allow: 'Accounts and addresses that address bans don''t reach'
@@ -214,6 +222,7 @@ punish:
   mute: '<prefix><green>Muted <white><victim></white> (<duration>, <scope>): <white><reason></white> <gray>#<display_id></gray></green>'
   warn: '<prefix><green>Warned <white><victim></white>: <white><reason></white> <gray>#<display_id></gray></green>'
   kick: '<prefix><green>Kicked <white><victim></white>: <white><reason></white></green>'
+  actions_only: '<prefix><green>Applied step <step> of <white><name></white> to <white><victim></white>: no punishment, only its actions.</green>'
   failure:
     already_punished: '<prefix><red><victim> already has an active <type> in <scope> (#<display_id>, <duration>). Use -o to replace it.</red>'
     already_punished_generic: '<prefix><red>The victim already has an active punishment of that type there. Use -o to replace it.</red>'
@@ -224,9 +233,14 @@ punish:
     reason_required: '<prefix><red>Give a reason.</red>'
     template_required: '<prefix><red>Use a template (--template).</red>'
     unknown_template: '<prefix><red>There is no such template.</red>'
+    template_type_mismatch: '<prefix><red>That template doesn''t fit this command.</red>'
     no_template: '<prefix><red>There is no template or reason shortcut called <name>.</red>'
     template_no_permission: '<prefix><red>You can''t use the template <name>.</red>'
-    template_type: '<prefix><red><name> is a <type> template.</red>'
+    template_type: '<prefix><red><name> is a <type> template; use it with /<command>.</red>'
+    template_ladder: '<prefix><red><name> is a ladder; apply it with /<command> <player> <name>.</red>'
+    template_duration: '<prefix><red>The template <name> has its own duration; use it without one: /<command> <player> -t <name>.</red>'
+    no_ladder: '<prefix><red>There is no ladder called <name>.</red>'
+    not_a_ladder: '<prefix><red><name> is a <type> template, not a ladder; use /<command> <player> -t <name>.</red>'
     forbidden: '<prefix><red>You may not do that.</red>'
 revoke:
   ban: '<prefix><green>Unbanned <white><target></white> (<count>).</green>'
@@ -311,12 +325,21 @@ templates:
     empty: '<prefix><gray>There are no templates.</gray>'
     header: '<prefix><white>Templates</white> <gray>(<count>)</gray>'
     entry: '<gray> - </gray><white><name></white> <gray><type><modifiers>:</gray> <ladder><gray>; <reason></gray>'
+    ladder: 'ladder'
+    variants: '<gray>   variants: <white><scopes></white></gray>'
+    header_scope: '<prefix><white>Template variants in <scope></white> <gray>(<count>)</gray>'
+    empty_scope: '<prefix><gray>No template has a variant in <scope>.</gray>'
   import:
     confirm: '<prefix><yellow>This creates or updates the templates in templates.yml (<count>) for every server. Run it again with --confirm within 30 seconds.</yellow>'
     done: '<prefix><green>Templates imported: <created> new, <updated> updated, <unchanged> unchanged.</green>'
     error: '<prefix><red><error></red>'
   export:
     done: '<prefix><green>Exported <count> templates to <file>.</green>'
+  reset:
+    confirm: '<prefix><yellow>This forgets <count> uses of <what> on <victims> victims (<target>, and its alts and addresses where a ladder counts them), so those ladders start over for <target>. Run it again with --confirm within 30 seconds.</yellow>'
+    done: '<prefix><green>Forgot <count> uses of <what> on <victims> victims for <target>.</green>'
+    all: 'every template'
+    target: '<prefix><red>Name a player or an address to reset, not <input>.</red>'
 edit:
   done: '<prefix><green>Changed #<display_id>: <white><what></white>.</green>'
   permanent: '<prefix><red>#<display_id> is permanent; set a duration instead.</red>'
@@ -452,11 +475,11 @@ editor:
     setting_published_secret: '<prefix><gray>Setting <white><key></white>: published from <white><server></white> <italic>(hidden)</italic></gray>'
     message_set: '<prefix><gray>Message <white><key></white> (<locale>)<where>: set to <white><text></white></gray>'
     message_reset: '<prefix><gray>Message <white><key></white> (<locale>)<where>: reset</gray>'
-    template_created: '<prefix><gray>Template <white><name></white>: created</gray>'
-    template_updated: '<prefix><gray>Template <white><name></white>: changed <fields></gray>'
+    template_created: '<prefix><gray>Template <white><name></white><where>: created</gray>'
+    template_updated: '<prefix><gray>Template <white><name></white><where>: changed <fields></gray>'
     template_field: '<white><field></white>'
     template_field_values: '<white><field></white> (<before> → <after>)'
-    template_deleted: '<prefix><gray>Template <white><name></white>: deleted</gray>'
+    template_deleted: '<prefix><gray>Template <white><name></white><where>: deleted</gray>'
     unchanged: '<prefix><gray>Unchanged: <section> <target><where></gray>'
     conflict: '<prefix><yellow>Conflict: <section> <target><where> changed meanwhile; not applied.</yellow>'
     failed: '<prefix><red>Not applied: <section> <target><where>: <details></red>'

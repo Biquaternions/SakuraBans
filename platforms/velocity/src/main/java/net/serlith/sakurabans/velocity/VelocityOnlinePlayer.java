@@ -17,10 +17,13 @@ final class VelocityOnlinePlayer implements OnlinePlayer, ForwardingAudience.Sin
 
     private final ProxyServer proxy;
     private final Player player;
+    private final VelocityNotices notices;
 
-    VelocityOnlinePlayer(final ProxyServer proxy, final Player player) {
+    VelocityOnlinePlayer(final ProxyServer proxy, final Player player,
+            final VelocityNotices notices) {
         this.proxy = proxy;
         this.player = player;
+        this.notices = notices;
     }
 
     @Override
@@ -62,6 +65,12 @@ final class VelocityOnlinePlayer implements OnlinePlayer, ForwardingAudience.Sin
     @Override
     public void disconnect(final Component reason) {
         this.player.disconnect(reason);
+    }
+
+    @Override
+    public boolean showNotice(final Component title, final Component body,
+            final Component button) {
+        return this.notices.show(this.player, title, body, button);
     }
 
     @Override

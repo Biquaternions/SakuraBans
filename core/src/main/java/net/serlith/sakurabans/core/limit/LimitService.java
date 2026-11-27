@@ -14,6 +14,7 @@ import net.serlith.sakurabans.core.configuration.settings.LimitSettings;
 import net.serlith.sakurabans.core.permission.PermissionService;
 import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.punish.PunishLimits;
+import net.serlith.sakurabans.core.punish.PunishmentFactory.Origin;
 import net.serlith.sakurabans.core.punish.PunishmentFactory.Prepared;
 import net.serlith.sakurabans.core.storage.repository.NewPunishment;
 
@@ -65,14 +66,16 @@ public final class LimitService implements PunishLimits {
             return new Prepared.Refused(Reason.COOLDOWN);
         }
         final Optional<Duration> max = group.maxDuration(punishment.type());
-        if (unlimited || max.isEmpty() || !longer(punishment, max.get())) {
+        // A ladder's step decides its duration; the caps don't clip it (D37).
+        if (unlimited || ready.origin() == Origin.LADDER_STEP || max.isEmpty()
+                || !longer(punishment, max.get())) {
             return ready;
         }
         if (!limits.reduceToLimit()) {
             return new Prepared.Refused(Reason.LIMIT_EXCEEDED);
         }
         final Instant reduced = punishment.createdAt().plus(max.get());
-        return new Prepared.Ready(punishment.withExpiry(reduced));
+        return ready.withPunishment(punishment.withExpiry(reduced));
     }
 
     private static boolean longer(final NewPunishment punishment, final Duration max) {

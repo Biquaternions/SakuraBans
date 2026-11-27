@@ -1,7 +1,13 @@
 package net.serlith.sakurabans.paper;
 
+import io.papermc.paper.dialog.Dialog;
+import io.papermc.paper.registry.data.dialog.ActionButton;
+import io.papermc.paper.registry.data.dialog.DialogBase;
+import io.papermc.paper.registry.data.dialog.body.DialogBody;
+import io.papermc.paper.registry.data.dialog.type.DialogType;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
@@ -66,6 +72,23 @@ final class PaperOnlinePlayer implements OnlinePlayer, ForwardingAudience.Single
     public void disconnect(final Component reason) {
         this.scheduler.runFor(this.player,
                 () -> this.player.kick(reason, PlayerKickEvent.Cause.PLUGIN));
+    }
+
+    @Override
+    public boolean showNotice(final Component title, final Component body,
+            final Component button) {
+        // Built and shown on the player's thread (Folia: its region). False when the hop isn't
+        // scheduled (S64): the player is offline, or their scheduler retired. A player who
+        // leaves after it was scheduled still drops it silently.
+        if (!this.player.isOnline()) {
+            return false;
+        }
+        return this.scheduler.runFor(this.player, () -> this.player.showDialog(Dialog.create(
+                factory -> factory.empty()
+                        .base(DialogBase.builder(title)
+                                .body(List.of(DialogBody.plainMessage(body)))
+                                .build())
+                        .type(DialogType.notice(ActionButton.builder(button).build())))));
     }
 
     @Override

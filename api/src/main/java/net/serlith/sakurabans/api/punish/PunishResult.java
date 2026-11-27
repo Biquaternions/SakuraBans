@@ -74,8 +74,14 @@ public sealed interface PunishResult permits PunishResult.Success, PunishResult.
             /** No template was given, and the operator's limit group requires one. */
             TEMPLATE_REQUIRED,
 
-            /** The template doesn't exist or doesn't match the type. */
+            /** No template has this name. */
             UNKNOWN_TEMPLATE,
+
+            /**
+             * The template is of another kind: a preset of another type, or a ladder given to
+             * {@code punish}, or a preset given to {@code applyLadder}.
+             */
+            TEMPLATE_TYPE_MISMATCH,
 
             /** The actor isn't allowed to do this (permissions or an integration's guard). */
             FORBIDDEN

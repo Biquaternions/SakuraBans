@@ -23,6 +23,8 @@ public final class FakeOnlinePlayer implements OnlinePlayer {
     private final AtomicReference<@Nullable String> currentServer;
     private final Set<String> permissions = ConcurrentHashMap.newKeySet();
     private final List<Component> messages = new CopyOnWriteArrayList<>();
+    private final List<Notice> notices = new CopyOnWriteArrayList<>();
+    private volatile boolean dialogs;
     private final AtomicReference<@Nullable Component> disconnectReason = new AtomicReference<>();
     private final FakePlatform platform;
 
@@ -85,6 +87,16 @@ public final class FakeOnlinePlayer implements OnlinePlayer {
     }
 
     @Override
+    public boolean showNotice(final Component title, final Component body,
+            final Component button) {
+        if (!this.dialogs) {
+            return false;
+        }
+        this.notices.add(new Notice(title, body, button));
+        return true;
+    }
+
+    @Override
     public void sendMessage(final Component message) {
         this.messages.add(message);
     }
@@ -94,11 +106,24 @@ public final class FakeOnlinePlayer implements OnlinePlayer {
         return this;
     }
 
+    /** Whether {@link #showNotice} shows notices (off by default, as on a platform without). */
+    public FakeOnlinePlayer dialogs(final boolean dialogs) {
+        this.dialogs = dialogs;
+        return this;
+    }
+
+    public List<Notice> notices() {
+        return List.copyOf(this.notices);
+    }
+
     public List<Component> messages() {
         return List.copyOf(this.messages);
     }
 
     public Optional<Component> disconnectReason() {
         return Optional.ofNullable(this.disconnectReason.get());
+    }
+
+    public record Notice(Component title, Component body, Component button) {
     }
 }

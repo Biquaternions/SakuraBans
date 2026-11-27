@@ -21,6 +21,7 @@ import net.serlith.sakurabans.api.model.CategoryScope;
 import net.serlith.sakurabans.api.model.GlobalScope;
 import net.serlith.sakurabans.api.model.Scope;
 import net.serlith.sakurabans.api.model.ServerScope;
+import net.serlith.sakurabans.api.template.TemplateInfo;
 import net.serlith.sakurabans.core.RecordingLogger;
 import net.serlith.sakurabans.core.admin.EditorSeal;
 import net.serlith.sakurabans.core.admin.FakeEditorSite;
@@ -28,9 +29,10 @@ import net.serlith.sakurabans.core.command.FakeCommandActor;
 import net.serlith.sakurabans.core.configuration.TemplateFiles;
 import net.serlith.sakurabans.core.fake.FakeOnlinePlayer;
 import net.serlith.sakurabans.core.model.AdminResult;
-import net.serlith.sakurabans.core.model.TemplateDefinition;
+import net.serlith.sakurabans.core.model.TemplateBuilder;
 import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.storage.dbo.SakuraTables;
+import net.serlith.sakurabans.core.util.Scopes;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -104,11 +106,11 @@ class EditorCommandsTest extends EditorTest {
                  "messages": [{"scope": "global", "locale": "fr_FR", "expectedVersion": 0,
                                "set": {"chat.muted": "<red>Muet : <reason></red>"}}],
                  "templates": [
-                   {"op": "create", "name": "advertising",
-                    "definition": {"type": "mute", "reason": "Ads", "ladder": ["1d"]}},
-                   {"op": "update", "name": "spam", "expectedVersion": %d,
-                    "definition": {"type": "mute", "reason": "Spam", "ladder": ["1h", "1d"]}},
-                   {"op": "delete", "name": "old", "expectedVersion": %d}]}
+                   {"op": "create", "scope": "global", "name": "advertising",
+                    "definition": {"type": "mute", "reason": "Ads", "duration": "1d"}},
+                   {"op": "update", "scope": "global", "name": "spam", "expectedVersion": %d,
+                    "definition": {"type": "mute", "reason": "Spam", "duration": "1d"}},
+                   {"op": "delete", "scope": "global", "name": "old", "expectedVersion": %d}]}
                 """.formatted(this.settingsService.version(), longReason, this.version("spam"),
                 this.version("old")));
         final List<String> lines = this.apply(this.console, code);
@@ -119,7 +121,7 @@ class EditorCommandsTest extends EditorTest {
                 "Setting enforcement.address-strictness: reset, now NORMAL",
                 "Message chat.muted (fr_FR): set to <red>Muet : <reason></red>",
                 "Template advertising: created",
-                "Template spam: changed reason (Spamming → Spam), ladder",
+                "Template spam: changed reason (Spamming → Spam), duration",
                 "Template old: deleted",
                 "Applied 7, unchanged 0, conflicts 0.");
         Assertions.assertThat(this.config.settings().reasons().defaultReason())
@@ -130,7 +132,7 @@ class EditorCommandsTest extends EditorTest {
                 .contains("<red>Muet : <reason></red>");
         Assertions.assertThat(this.templates.find("advertising")).isPresent();
         Assertions.assertThat(this.templates.find("old")).isEmpty();
-        Assertions.assertThat(this.templates.find("spam").orElseThrow().reason())
+        Assertions.assertThat(this.templates.find("spam").orElseThrow().template().reason())
                 .isEqualTo("Spam");
         final List<String> sources = this.read(dsl -> dsl.selectDistinct(
                 SakuraTables.AUDIT_LOG.SOURCE).from(SakuraTables.AUDIT_LOG)
@@ -165,10 +167,10 @@ class EditorCommandsTest extends EditorTest {
                  "messages": [{"scope": "global", "locale": "en_US", "expectedVersion": 0,
                                "set": {"chat.muted": "<b>Quiet</b> <reason>"}}],
                  "templates": [
-                   {"op": "update", "name": "spam", "expectedVersion": %d,
-                    "definition": {"type": "mute", "reason": "Mine", "ladder": ["1h"]}},
-                   {"op": "create", "name": "flood",
-                    "definition": {"type": "mute", "reason": "Flood", "ladder": ["1h"]}}]}
+                   {"op": "update", "scope": "global", "name": "spam", "expectedVersion": %d,
+                    "definition": {"type": "mute", "reason": "Mine", "duration": "1h"}},
+                   {"op": "create", "scope": "global", "name": "flood",
+                    "definition": {"type": "mute", "reason": "Flood", "duration": "1h"}}]}
                 """.formatted(stale));
         final List<String> lines = this.apply(admin, code);
 
@@ -178,13 +180,69 @@ class EditorCommandsTest extends EditorTest {
                 "Template flood: created",
                 "Applied 2, unchanged 0, conflicts 1.",
                 "Open a new session with /sb editor to see what changed meanwhile.");
-        Assertions.assertThat(this.templates.find("spam").orElseThrow().reason())
+        Assertions.assertThat(this.templates.find("spam").orElseThrow().template().reason())
                 .isEqualTo("Changed meanwhile");
         Assertions.assertThat(this.templates.find("flood")).isPresent();
         // The sender is the creator: told once, in the reply.
         Assertions.assertThat(lines(this.platform.online(MOD).orElseThrow())).isEmpty();
         Assertions.assertThat(this.result(session, code).getAsJsonArray("changes").get(1)
                 .getAsJsonObject().get("action").getAsString()).isEqualTo("conflict");
+    }
+
+    @Test
+    void variantsAreCreatedUpdatedAndDeletedByScopeAndName() {
+        this.templates.create(template("spam", "Spamming"), CONSOLE).join();
+        this.templates.create(TemplateBuilder.from(template("spam", "Skywars"))
+                .variant(ServerScope.of("skywars")).build(), CONSOLE).join();
+        this.templates.create(template("old", "Old"), CONSOLE).join();
+        this.templates.create(TemplateBuilder.from(template("old", "Old here"))
+                .variant(CategoryScope.of("games")).build(), CONSOLE).join();
+        final FakeCommandActor admin = FakeCommandActor.player(MOD, "Mod", Permissions.EDITOR,
+                Permissions.ADMIN_TEMPLATES);
+        final Session session = this.open(admin, "templates");
+        Assertions.assertThat(session.payload().getAsJsonObject("templates")
+                .getAsJsonArray("items").asList().stream().map(item -> item.getAsJsonObject()
+                        .get("scope").getAsString() + " " + item.getAsJsonObject().get("name")
+                        .getAsString()).toList()).containsExactly("global old",
+                                "category:games old", "global spam", "server:skywars spam");
+
+        // Listed out of order: the variant before its global template, which comes first.
+        final String code = this.save(session,
+                """
+                {"format": 1, "templates": [
+                   {"op": "create", "scope": "category:games", "name": "flood",
+                    "definition": {"type": "mute", "reason": "Flood here", "duration": "2h"}},
+                   {"op": "create", "scope": "global", "name": "flood",
+                    "definition": {"type": "mute", "reason": "Flood", "duration": "1h"}},
+                   {"op": "update", "scope": "server:skywars", "name": "spam",
+                    "expectedVersion": 1,
+                    "definition": {"type": "mute", "reason": "Skywars spam"}},
+                   {"op": "update", "scope": "server:lobby", "name": "spam",
+                    "expectedVersion": 1,
+                    "definition": {"type": "mute", "reason": "Nowhere"}},
+                   {"op": "create", "scope": "server:lobby", "name": "old",
+                    "definition": {"type": "ban", "reason": "Wrong kind"}},
+                   {"op": "delete", "scope": "global", "name": "old", "expectedVersion": 1}]}
+                """);
+        final List<String> lines = this.apply(admin, code);
+
+        Assertions.assertThat(lines).containsExactly(
+                "Template flood: created",
+                "Template flood in category:games: created",
+                "Template spam in server:skywars: changed reason (Skywars → Skywars spam)",
+                "Conflict: templates spam in server:lobby changed meanwhile; not applied.",
+                "Not applied: templates old in server:lobby: type a variant has its global"
+                        + " template's type: mute",
+                "Template old: deleted",
+                "Template old in category:games: deleted",
+                "Applied 5, unchanged 0, conflicts 2.",
+                "Open a new session with /sb editor to see what changed meanwhile.");
+        Assertions.assertThat(this.templates.find("flood", CategoryScope.of("games"))
+                .orElseThrow().template().reason()).isEqualTo("Flood here");
+        Assertions.assertThat(this.templates.find("old")).isEmpty();
+        Assertions.assertThat(this.templates.variants("old")).isEmpty();
+        Assertions.assertThat(this.result(session, code).getAsJsonArray("changes").get(1)
+                .getAsJsonObject().get("scope").getAsString()).isEqualTo("category:games");
     }
 
     @Test
@@ -197,8 +255,8 @@ class EditorCommandsTest extends EditorTest {
         this.platform.leave(uuid);
         final String first = this.save(session,
                 """
-                {"format": 1, "templates": [{"op": "create", "name": "first",
-                  "definition": {"type": "mute", "reason": "One", "ladder": ["1h"]}}]}
+                {"format": 1, "templates": [{"op": "create", "scope": "global", "name": "first",
+                  "definition": {"type": "mute", "reason": "One", "duration": "1h"}}]}
                 """);
 
         // Offline: nobody to tell but the console that ran it.
@@ -209,8 +267,8 @@ class EditorCommandsTest extends EditorTest {
         final FakeOnlinePlayer back = this.platform.join(uuid, "Alex", this.home);
         final String second = this.save(session,
                 """
-                {"format": 1, "templates": [{"op": "create", "name": "second",
-                  "definition": {"type": "mute", "reason": "Two", "ladder": ["1h"]}}]}
+                {"format": 1, "templates": [{"op": "create", "scope": "global", "name": "second",
+                  "definition": {"type": "mute", "reason": "Two", "duration": "1h"}}]}
                 """);
         this.apply(this.console, second);
         Assertions.assertThat(lines(back)).containsExactly(
@@ -224,7 +282,7 @@ class EditorCommandsTest extends EditorTest {
         final int before = this.platform.consoleMessages().size();
         this.apply(other, this.save(own,
                 """
-                {"format": 1, "templates": [{"op": "delete", "name": "second",
+                {"format": 1, "templates": [{"op": "delete", "scope": "global", "name": "second",
                   "expectedVersion": 1}]}
                 """));
         Assertions.assertThat(strip(this.platform.consoleMessages().subList(before,
@@ -250,9 +308,10 @@ class EditorCommandsTest extends EditorTest {
                  "messages": [{"scope": "global", "locale": "en_US", "expectedVersion": 0,
                                "set": {"no.key": "x", "chat.muted": ""}}],
                  "templates": [
-                   {"op": "create", "name": "advertising",
-                    "definition": {"type": "mute", "reason": "Ads", "ladder": ["1d", "soon"]}},
-                   {"op": "delete", "name": "spam", "expectedVersion": 0}]}
+                   {"op": "create", "scope": "global", "name": "advertising",
+                    "definition": {"type": "ladder", "reason": "Ads",
+                                   "steps": ["mute 1d", "ban soon"]}},
+                   {"op": "delete", "scope": "global", "name": "spam", "expectedVersion": 0}]}
                 """);
         final List<String> lines = this.apply(this.console, code);
 
@@ -264,7 +323,7 @@ class EditorCommandsTest extends EditorTest {
                         "settings[0].set.alts.join-notification.threshold",
                         "settings[0].set.server.name", "settings[0].set.no.such",
                         "settings[0].reset[0]", "messages[0].set.no.key",
-                        "messages[0].set.chat.muted", "templates[0].definition.ladder[1]",
+                        "messages[0].set.chat.muted", "templates[0].definition.steps[1]",
                         "templates[1].expectedVersion");
         Assertions.assertThat(this.settingsService.overrides()).isEmpty();
         Assertions.assertThat(this.messageTemplates.overrides(GlobalScope.INSTANCE)).isEmpty();
@@ -345,8 +404,8 @@ class EditorCommandsTest extends EditorTest {
         final Session session = this.open(this.console, "");
         final String code = this.save(session,
                 """
-                {"format": 1, "templates": [{"op": "create", "name": "once",
-                  "definition": {"type": "mute", "reason": "Once", "ladder": ["1h"]}}]}
+                {"format": 1, "templates": [{"op": "create", "scope": "global", "name": "once",
+                  "definition": {"type": "mute", "reason": "Once", "duration": "1h"}}]}
                 """);
         final FakeCommandActor first = FakeCommandActor.theConsole();
         final FakeCommandActor second = FakeCommandActor.theConsole();
@@ -373,8 +432,8 @@ class EditorCommandsTest extends EditorTest {
                 """
                 {"format": 1, "settings": [{"scope": "global", "expectedVersion": 1,
                  "set": {"reasons.default": "x"}}],
-                 "templates": [{"op": "create", "name": "ads",
-                   "definition": {"type": "mute", "reason": "Ads", "ladder": ["1d"]}}]}
+                 "templates": [{"op": "create", "scope": "global", "name": "ads",
+                   "definition": {"type": "mute", "reason": "Ads", "duration": "1d"}}]}
                 """);
 
         Assertions.assertThat(this.apply(templater, code))
@@ -470,12 +529,15 @@ class EditorCommandsTest extends EditorTest {
             final String name = item.getAsJsonObject().get("name").getAsString();
             final boolean changed = name.equals("lifesteal");
             final long target = changed ? 2 : item.getAsJsonObject().get("version").getAsLong();
-            final TemplateDefinition definition = TemplateFiles.definition(name,
-                    plain(item.getAsJsonObject().get("definition")), name).templates().getFirst();
+            final Scope scope = Scopes.parse(item.getAsJsonObject().get("scope").getAsString())
+                    .orElseThrow();
+            final TemplateInfo definition = TemplateFiles.definition(name,
+                    plain(item.getAsJsonObject().get("definition")), name, scope).templates()
+                    .getFirst();
             this.templates.create(definition, CONSOLE).join();
             for (long version = 1; version < target; version++) {
-                final TemplateDefinition next = version == target - 1 && !changed ? definition
-                        : definition.toBuilder().reason("v" + version).build();
+                final TemplateInfo next = version == target - 1 && !changed ? definition
+                        : TemplateBuilder.from(definition).reason("v" + version).build();
                 Assertions.assertThat(this.templates.update(next, version, CONSOLE).join())
                         .isInstanceOf(AdminResult.Ok.class);
             }
@@ -509,9 +571,10 @@ class EditorCommandsTest extends EditorTest {
                         + " Skywars.</red>",
                 "Template advertising: created",
                 "Template hacking: changed reason (Unfair advantage (hacked client) → Cheating),"
-                        + " ladder, ladder-expiry, message, step-messages",
+                        + " steps, expiry, message",
+                "Template spam in server:skywars: changed duration (1d → 2d)",
                 "Conflict: templates lifesteal changed meanwhile; not applied.",
-                "Applied 12, unchanged 0, conflicts 1.",
+                "Applied 13, unchanged 0, conflicts 1.",
                 "Open a new session with /sb editor to see what changed meanwhile.");
         Assertions.assertThat(String.join("\n", lines)).doesNotContain("discord.example");
         final JsonObject result = this.result(session, code);
@@ -546,8 +609,8 @@ class EditorCommandsTest extends EditorTest {
         final Session session = this.open(this.console, "templates");
         final String first = this.save(session,
                 """
-                {"format": 1, "templates": [{"op": "create", "name": "fresh",
-                  "definition": {"type": "mute", "reason": "One", "ladder": ["1h"]}}]}
+                {"format": 1, "templates": [{"op": "create", "scope": "global", "name": "fresh",
+                  "definition": {"type": "mute", "reason": "One", "duration": "1h"}}]}
                 """);
         this.apply(this.console, first);
 
@@ -564,16 +627,16 @@ class EditorCommandsTest extends EditorTest {
                 .orElseThrow().get("version").getAsLong();
         Assertions.assertThat(this.apply(this.console, this.save(session,
                 """
-                {"format": 1, "templates": [{"op": "update", "name": "fresh",
+                {"format": 1, "templates": [{"op": "update", "scope": "global", "name": "fresh",
                   "expectedVersion": %d,
-                  "definition": {"type": "mute", "reason": "Two", "ladder": ["1h"]}}]}
+                  "definition": {"type": "mute", "reason": "Two", "duration": "1h"}}]}
                 """.formatted(version)))).contains("Applied 1, unchanged 0, conflicts 0.");
         Assertions.assertThat(this.site.revision(session.id())).isEqualTo(3);
 
         // A refused change set uploads nothing.
         final String refused = this.save(session,
                 """
-                {"format": 1, "templates": [{"op": "delete", "name": "fresh",
+                {"format": 1, "templates": [{"op": "delete", "scope": "global", "name": "fresh",
                   "expectedVersion": 0}]}
                 """);
         this.apply(this.console, refused);
@@ -585,8 +648,8 @@ class EditorCommandsTest extends EditorTest {
         this.site.refusingPuts(true);
         final String standing = this.save(session,
                 """
-                {"format": 1, "templates": [{"op": "create", "name": "standing",
-                  "definition": {"type": "mute", "reason": "S", "ladder": ["1h"]}}]}
+                {"format": 1, "templates": [{"op": "create", "scope": "global", "name": "standing",
+                  "definition": {"type": "mute", "reason": "S", "duration": "1h"}}]}
                 """);
         Assertions.assertThat(this.apply(this.console, standing)).contains(
                 "Template standing: created");
@@ -606,8 +669,8 @@ class EditorCommandsTest extends EditorTest {
                 Permissions.EDITOR, Permissions.ADMIN_TEMPLATES);
         final String code = this.save(session,
                 """
-                {"format": 1, "templates": [{"op": "create", "name": "offline",
-                  "definition": {"type": "mute", "reason": "O", "ladder": ["1h"]}}]}
+                {"format": 1, "templates": [{"op": "create", "scope": "global", "name": "offline",
+                  "definition": {"type": "mute", "reason": "O", "duration": "1h"}}]}
                 """);
         this.platform.leave(uuid);
 
@@ -624,7 +687,7 @@ class EditorCommandsTest extends EditorTest {
                 Permissions.ADMIN_TEMPLATES, Permissions.ADMIN_MESSAGES);
         this.apply(templater, this.save(session,
                 """
-                {"format": 1, "templates": [{"op": "delete", "name": "offline",
+                {"format": 1, "templates": [{"op": "delete", "scope": "global", "name": "offline",
                   "expectedVersion": 1}]}
                 """));
         Assertions.assertThat(this.current(session).getAsJsonObject("meta")

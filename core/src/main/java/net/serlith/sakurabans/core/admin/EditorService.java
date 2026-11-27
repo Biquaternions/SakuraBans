@@ -38,8 +38,7 @@ import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.configuration.SettingsSchema;
 import net.serlith.sakurabans.core.configuration.TemplateFiles;
 import net.serlith.sakurabans.core.model.AdminResult;
-import net.serlith.sakurabans.core.model.SakuraTemplateInfo;
-import net.serlith.sakurabans.core.model.TemplateDefinition;
+import net.serlith.sakurabans.core.model.StoredTemplate;
 import net.serlith.sakurabans.core.permission.Permissions;
 import net.serlith.sakurabans.core.platform.Platform;
 import net.serlith.sakurabans.core.storage.repository.EditorSessionRepository;
@@ -179,7 +178,7 @@ public final class EditorService {
 
         Section section();
 
-        /** The scope as written ({@code global}, {@code server:lobby}); "" for templates. */
+        /** The scope as written ({@code global}, {@code server:lobby}); a template's variant. */
         String scope();
 
         /** The key, {@code <locale>:<key>} or the template name. */
@@ -259,20 +258,16 @@ public final class EditorService {
             }
         }
 
-        record TemplateCreated(String target) implements Change {
+        record TemplateCreated(String scope, String target) implements Change {
 
             @Override
             public Section section() {
                 return Section.TEMPLATES;
             }
-
-            @Override
-            public String scope() {
-                return "";
-            }
         }
 
-        record TemplateUpdated(String target, List<FieldChange> fields) implements Change {
+        record TemplateUpdated(String scope, String target, List<FieldChange> fields)
+                implements Change {
 
             public TemplateUpdated {
                 fields = List.copyOf(fields);
@@ -282,23 +277,13 @@ public final class EditorService {
             public Section section() {
                 return Section.TEMPLATES;
             }
-
-            @Override
-            public String scope() {
-                return "";
-            }
         }
 
-        record TemplateDeleted(String target) implements Change {
+        record TemplateDeleted(String scope, String target) implements Change {
 
             @Override
             public Section section() {
                 return Section.TEMPLATES;
-            }
-
-            @Override
-            public String scope() {
-                return "";
             }
         }
 
@@ -503,9 +488,11 @@ public final class EditorService {
 
     private EditorPayload.Templates templatesSection() {
         final List<EditorPayload.Template> items = new ArrayList<>();
-        for (final TemplateInfo template : this.templates.templates()) {
-            items.add(new EditorPayload.Template(template.name(),
-                    ((SakuraTemplateInfo) template).version(), TemplateFiles.tree(template)));
+        // By name, the global definition first, then its variants (S62).
+        for (final StoredTemplate template : this.templates.definitions()) {
+            items.add(new EditorPayload.Template(Scopes.format(template.variant()
+                    .orElse(GlobalScope.INSTANCE)), template.name(), template.version(),
+                    TemplateFiles.tree(template.template())));
         }
         return new EditorPayload.Templates(items);
     }
@@ -741,8 +728,22 @@ public final class EditorService {
             Map<String, String> set, Set<String> reset) {
     }
 
-    private record CheckedTemplate(EditorChanges.TemplateChange change, String name,
-            @Nullable TemplateDefinition definition) {
+    /** {@code variant}: null for the global definition. */
+    private record CheckedTemplate(EditorChanges.TemplateChange change, @Nullable Scope variant,
+            String name, @Nullable TemplateInfo definition) {
+
+        /**
+         * The order templates are applied in (S62): variant deletions, global creations and
+         * updates, variant creations and updates, global deletions. So a variant meets its
+         * global template, and a kind change can follow the removal of its variants.
+         */
+        int phase() {
+            final boolean delete = this.change instanceof EditorChanges.TemplateChange.Delete;
+            if (this.variant != null) {
+                return delete ? 0 : 2;
+            }
+            return delete ? 3 : 1;
+        }
     }
 
     private Checked check(final EditorChanges changes) {
@@ -791,13 +792,17 @@ public final class EditorService {
             sections.add(Section.TEMPLATES);
             final EditorChanges.TemplateChange change = changes.templates().get(i);
             final String path = "templates[" + i + "]";
+            final Scope scope = scope(change.scope(), path, errors);
             final String name = Validator.normalizeIdentifier(change.name()).orElse(null);
             if (name == null) {
                 errors.add(invalid(path + ".name", "must be 1-" + Validator.MAX_IDENTIFIER
                         + " characters of a-z, 0-9, '_' or '-'"));
                 continue;
             }
-            if (!seenNames.add(name)) {
+            if (scope == null) {
+                continue;
+            }
+            if (!seenNames.add(Scopes.format(scope) + " " + name)) {
                 errors.add(invalid(path + ".name", "is changed twice"));
             }
             final Map<String, @Nullable Object> tree = switch (change) {
@@ -811,17 +816,19 @@ public final class EditorService {
                     && delete.expectedVersion() < 1) {
                 errors.add(invalid(path + ".expectedVersion", "must be at least 1"));
             }
-            TemplateDefinition definition = null;
+            TemplateInfo definition = null;
             if (tree != null) {
-                final TemplateFiles.Read read =
-                        TemplateFiles.definition(name, tree, path + ".definition");
+                final TemplateFiles.Read read = TemplateFiles.definition(name, tree,
+                        path + ".definition", scope);
                 for (final ConfigIssue issue : read.errors()) {
                     errors.add(invalid(issue.path(), issue.message()));
                 }
                 definition = read.templates().isEmpty() ? null : read.templates().getFirst();
             }
-            templates.add(new CheckedTemplate(change, name, definition));
+            templates.add(new CheckedTemplate(change,
+                    scope instanceof GlobalScope ? null : scope, name, definition));
         }
+        templates.sort(Comparator.comparingInt(CheckedTemplate::phase));
         return new Checked(errors, sections, settings, locales, templates);
     }
 
@@ -1151,60 +1158,69 @@ public final class EditorService {
         private CompletableFuture<Void> template(final CheckedTemplate checked) {
             final SakuraTemplateService service = EditorService.this.templates;
             final String name = checked.name();
-            final SakuraTemplateInfo current = service.find(name).orElse(null);
+            final Scope variant = checked.variant();
+            final String scope = Scopes.format(variant == null ? GlobalScope.INSTANCE : variant);
+            final StoredTemplate current = service.find(name, variant).orElse(null);
             return switch (checked.change()) {
                 case EditorChanges.TemplateChange.Create create -> {
                     if (current != null) {
-                        this.conflict(name);
+                        this.conflict(scope, name);
                         yield CompletableFuture.completedFuture(null);
                     }
                     yield service.create(Objects.requireNonNull(checked.definition()),
                             this.actor).thenAccept(result -> {
-                                if (result instanceof AdminResult.ValidationFailed<?>) {
+                                if (result instanceof AdminResult.ValidationFailed<?>
+                                        && variant == null) {
                                     // The name was taken meanwhile.
-                                    this.conflict(name);
-                                } else if (!this.failed(result, name)) {
-                                    this.changes.add(new Change.TemplateCreated(name));
+                                    this.conflict(scope, name);
+                                } else if (!this.failed(result, scope, name)) {
+                                    this.changes.add(new Change.TemplateCreated(scope, name));
                                 }
                             });
                 }
                 case EditorChanges.TemplateChange.Update update -> service.update(
                         Objects.requireNonNull(checked.definition()), update.expectedVersion(),
                         this.actor).thenAccept(result -> {
-                            if (this.failed(result, name)) {
+                            if (this.failed(result, scope, name)) {
                                 return;
                             }
-                            final SakuraTemplateInfo after =
-                                    ((AdminResult.Ok<SakuraTemplateInfo>) result).value();
+                            final StoredTemplate after =
+                                    ((AdminResult.Ok<StoredTemplate>) result).value();
                             if (current == null || after.version() == update.expectedVersion()) {
-                                this.changes.add(new Change.Unchanged(Section.TEMPLATES, "",
+                                this.changes.add(new Change.Unchanged(Section.TEMPLATES, scope,
                                         name));
                                 return;
                             }
-                            this.changes.add(new Change.TemplateUpdated(name,
-                                    fields(TemplateFiles.tree(current),
-                                            TemplateFiles.tree(after))));
+                            this.changes.add(new Change.TemplateUpdated(scope, name,
+                                    fields(TemplateFiles.tree(current.template()),
+                                            TemplateFiles.tree(after.template()))));
                         });
-                case EditorChanges.TemplateChange.Delete delete -> service.delete(name,
-                        delete.expectedVersion(), this.actor).thenAccept(result -> {
-                            if (!this.failed(result, name)) {
-                                this.changes.add(new Change.TemplateDeleted(name));
+                case EditorChanges.TemplateChange.Delete delete -> service.deleteWithVariants(
+                        variant, name, delete.expectedVersion(), this.actor).thenAccept(result -> {
+                            if (!this.failed(result, scope, name)) {
+                                this.changes.add(new Change.TemplateDeleted(scope, name));
+                                // A global template takes its variants with it.
+                                ((AdminResult.Ok<SakuraTemplateService.Deletion>) result).value()
+                                        .variants().forEach(gone -> this.changes.add(
+                                                new Change.TemplateDeleted(Scopes.format(gone),
+                                                        name)));
                             }
                         });
             };
         }
 
         /** Records a template's conflict or failure; false when the result is a success. */
-        private boolean failed(final AdminResult<?> result, final String name) {
+        private boolean failed(final AdminResult<?> result, final String scope,
+                final String name) {
             final Failure failure = failure(result);
             if (failure != null) {
-                this.changes.add(failure.of(Section.TEMPLATES, "", name));
+                this.changes.add(failure.of(Section.TEMPLATES, scope, name));
             }
             return failure != null;
         }
 
-        private void conflict(final String name) {
-            this.changes.add(new Change.Conflict(Section.TEMPLATES, "", name,
+        private void conflict(final String scope, final String name) {
+            this.changes.add(new Change.Conflict(Section.TEMPLATES, scope, name,
                     Change.Why.CHANGED, null));
         }
     }

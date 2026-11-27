@@ -95,8 +95,11 @@ val gitCommit = providers.exec {
 }.standardOutput.asText.map { it.trim().ifEmpty { "unknown" } }
 
 val generateBuildConstants = tasks.register<Sync>("generateBuildConstants") {
+    val release = ReleaseVersion.of(project)
     val properties = mapOf(
-        "version" to project.version.toString(),
+        "version" to release.full,
+        "channel" to release.channel,
+        "buildNumber" to release.buildNumber,
         "commit" to runCatching { gitCommit.get() }.getOrDefault("unknown"),
     )
     inputs.properties(properties)

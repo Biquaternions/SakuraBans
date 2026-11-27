@@ -20,10 +20,13 @@ final class VelocityPlatform implements Platform {
     private final ComponentLogger logger;
     private final TaskScheduler scheduler;
     private final ServerIdentity identity;
+    private final VelocityNotices notices;
 
-    VelocityPlatform(final ProxyServer proxy, final ComponentLogger logger) {
+    VelocityPlatform(final ProxyServer proxy, final ComponentLogger logger,
+            final VelocityNotices notices) {
         this.proxy = proxy;
         this.logger = logger;
+        this.notices = notices;
         this.scheduler = new VelocityTaskScheduler(proxy);
         this.identity = new VelocityServerIdentity(proxy);
     }
@@ -36,17 +39,17 @@ final class VelocityPlatform implements Platform {
     @Override
     public Optional<OnlinePlayer> player(final UUID uuid) {
         return this.proxy.getPlayer(uuid)
-                .map(player -> new VelocityOnlinePlayer(this.proxy, player));
+                .map(player -> new VelocityOnlinePlayer(this.proxy, player, this.notices));
     }
 
     OnlinePlayer online(final Player player) {
-        return new VelocityOnlinePlayer(this.proxy, player);
+        return new VelocityOnlinePlayer(this.proxy, player, this.notices);
     }
 
     @Override
     public Collection<? extends OnlinePlayer> onlinePlayers() {
         return this.proxy.getAllPlayers().stream()
-                .map(player -> new VelocityOnlinePlayer(this.proxy, player))
+                .map(player -> new VelocityOnlinePlayer(this.proxy, player, this.notices))
                 .toList();
     }
 

@@ -1,56 +1,32 @@
-// templates.yml import and export in the browser.
+// templates.yml import and export in the browser, in the file format of decision D37 (the
+// plugin's core/src/main/resources/defaults/templates.yml).
 
 import { parse, stringify } from 'yaml'
-import type { TemplateDefinition } from '../protocol/schema'
-import { templateDefinitionSchema } from '../protocol/schema'
-import { removeKey } from '../json'
-import { definitionToForm, templatesToYamlObject } from './templates'
+import { readTemplate, templatesToYamlObject, validateTemplate } from './templates'
 import type { TemplateForm } from './templates'
 
 export interface YamlImport {
-  templates: TemplateForm[]
+  /** `variant`: `global`, or a variant's server or category (the `variants:` section, S62). */
+  templates: Array<TemplateForm & { variant: string }>
   errors: string[]
 }
 
 const HEADER = `# SakuraBans templates, exported from the web editor.
 # Import them on a server with /sb templates import (see templates.yml for every key).
+# Presets (type: ban, mute, warn, kick) are used with -t on the command of their type,
+# ladders (type: ladder) with /punish <player> <name>.
 `
 
-export function exportTemplatesYaml(forms: readonly TemplateForm[]): string {
+export function exportTemplatesYaml(forms: ReadonlyArray<TemplateForm & { variant?: string }>): string {
   return HEADER + stringify(templatesToYamlObject(forms), { lineWidth: 0 })
 }
 
-function asText(value: unknown): string | null {
-  if (typeof value === 'string') {
-    return value
-  }
-  if (typeof value === 'number' || typeof value === 'boolean') {
-    return String(value)
-  }
-  return null
-}
-
-function textList(value: unknown, path: string, errors: string[]): string[] | undefined {
-  if (value === undefined || value === null) {
-    return undefined
-  }
-  if (!Array.isArray(value)) {
-    errors.push(`${path}: must be a list`)
-    return undefined
-  }
-  const out: string[] = []
-  for (const item of value) {
-    const text = asText(item)
-    if (text === null) {
-      errors.push(`${path}: must be a list of texts`)
-      return undefined
-    }
-    out.push(text)
-  }
-  return out
-}
-
-/** Reads a templates.yml text; templates with errors are left out and listed in `errors`. */
+/**
+ * Reads a templates.yml text as /sb templates import --all does: a template with any error is
+ * left out and its errors are listed (`templates.<name>.<key>: <message>`); the others are read,
+ * variants from `variants.<scope>.<name>` too.
+ * Keys of the format before D37 (`ladder`, `step-actions`, ...) are errors naming the new key.
+ */
 export function importTemplatesYaml(text: string): YamlImport {
   let root: unknown
   try {
@@ -64,79 +40,49 @@ export function importTemplatesYaml(text: string): YamlImport {
   if (typeof section !== 'object' || section === null || Array.isArray(section)) {
     return { templates: [], errors: ['The file has no "templates:" section.'] }
   }
-  const templates: TemplateForm[] = []
+  const templates: Array<TemplateForm & { variant: string }> = []
   const errors: string[] = []
-  for (const [name, raw] of Object.entries(section as Record<string, unknown>)) {
-    const path = `templates.${name}`
-    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-      errors.push(`${path}: must be a section`)
-      continue
+  const read = (rawName: string, raw: unknown, path: string, variant: string) => {
+    const name = rawName.toLowerCase()
+    const result = readTemplate(name, raw)
+    // What didn't read isn't reported again by validation (a step that didn't parse is a ban).
+    const unread = (issue: string) => result.errors.some(error => issue === error.path || issue.startsWith(`${error.path}.`))
+    const problems = result.form
+      ? [...result.errors, ...validateTemplate(result.form, new Set()).filter(issue => !unread(issue.path))]
+      : result.errors
+    if (result.form && variant !== 'global' && result.form.groups.length > 0) {
+      problems.push({ path: 'groups', message: 'a variant counts in its global template\'s groups; set them there' })
     }
-    const before = errors.length
-    const node = raw as Record<string, unknown>
-    const candidate: Record<string, unknown> = { ...node }
-    candidate.type = typeof node.type === 'string' ? node.type.trim().toLowerCase() : node.type
-    candidate.reason = asText(node.reason) ?? ''
-    candidate.ladder = textList(node.ladder, `${path}.ladder`, errors) ?? []
-    for (const key of ['ladder-expiry', 'scope']) {
-      if (node[key] !== undefined && node[key] !== null) {
-        candidate[key] = asText(node[key]) ?? node[key]
-      } else {
-        removeKey(candidate, key)
+    if (problems.length > 0 || !result.form) {
+      for (const problem of problems) {
+        errors.push(`${problem.path ? `${path}.${problem.path}` : path}: ${problem.message}`)
       }
+      return
     }
-    const actions = textList(node.actions, `${path}.actions`, errors)
-    if (actions === undefined) {
-      delete candidate.actions
+    templates.push({ ...result.form, variant })
+  }
+  for (const [rawName, raw] of Object.entries(section as Record<string, unknown>)) {
+    read(rawName, raw, `templates.${rawName}`, 'global')
+  }
+  const variants = (root as Record<string, unknown>).variants
+  if (variants !== undefined && variants !== null) {
+    if (typeof variants !== 'object' || Array.isArray(variants)) {
+      errors.push('variants: must be a section')
     } else {
-      candidate.actions = actions
-    }
-    if (node['step-actions'] !== undefined && node['step-actions'] !== null) {
-      const steps = node['step-actions']
-      if (typeof steps !== 'object' || Array.isArray(steps)) {
-        errors.push(`${path}.step-actions: must be a section`)
-      } else {
-        const converted: Record<string, string[]> = {}
-        for (const [step, list] of Object.entries(steps as Record<string, unknown>)) {
-          converted[step] = textList(list, `${path}.step-actions.${step}`, errors) ?? []
+      for (const [scope, entries] of Object.entries(variants as Record<string, unknown>)) {
+        if (!/^(server|category):[a-z0-9_-]{1,64}$/.test(scope)) {
+          errors.push(`variants.${scope}: "${scope}" is not a server or category scope (server:<name> or category:<name>)`)
+          continue
         }
-        candidate['step-actions'] = converted
+        if (typeof entries !== 'object' || entries === null || Array.isArray(entries)) {
+          errors.push(`variants.${scope}: must be a section`)
+          continue
+        }
+        for (const [rawName, raw] of Object.entries(entries as Record<string, unknown>)) {
+          read(rawName, raw, `variants.${scope}.${rawName}`, scope)
+        }
       }
-    } else {
-      delete candidate['step-actions']
     }
-    if (node.groups === null) {
-      delete candidate.groups
-    }
-    if (node.message === null || node.message === undefined) {
-      removeKey(candidate, 'message')
-    } else {
-      candidate.message = asText(node.message) ?? node.message
-    }
-    const stepMessages = node['step-messages']
-    if (stepMessages === null || stepMessages === undefined) {
-      removeKey(candidate, 'step-messages')
-    } else if (typeof stepMessages !== 'object' || Array.isArray(stepMessages)) {
-      errors.push(`${path}.step-messages: must be a section`)
-    } else {
-      candidate['step-messages'] = Object.fromEntries(Object.entries(stepMessages as Record<string, unknown>)
-        .map(([step, text]) => [step, asText(text) ?? text]))
-    }
-    const parsed = templateDefinitionSchema.safeParse(candidate)
-    if (!parsed.success) {
-      for (const issue of parsed.error.issues) {
-        errors.push(`${path}.${issue.path.join('.')}: ${issue.message}`)
-      }
-      continue
-    }
-    if (errors.length > before) {
-      continue
-    }
-    const definition = parsed.data as TemplateDefinition
-    if (definition['ladder-expiry']?.trim().toLowerCase() === 'none') {
-      removeKey(definition, 'ladder-expiry')
-    }
-    templates.push(definitionToForm(name.toLowerCase(), definition))
   }
   return { templates, errors }
 }

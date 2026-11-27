@@ -1,13 +1,13 @@
 <script setup lang="ts">
-// A template's or a step's message (decision D36): what the punished player sees instead of the
+// A template's or a step's message (decisions D36, D37): what the punished player sees instead of the
 // network's message for that type, with that message's placeholders and a preview.
 import { MAX_MESSAGE } from '#shared/editor/limits'
 import { FALLBACK_MESSAGE_PLACEHOLDERS, NETWORK_MESSAGE_KEYS } from '#shared/editor/templates'
-import type { TemplateType } from '#shared/protocol/schema'
+import type { PunishmentType } from '#shared/protocol/schema'
 import { sampleFor } from '~/utils/samples'
 
 const props = defineProps<{
-  type: TemplateType
+  type: PunishmentType
   label: string
   /** What an empty field means, when not the network's message. */
   fallback?: string

@@ -18,6 +18,7 @@ import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.api.punish.DraftPunishment;
 import net.serlith.sakurabans.api.punish.EditRequest;
+import net.serlith.sakurabans.api.punish.LadderRequest;
 import net.serlith.sakurabans.api.punish.PunishOptions;
 import net.serlith.sakurabans.api.punish.PunishmentEdit;
 import net.serlith.sakurabans.api.punish.RevocationRequest;
@@ -71,6 +72,15 @@ public final class ApiValues {
                 .duration(draft.duration().orElse(null))
                 .template(draft.template().orElse(null))
                 .evidence(draft.evidence())
+                .build();
+    }
+
+    public static LadderRequest ladder(final LadderRequest request) {
+        return LadderRequest.builder(request.ladder(), victim(request.victim()),
+                        actor(request.actor()))
+                .scope(request.scope().map(ApiValues::scope).orElse(null))
+                .reason(request.reason().orElse(null))
+                .evidence(request.evidence())
                 .build();
     }
 

@@ -11,10 +11,12 @@
 #   permission        the permission that puts staff in the group
 #   max-duration      the longest ban, mute and warn, by type (30m, 7d, 1mo, ...); permanent or
 #                     left out means no limit. A permanent punishment counts as longer than any
-#                     limit. Kicks have no duration.
+#                     limit. Kicks have no duration. A ladder's step (/punish) is never cut:
+#                     the ladder decides its durations
 #   cooldown          how long to wait between two punishments of a type (ban, mute, warn or
-#                     kick), as a duration
-#   require-template  true: punishments need a template (--template <name>); default false
+#                     kick), as a duration; a ladder's step counts by its type
+#   require-template  true: punishments need a template (-t <preset>, or a ladder with
+#                     /punish); default false
 #
 # For example:
 #   groups:

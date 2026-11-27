@@ -50,6 +50,9 @@ public record MessageKey(String key) {
     public static final MessageKey VICTIM_MUTED_TEMPORARY =
             new MessageKey("victim.muted_temporary");
     public static final MessageKey VICTIM_WARNED = new MessageKey("victim.warned");
+    public static final MessageKey DIALOG_MUTED_TITLE = new MessageKey("dialog.muted_title");
+    public static final MessageKey DIALOG_WARNED_TITLE = new MessageKey("dialog.warned_title");
+    public static final MessageKey DIALOG_CLOSE = new MessageKey("dialog.close");
 
     public static final MessageKey CHAT_MUTED = new MessageKey("chat.muted");
     public static final MessageKey CHAT_MUTED_TEMPORARY = new MessageKey("chat.muted_temporary");
@@ -148,6 +151,8 @@ public record MessageKey(String key) {
             new MessageKey("command.description.templates");
     public static final MessageKey COMMAND_DESCRIPTION_UNLINK =
             new MessageKey("command.description.unlink");
+    public static final MessageKey COMMAND_DESCRIPTION_PUNISH =
+            new MessageKey("command.description.punish");
     public static final MessageKey COMMAND_DESCRIPTION_UNMUTE =
             new MessageKey("command.description.unmute");
     public static final MessageKey COMMAND_DESCRIPTION_UNWARN =
@@ -201,6 +206,7 @@ public record MessageKey(String key) {
     public static final MessageKey PUNISH_MUTE = new MessageKey("punish.mute");
     public static final MessageKey PUNISH_WARN = new MessageKey("punish.warn");
     public static final MessageKey PUNISH_KICK = new MessageKey("punish.kick");
+    public static final MessageKey PUNISH_ACTIONS_ONLY = new MessageKey("punish.actions_only");
     public static final MessageKey PUNISH_FAILURE_ALREADY_PUNISHED =
             new MessageKey("punish.failure.already_punished");
     public static final MessageKey PUNISH_FAILURE_EXEMPT = new MessageKey("punish.failure.exempt");
@@ -222,6 +228,16 @@ public record MessageKey(String key) {
             new MessageKey("punish.failure.template_type");
     public static final MessageKey PUNISH_FAILURE_UNKNOWN_TEMPLATE =
             new MessageKey("punish.failure.unknown_template");
+    public static final MessageKey PUNISH_FAILURE_TEMPLATE_TYPE_MISMATCH =
+            new MessageKey("punish.failure.template_type_mismatch");
+    public static final MessageKey PUNISH_FAILURE_TEMPLATE_LADDER =
+            new MessageKey("punish.failure.template_ladder");
+    public static final MessageKey PUNISH_FAILURE_TEMPLATE_DURATION =
+            new MessageKey("punish.failure.template_duration");
+    public static final MessageKey PUNISH_FAILURE_NO_LADDER =
+            new MessageKey("punish.failure.no_ladder");
+    public static final MessageKey PUNISH_FAILURE_NOT_A_LADDER =
+            new MessageKey("punish.failure.not_a_ladder");
     public static final MessageKey PUNISH_FAILURE_FORBIDDEN =
             new MessageKey("punish.failure.forbidden");
     public static final MessageKey REVOKE_BAN = new MessageKey("revoke.ban");
@@ -303,12 +319,26 @@ public record MessageKey(String key) {
     public static final MessageKey TEMPLATES_LIST_HEADER =
             new MessageKey("templates.list.header");
     public static final MessageKey TEMPLATES_LIST_ENTRY = new MessageKey("templates.list.entry");
+    public static final MessageKey TEMPLATES_LIST_VARIANTS =
+            new MessageKey("templates.list.variants");
+    public static final MessageKey TEMPLATES_LIST_HEADER_SCOPE =
+            new MessageKey("templates.list.header_scope");
+    public static final MessageKey TEMPLATES_LIST_EMPTY_SCOPE =
+            new MessageKey("templates.list.empty_scope");
+    public static final MessageKey TEMPLATES_LIST_LADDER =
+            new MessageKey("templates.list.ladder");
     public static final MessageKey TEMPLATES_IMPORT_CONFIRM =
             new MessageKey("templates.import.confirm");
     public static final MessageKey TEMPLATES_IMPORT_DONE = new MessageKey("templates.import.done");
     public static final MessageKey TEMPLATES_IMPORT_ERROR =
             new MessageKey("templates.import.error");
     public static final MessageKey TEMPLATES_EXPORT_DONE = new MessageKey("templates.export.done");
+    public static final MessageKey TEMPLATES_RESET_CONFIRM =
+            new MessageKey("templates.reset.confirm");
+    public static final MessageKey TEMPLATES_RESET_DONE = new MessageKey("templates.reset.done");
+    public static final MessageKey TEMPLATES_RESET_ALL = new MessageKey("templates.reset.all");
+    public static final MessageKey TEMPLATES_RESET_TARGET =
+            new MessageKey("templates.reset.target");
 
     public static final MessageKey VICTIM_WARNED_AWAY = new MessageKey("victim.warned_away");
 

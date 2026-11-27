@@ -17,7 +17,10 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>Values you pass in are validated again by SakuraBans, so your own implementations of the
  * request types are held to the same rules as the built-in ones. Every action is authorized for
- * its actor first, and fails with {@code FORBIDDEN} if the actor may not do it.
+ * its actor first, and fails with {@code FORBIDDEN} if the actor may not do it. A player actor
+ * who is online is checked with their permissions on this server; one who isn't, with their
+ * LuckPerms permissions, and is refused without LuckPerms. The console, and a custom operator
+ * without a UUID, pass.
  */
 public interface PunishmentService {
 
@@ -30,6 +33,25 @@ public interface PunishmentService {
      * @return the outcome
      */
     CompletableFuture<PunishResult> punish(DraftPunishment draft, PunishOptions options);
+
+    /**
+     * Applies a ladder: counts the victim's earlier uses of it (and the weighted uses of its
+     * group mates), picks the step, and applies it. A step with a punishment goes the way of
+     * {@link #punish} (events, exemption and cooldowns of the step's type; the duration limits
+     * of {@code limits.yml} don't clip a ladder's step); a step without one only runs its
+     * actions. Either way the use is recorded and {@code TemplateAppliedEvent} fires. Two
+     * applies to the same victim at the same moment get consecutive steps (the later one is
+     * counted again); with {@code address-shared}, applies to different accounts or addresses
+     * of one person at the same moment may still get the same step.
+     *
+     * <p>The actor needs {@code sakurabans.punish} (and {@code sakurabans.template.<name>} when
+     * the ladder requires it), not the permission of the step's type.
+     *
+     * @param request the ladder, the victim and the actor
+     * @param options visibility, override policy and enforcement of the punishment
+     * @return the outcome
+     */
+    CompletableFuture<LadderResult> applyLadder(LadderRequest request, PunishOptions options);
 
     /**
      * Ends punishments early (unban, unmute, unwarn).

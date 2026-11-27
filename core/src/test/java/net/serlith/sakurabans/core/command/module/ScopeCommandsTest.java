@@ -9,7 +9,7 @@ import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.api.punish.PunishmentQuery;
 import net.serlith.sakurabans.core.command.CommandTest;
 import net.serlith.sakurabans.core.command.FakeCommandActor;
-import net.serlith.sakurabans.core.model.TemplateDefinition;
+import net.serlith.sakurabans.core.model.TemplateBuilder;
 import net.serlith.sakurabans.core.permission.Permissions;
 import org.assertj.core.api.Assertions;
 import org.incendo.cloud.suggestion.Suggestion;
@@ -68,7 +68,7 @@ class ScopeCommandsTest extends CommandTest {
 
     @Test
     void templateScopesNeedTheirPermission() {
-        this.templates.create(TemplateDefinition.builder("elimination", PunishmentType.BAN)
+        this.templates.create(TemplateBuilder.preset("elimination", PunishmentType.BAN)
                 .reason("Out of hearts").scope(CategoryScope.of("pvp")).build(), CONSOLE)
                 .join();
         final FakeCommandActor mod = FakeCommandActor.player(MOD, "Mod", BAN,

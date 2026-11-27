@@ -64,7 +64,8 @@ class SakuraCommandsTest extends CommandTest {
     @Test
     void namesAndAliasesComeFromTheConfiguration() {
         Assertions.assertThat(this.manager.rootCommands())
-                .contains("sakurabans", "ban", "tempban", "unban", "history", "lastuuid");
+                .contains("sakurabans", "ban", "tempban", "punish", "unban", "history",
+                        "lastuuid");
 
         this.run(this.console, "sb help");
         Assertions.assertThat(this.console.texts()).anyMatch(text -> text.contains("Help (1/"));

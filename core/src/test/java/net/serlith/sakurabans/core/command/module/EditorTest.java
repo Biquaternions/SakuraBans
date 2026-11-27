@@ -9,13 +9,14 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import net.serlith.sakurabans.api.model.PunishmentType;
+import net.serlith.sakurabans.api.template.TemplateInfo;
 import net.serlith.sakurabans.core.ServiceTest;
 import net.serlith.sakurabans.core.admin.EditorSeal;
 import net.serlith.sakurabans.core.admin.FakeEditorSite;
 import net.serlith.sakurabans.core.command.CommandTest;
 import net.serlith.sakurabans.core.command.FakeCommandActor;
 import net.serlith.sakurabans.core.fake.FakeOnlinePlayer;
-import net.serlith.sakurabans.core.model.TemplateDefinition;
+import net.serlith.sakurabans.core.model.TemplateBuilder;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 
@@ -107,8 +108,8 @@ abstract class EditorTest extends CommandTest {
         return lines.stream().map(line -> line.replaceFirst("^SakuraBans » ", "")).toList();
     }
 
-    static TemplateDefinition template(final String name, final String reason) {
-        return TemplateDefinition.builder(name, PunishmentType.MUTE).reason(reason).build();
+    static TemplateInfo template(final String name, final String reason) {
+        return TemplateBuilder.preset(name, PunishmentType.MUTE).reason(reason).build();
     }
 
     final long version(final String template) {

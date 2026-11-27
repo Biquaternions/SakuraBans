@@ -14,9 +14,11 @@ import net.serlith.sakurabans.api.model.CompositeVictim;
 import net.serlith.sakurabans.api.model.ConsoleOperator;
 import net.serlith.sakurabans.api.model.CustomOperator;
 import net.serlith.sakurabans.api.model.ErasedAddressVictim;
+import net.serlith.sakurabans.api.model.Operator;
 import net.serlith.sakurabans.api.model.PlayerOperator;
 import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.Punishment;
+import net.serlith.sakurabans.api.model.Victim;
 import net.serlith.sakurabans.core.platform.Platform;
 import net.serlith.sakurabans.core.util.Durations;
 
@@ -27,7 +29,20 @@ public final class ConsoleActions {
 
     public static Map<String, String> values(final Punishment punishment,
             final Function<UUID, Optional<String>> names) {
-        final String victim = switch (punishment.victim()) {
+        final Map<String, String> values = values(punishment.victim(), punishment.operator(),
+                punishment.reason(), names);
+        final Optional<Duration> duration = punishment.expiresAt()
+                .map(expiry -> Duration.between(punishment.createdAt(), expiry));
+        values.put("id", Long.toString(punishment.id()));
+        values.put("duration", duration.map(value -> Durations.formatCompact(value)
+                .replace(" ", "")).orElse("permanent"));
+        return values;
+    }
+
+    /** Without a punishment: {@code {id}} and {@code {duration}} are empty. */
+    public static Map<String, String> values(final Victim target, final Operator by,
+            final String reason, final Function<UUID, Optional<String>> names) {
+        final String victim = switch (target) {
             case PlayerVictim player -> names.apply(player.uuid())
                     .orElse(player.uuid().toString());
             case CompositeVictim composite -> names.apply(composite.uuid())
@@ -40,33 +55,30 @@ public final class ConsoleActions {
                     .map(uuid -> names.apply(uuid).orElse(uuid.toString()))
                     .orElse("");
         };
-        final String uuid = switch (punishment.victim()) {
+        final String uuid = switch (target) {
             case PlayerVictim player -> player.uuid().toString();
             case CompositeVictim composite -> composite.uuid().toString();
             case ErasedAddressVictim erased -> erased.uuid().map(UUID::toString).orElse("");
             default -> "";
         };
-        final String address = switch (punishment.victim()) {
+        final String address = switch (target) {
             case AddressVictim single -> single.address().getHostAddress();
             case CompositeVictim composite -> composite.address().getHostAddress();
             default -> "";
         };
-        final String operator = switch (punishment.operator()) {
+        final String operator = switch (by) {
             case ConsoleOperator console -> "Console";
             case PlayerOperator player -> player.name();
             case CustomOperator custom -> custom.name();
         };
-        final Optional<Duration> duration = punishment.expiresAt()
-                .map(expiry -> Duration.between(punishment.createdAt(), expiry));
         final Map<String, String> values = new HashMap<>();
         values.put("victim", victim);
         values.put("uuid", uuid);
         values.put("address", address);
-        values.put("id", Long.toString(punishment.id()));
+        values.put("id", "");
         values.put("operator", operator);
-        values.put("reason", punishment.reason());
-        values.put("duration", duration.map(value -> Durations.formatCompact(value)
-                .replace(" ", "")).orElse("permanent"));
+        values.put("reason", reason);
+        values.put("duration", "");
         return values;
     }
 

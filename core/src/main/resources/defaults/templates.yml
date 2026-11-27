@@ -4,97 +4,172 @@
 # them: it is imported once, on the first start with an empty template table. After that, change
 # templates in game or through the API, or edit this file and run /sb templates import, which
 # creates or updates every template listed here and keeps the others. /sb templates export
-# writes the current templates to exports/templates-<time>.yml in this format.
+# writes the current templates to exports/templates-<time>.yml in this format. Both take a
+# scope (/sb templates import server:lobby: only that scope's variants) or --all (every
+# section); with neither they mean the global templates.
 #
-# Use a template with --template (or -t) and its name:
-#   /ban Steve --template hacking
-#   /ban Steve -t hacking -r caught on camera
-# A reason given with -r (always last) replaces the template's reason. The template decides
-# the duration, so don't give one. Tab completion lists the templates: on the command of the
-# template's type, and on every punish command when its ladder mixes types. The punishment
-# gets the type of its step (a /ban with such a template may kick), and the sender needs that
-# type's permission.
+# A template has a type, and there are two shapes:
 #
-# Keys of a template (all but type, reason and ladder are optional):
-#   type                 ban, mute, warn or kick: the type of every step that names none
+#   Presets (type: ban, mute, warn or kick) fill in one punishment: its reason, duration,
+#   message, actions and options. Use them with -t on the command of their type:
+#     /ban Steve -t hacking
+#     /mute Steve -t spam -r flooding the chat
+#
+#   Ladders (type: ladder) escalate: each use goes one step further, and each step names its
+#   own type, or none (no punishment, only actions). Every step may have its own reason,
+#   message and actions. Apply them with /punish and the ladder's name:
+#     /punish Steve misconduct
+#     /punish Steve misconduct -s -r spamming in chat
+#   /punish needs sakurabans.punish (its flags sakurabans.punish.<flag>), not the permission of
+#   the type the step results in. Duration limits (limits.yml) don't cut a ladder's step;
+#   cooldowns and exemption apply by the step's type.
+#   /sb templates reset <player|address> [template] makes the ladders start over for a player
+#   or an address: it deletes the uses each ladder counts for it (with an address-shared ladder,
+#   the alts' and addresses' uses too). The confirmation says how many uses of how many
+#   victims go.
+#
+# Tab completion offers the presets of the command's type with -t (on /tempban and /tempmute
+# only those that leave the duration open), and ladders after /punish <player>.
+#
+# A reason given with -r (always last) replaces the template's reason. Names are unique across
+# both shapes.
+#
+# Keys of every template (type and reason are required):
+#   type                 ban, mute, warn, kick (a preset) or ladder
+#   reason               the reason when the command gives none
 #   ip                   true: punish the player's current address instead of the player, like
 #                        /ipban and /ipmute
 #   shadow               true: its mutes are shadow mutes; the muted player's messages are
-#                        shown to them only (needs a mute step)
+#                        shown to them only (a mute preset, or a ladder with a mute step)
 #   scope                where it applies when the command names no scope: global,
 #                        server:<name> or category:<name>. Left out: scopes.default in
 #                        config.yml. A scope given with the command (-g, --server, ...) wins
-#   reason               the reason when the command gives none
-#   ladder               the steps: a duration (30m, 7d, 1mo, ...) or permanent, of the
-#                        template's type; or a type and a duration (mute 1h, ban 7d,
-#                        ban permanent), or just kick. The first punishment from the template
-#                        uses the first step, the next one the second, and so on; after the
-#                        last step it repeats. Every punishment from the template counts,
-#                        whatever its type.
-#   ladder-expiry        earlier punishments older than this don't count (none = all count)
-#   address-shared       true: punishments of the player's alts and addresses count too
 #   permission-required  true: using it needs sakurabans.template.<name>
-#   actions              console commands run after every punishment from the template
-#   step-actions         console commands for one step only, by step number (from 1)
-#   groups               group: weight. Templates in a group share progress: a punishment from
-#                        a group mate counts as its weight in that group (voided ones never count)
+#   actions              console commands run every time the template is used
+#   groups               group: weight. Templates in a group share progress: every use of a
+#                        template, a preset's too, counts as its weight on the ladders of its
+#                        group mates (uses whose punishment was voided never count)
 #   message              what the punished player is shown instead of the network's message for
 #                        the type (ban and kick screens, the mute notice, the warning):
 #                        MiniMessage with the same placeholders, one text for every language
-#   step-messages        a message for one step only, by step number (from 1); wins over message
+#   display              chat (the default) or dialog: how the mute notice and the warning
+#                        reach a player who is online (a mute or warn preset, or a ladder with
+#                        a mute or warn step; not a shadow mute). A dialog has the message, a
+#                        title (dialog.* in the language file) and a close button. Where none
+#                        can be shown (a client before 1.21.6, a Velocity proxy without the
+#                        packetevents plugin) it is sent as chat. Refused chat and commands of
+#                        a muted player, and warnings shown at the next join, stay chat
+#
+# Presets only:
+#   duration             7d, 30m, 1mo, ... or permanent. Left out: the command decides (its -d,
+#                        else permanent; a warning gets warnings.expire-after). A kick has none.
+#                        Durations in templates (here, in steps, expiry) are whole seconds
+#
+# Ladders only:
+#   steps                the steps. The first use is the first step, the next use the second,
+#                        and so on; after the last step it repeats. A step is
+#                          none                   no punishment, only actions
+#                          kick                   a kick
+#                          warn                   a warning (warnings.expire-after)
+#                          warn 30d, mute 1h, ban 7d, ban permanent
+#                        or a map with that text as 'step' and its own reason, message (wins
+#                        over the template's) and actions (run after the template's):
+#                          - {step: ban 7d, message: "<red>Last chance.</red>"}
+#                          - {step: none, actions: ["say {victim} is on probation"]}
+#                        A step without a punishment needs an action and has no message.
+#   expiry               earlier uses older than this don't count (none = all count)
+#   address-shared       true: uses on the player's alts and addresses count too
+#
+# Variants (the 'variants' section at the end): a template may be defined differently for a
+# server or a category, for example a harsher spam mute on a minigame. A variant is a whole
+# definition of a template that exists under 'templates', of the same type, without groups (it
+# counts in the global template's groups). It is in force where it is used, not where it
+# applies: a use gets the variant of the scope the command names (--server, --category,
+# --scope; -g means the global definition); else, on a backend, of this server; on a proxy,
+# of the server the staff member is on; else (the proxy console) the global definition. From
+# a server: its own variant, else its categories' in the order scopes.categories declares
+# them, else the global one. A variant's 'scope' key is still where its punishments apply.
+# Every server shows a punishment's message from the variant it came from; ladder progress is
+# shared by name across all of a template's definitions.
 #
 # Actions may use {victim}, {uuid}, {address}, {id}, {operator}, {reason}, {template},
-# {step} and {duration}. Quote them, because YAML reads {...} as a section:
+# {step} and {duration} ({id} and {duration} are empty on a step without a punishment, {step}
+# on a preset). Quote them, because YAML reads {...} as a section:
 #   actions: ["say {victim} was banned for {duration}"]
 
 templates:
   hacking:
     type: ban
     reason: Unfair advantage (hacked client)
-    ladder: [7d, 30d, permanent]
-    ladder-expiry: 1y
-    address-shared: true
+    duration: 30d
     groups:
       cheating: 2
 
   xray:
     type: ban
     reason: X-ray
-    ladder: [3d, 14d, permanent]
-    ladder-expiry: 1y
+    duration: 14d
     groups:
       cheating: 1
 
   spam:
     type: mute
     reason: Spamming
-    ladder: [15m, 1h, 1d, 7d]
-    ladder-expiry: 30d
+    duration: 1h
 
   advertising:
     type: mute
     reason: Advertising
-    ladder: [1d, 7d, permanent]
+
+  language:
+    type: warn
+    reason: Inappropriate language
 
   inappropriate-name:
     type: kick
     reason: Please change your name
-    ladder: [permanent]
 
-  # A ladder that mixes types: two kicks, then bans. Use it with /kick or /ban.
-  # toxicity:
-  #   type: ban
-  #   reason: Toxic behaviour
-  #   ladder: [kick, kick, 1d, 7d, permanent]
-  #   ladder-expiry: 30d
-  #   message: "<red>Banned for toxic behaviour.</red><newline><gray>Reason:</gray> <reason>"
-  #   step-messages:
-  #     "5": "<red>Permanently banned for toxic behaviour.</red>"
+  # A ladder for repeated misbehaviour: a warning, a kick, a mute, then bans.
+  misconduct:
+    type: ladder
+    reason: Repeated misconduct
+    steps:
+      - warn
+      - kick
+      - mute 1d
+      - ban 7d
+      - {step: ban permanent, message: "<red>Permanently banned for repeated misconduct.</red>"}
+    expiry: 90d
+
+  # A ladder with a step that punishes nothing: the second use only tells the staff.
+  # cheating:
+  #   type: ladder
+  #   reason: Cheating
+  #   steps:
+  #     - ban 7d
+  #     - {step: none, actions: ["say {victim} is on probation"]}
+  #     - ban permanent
+  #   expiry: 1y
+  #   address-shared: true
+  #   groups:
+  #     cheating: 1
 
   # A ban for one game mode only. It is in no group, so it never counts towards another
   # template's ladder (and theirs don't count towards it).
   # lifesteal-elimination:
   #   type: ban
   #   reason: Out of hearts
-  #   ladder: [3d]
+  #   duration: 3d
   #   scope: category:lifesteal
+
+# variants:
+#   server:skywars:
+#     spam:
+#       type: mute
+#       reason: Spamming in Skywars
+#       duration: 1d
+#   category:lifesteal:
+#     misconduct:
+#       type: ladder
+#       reason: Repeated misconduct
+#       steps: [warn, mute 1d, ban 3d]

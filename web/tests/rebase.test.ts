@@ -7,7 +7,7 @@ import type { EditorDraft } from '../shared/editor/draft'
 import { simulateSnapshot } from '../shared/editor/outcome'
 import { rebaseDraft } from '../shared/editor/rebase'
 import type { RebaseNote } from '../shared/editor/rebase'
-import { definitionToForm, emptyTemplate } from '../shared/editor/templates'
+import { definitionToForm, emptyStep, emptyTemplate } from '../shared/editor/templates'
 import type { JsonValue, Payload, TemplateDefinition } from '../shared/protocol/schema'
 import { draftFromChanges, fixtureChanges, fixturePayload } from './fixtures'
 
@@ -172,7 +172,7 @@ describe('templates', () => {
       const items = p.templates!.items
       items.find(item => item.name === first!.name)!.definition.reason = 'Updated'
       p.templates!.items = items.filter(item => item.name !== second!.name)
-      p.templates!.items.push({ name: 'brand-new', version: 1, definition: { type: 'ban', reason: 'New', ladder: ['1d'] } })
+      p.templates!.items.push({ name: 'brand-new', version: 1, definition: { type: 'ban', reason: 'New' } })
     })
     const { draft: next, notes } = rebaseDraft(before, after, draft, 2)
     expect(notes.map(note => note.kind)).toEqual(['applied', 'applied', 'applied'])
@@ -182,25 +182,57 @@ describe('templates', () => {
   it('keeps an update against the new version; flags a gone template and a create that now exists', () => {
     const draft = draftWith((d) => {
       d.templates.find(form => form.name === first!.name)!.reason = 'Mine'
-      d.templates.push({ ...emptyTemplate('clash'), reason: 'Mine', origin: null })
+      d.templates.push({ ...emptyTemplate('clash'), reason: 'Mine', origin: null, variant: 'global' })
     })
     const theirs = server((p) => {
       const item = p.templates!.items.find(candidate => candidate.name === first!.name)!
       item.definition = changed(item.definition, 'Theirs')
       item.version += 1
-      p.templates!.items.push({ name: 'clash', version: 7, definition: { type: 'mute', reason: 'Theirs', ladder: ['1h'] } })
+      p.templates!.items.push({ scope: 'global', name: 'clash', version: 7, definition: { type: 'mute', reason: 'Theirs', duration: '1h' } })
     })
     const rebased = rebaseDraft(before, theirs, draft, 2)
     expect(noteFor(rebased.notes, first!.name)).toBe('conflict')
     expect(noteFor(rebased.notes, 'clash')).toBe('template-exists')
     expect(buildChangeSet(theirs, rebased.draft).templates).toEqual([
-      { op: 'update', name: 'clash', expectedVersion: 7, definition: { type: 'ban', reason: 'Mine', ladder: ['1d'] } },
-      { op: 'update', name: first!.name, expectedVersion: first!.version + 1, definition: changed(first!.definition, 'Mine') }
+      { op: 'update', scope: 'global', name: 'clash', expectedVersion: 7, definition: { type: 'ban', reason: 'Mine' } },
+      { op: 'update', scope: 'global', name: first!.name, expectedVersion: first!.version + 1, definition: changed(first!.definition, 'Mine') }
     ])
     const gone = server((p) => {
       p.templates!.items = p.templates!.items.filter(item => item.name !== first!.name)
     })
     expect(noteFor(rebaseDraft(before, gone, draft, 2).notes, first!.name)).toBe('template-gone')
+  })
+
+  it('drops an applied ladder edit the plugin wrote in its own words, and keeps a pending one', () => {
+    const ladder = before.templates!.items.find(item => item.definition.type === 'ladder')!
+    const edited = draftWith((d) => {
+      const form = d.templates.find(candidate => candidate.name === ladder.name)!
+      if (form.kind !== 'ladder') {
+        throw new Error('not a ladder')
+      }
+      form.steps = [emptyStep('warn'), { ...emptyStep('mute'), duration: { mode: 'fixed', length: '90m' } }, emptyStep(null)]
+      form.steps[2]!.actions = ['/say {victim} is on probation ']
+    })
+    // The plugin stores the same ladder and writes it back canonically: 1h30m, no slash.
+    const applied = server((p) => {
+      const item = p.templates!.items.find(candidate => candidate.name === ladder.name)!
+      item.definition = { ...item.definition, steps: ['warn', 'mute 1h30m', { step: 'none', actions: ['say {victim} is on probation'] }] }
+      item.version += 1
+    })
+    const done = rebaseDraft(before, applied, edited, 2)
+    expect(noteFor(done.notes, ladder.name)).toBe('applied')
+    expect(buildChangeSet(applied, done.draft).templates).toBeUndefined()
+    // Someone else changed it instead: the edit stays, against the new version.
+    const other = server((p) => {
+      const item = p.templates!.items.find(candidate => candidate.name === ladder.name)!
+      item.definition = { ...item.definition, steps: ['ban permanent'] }
+      item.version += 1
+    })
+    const kept = rebaseDraft(before, other, edited, 2)
+    expect(noteFor(kept.notes, ladder.name)).toBe('conflict')
+    const [change] = buildChangeSet(other, kept.draft).templates!
+    expect(change).toMatchObject({ op: 'update', name: ladder.name, expectedVersion: ladder.version + 1 })
+    expect(change!.op === 'update' && change!.definition.steps).toEqual(['warn', 'mute 1h30m', { step: 'none', actions: ['say {victim} is on probation'] }])
   })
 
   it('follows the server for templates the user didn\'t touch', () => {
@@ -211,7 +243,7 @@ describe('templates', () => {
     })
     const { draft: next, notes } = rebaseDraft(before, after, draft, 2)
     expect(notes).toEqual([])
-    expect(next.templates).toEqual(after.templates!.items.map(item => ({ ...definitionToForm(item.name, item.definition), origin: item.name })))
+    expect(next.templates).toEqual(after.templates!.items.map(item => ({ ...definitionToForm(item.name, item.definition), origin: item.name, variant: item.scope })))
   })
 })
 

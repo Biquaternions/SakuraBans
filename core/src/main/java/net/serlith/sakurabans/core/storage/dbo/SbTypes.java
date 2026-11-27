@@ -10,8 +10,10 @@ import java.util.UUID;
 import net.serlith.sakurabans.api.model.EndKind;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Visibility;
+import net.serlith.sakurabans.api.template.TemplateDisplay;
 import net.serlith.sakurabans.core.model.AuditAction;
 import net.serlith.sakurabans.core.model.SubjectType;
+import net.serlith.sakurabans.core.model.TemplateKind;
 import net.serlith.sakurabans.core.storage.converter.DurationMillisConverter;
 import net.serlith.sakurabans.core.storage.converter.EnumCode;
 import net.serlith.sakurabans.core.storage.converter.EnumCodeConverter;
@@ -30,6 +32,25 @@ public final class SbTypes {
                     PunishmentType.MUTE, 1,
                     PunishmentType.WARN, 2,
                     PunishmentType.KICK, 3));
+
+    public static final EnumCode<TemplateKind> TEMPLATE_KIND_CODES =
+            EnumCode.of(TemplateKind.class, Map.of(
+                    TemplateKind.BAN, 1,
+                    TemplateKind.MUTE, 2,
+                    TemplateKind.WARN, 3,
+                    TemplateKind.KICK, 4,
+                    TemplateKind.LADDER, 5));
+
+    public static final EnumCode<DurationMode> DURATION_MODE_CODES =
+            EnumCode.of(DurationMode.class, Map.of(
+                    DurationMode.OPEN, 0,
+                    DurationMode.PERMANENT, 1,
+                    DurationMode.FIXED, 2));
+
+    public static final EnumCode<TemplateDisplay> TEMPLATE_DISPLAY_CODES =
+            EnumCode.of(TemplateDisplay.class, Map.of(
+                    TemplateDisplay.CHAT, 0,
+                    TemplateDisplay.DIALOG, 1));
 
     public static final EnumCode<VictimKind> VICTIM_KIND_CODES = EnumCode.of(VictimKind.class,
             Map.of(
@@ -83,7 +104,9 @@ public final class SbTypes {
                     entry(AuditAction.ERASE, 18),
                     entry(AuditAction.ALLOW, 19),
                     entry(AuditAction.DISALLOW, 20),
-                    entry(AuditAction.IMPORT, 21)));
+                    entry(AuditAction.IMPORT, 21),
+                    entry(AuditAction.RESET, 22),
+                    entry(AuditAction.APPLY, 23)));
 
     public static final EnumCode<SubjectType> SUBJECT_TYPE_CODES =
             EnumCode.of(SubjectType.class, Map.of(
@@ -93,7 +116,9 @@ public final class SbTypes {
                     SubjectType.MESSAGE, 4,
                     SubjectType.PLAYER, 7,
                     SubjectType.ALLOW_LIST, 8,
-                    SubjectType.IMPORT, 9));
+                    SubjectType.IMPORT, 9,
+                    SubjectType.ADDRESS_HASH, 10,
+                    SubjectType.VICTIM, 11));
 
     public static final DataType<UUID> UUID =
             SQLDataType.BINARY(16).asConvertedDataType(new UuidBytesConverter());
@@ -107,6 +132,10 @@ public final class SbTypes {
             SQLDataType.SMALLINT.asConvertedDataType(new FlagConverter());
 
     public static final DataType<PunishmentType> PUNISHMENT_TYPE = enumType(PUNISHMENT_TYPE_CODES);
+    public static final DataType<TemplateKind> TEMPLATE_KIND = enumType(TEMPLATE_KIND_CODES);
+    public static final DataType<DurationMode> DURATION_MODE = enumType(DURATION_MODE_CODES);
+    public static final DataType<TemplateDisplay> TEMPLATE_DISPLAY =
+            enumType(TEMPLATE_DISPLAY_CODES);
     public static final DataType<VictimKind> VICTIM_KIND = enumType(VICTIM_KIND_CODES);
     public static final DataType<ScopeKind> SCOPE_KIND = enumType(SCOPE_KIND_CODES);
     public static final DataType<OperatorKind> OPERATOR_KIND = enumType(OPERATOR_KIND_CODES);

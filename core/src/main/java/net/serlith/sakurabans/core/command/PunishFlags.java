@@ -43,19 +43,32 @@ public final class PunishFlags {
         this.scopes = scopes;
     }
 
+    // The String overloads take the flag's permission node: /punish uses sakurabans.punish.<flag>.
+
     public CommandFlag<Void> silent(final PunishmentType type) {
+        return this.silent(Permissions.flag(type, SILENT));
+    }
+
+    public CommandFlag<Void> silent(final String permission) {
         return CommandFlag.<CommandActor>builder(SILENT).withAliases("s")
-                .withPermission(Permissions.flag(type, SILENT)).build();
+                .withPermission(permission).build();
     }
 
     public CommandFlag<Void> hide(final PunishmentType type) {
-        return CommandFlag.<CommandActor>builder(HIDE)
-                .withPermission(Permissions.flag(type, HIDE)).build();
+        return this.hide(Permissions.flag(type, HIDE));
+    }
+
+    public CommandFlag<Void> hide(final String permission) {
+        return CommandFlag.<CommandActor>builder(HIDE).withPermission(permission).build();
     }
 
     public CommandFlag<Void> ip(final PunishmentType type) {
+        return this.ip(Permissions.flag(type, IP));
+    }
+
+    public CommandFlag<Void> ip(final String permission) {
         return CommandFlag.<CommandActor>builder(IP).withAliases("I")
-                .withPermission(Permissions.flag(type, IP)).build();
+                .withPermission(permission).build();
     }
 
     public CommandFlag<Void> shadow(final PunishmentType type) {
@@ -97,13 +110,21 @@ public final class PunishFlags {
     }
 
     public CommandFlag<Void> override(final PunishmentType type) {
+        return this.override(Permissions.flag(type, OVERRIDE));
+    }
+
+    public CommandFlag<Void> override(final String permission) {
         return CommandFlag.<CommandActor>builder(OVERRIDE).withAliases("o")
-                .withPermission(Permissions.flag(type, OVERRIDE)).build();
+                .withPermission(permission).build();
     }
 
     public CommandFlag<Void> ifLonger(final PunishmentType type) {
+        return this.ifLonger(Permissions.flag(type, OVERRIDE));
+    }
+
+    public CommandFlag<Void> ifLonger(final String permission) {
         return CommandFlag.<CommandActor>builder(IF_LONGER).withAliases("N")
-                .withPermission(Permissions.flag(type, OVERRIDE)).build();
+                .withPermission(permission).build();
     }
 
     public CommandFlag<String> sender() {
@@ -128,9 +149,13 @@ public final class PunishFlags {
     }
 
     public CommandFlag<String> evidence(final PunishmentType type) {
+        return this.evidence(Permissions.flag(type, EVIDENCE));
+    }
+
+    public CommandFlag<String> evidence(final String permission) {
         return CommandFlag.<CommandActor>builder(EVIDENCE).withAliases("e")
                 .withComponent(StringParser.<CommandActor>stringParser())
-                .withPermission(Permissions.flag(type, EVIDENCE))
+                .withPermission(permission)
                 .asRepeatable().build();
     }
 
@@ -154,8 +179,11 @@ public final class PunishFlags {
     }
 
     public CommandFlag<Void> skip(final PunishmentType type) {
-        return CommandFlag.<CommandActor>builder(SKIP)
-                .withPermission(Permissions.flag(type, SKIP)).build();
+        return this.skip(Permissions.flag(type, SKIP));
+    }
+
+    public CommandFlag<Void> skip(final String permission) {
+        return CommandFlag.<CommandActor>builder(SKIP).withPermission(permission).build();
     }
 
     private static Permission consoleOnly() {

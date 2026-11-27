@@ -12,11 +12,19 @@ public final class InetAddresses {
             Pattern.compile("(?:(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)\\.){3}"
                     + "(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)");
 
+    private static final Pattern NUMERIC_ZONE = Pattern.compile("\\d+]?");
+
     private InetAddresses() {
     }
 
     public static Optional<InetAddress> parseLiteral(final String text) {
         if (text.indexOf(':') < 0 && !IPV4.matcher(text).matches()) {
+            return Optional.empty();
+        }
+        // InetAddress resolves a named zone (fe80::1%eth0) against this machine's network
+        // interfaces, so the same text would parse on one server and not on another.
+        final int zone = text.indexOf('%');
+        if (zone >= 0 && !NUMERIC_ZONE.matcher(text).region(zone + 1, text.length()).matches()) {
             return Optional.empty();
         }
         try {

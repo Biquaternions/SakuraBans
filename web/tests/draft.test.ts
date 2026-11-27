@@ -6,14 +6,17 @@ import {
   buildChangeSet, displayValue, initialDraft, listChanges, revertChange, validateDraft
 } from '../shared/editor/draft'
 import {
-  definitionToForm, emptyStep, emptyTemplate, formatStep, formToDefinition, parseStep, sameDefinition,
-  stepLabel, summarizeTemplate
+  changeKind, definitionToForm, emptyLadder, emptyPreset, emptyStep, emptyTemplate, formatStep, formToDefinition,
+  parseStepText, readTemplate, sameDefinition, stepLabel, summarizeTemplate, usageHint, validateTemplate
 } from '../shared/editor/templates'
+import type { TemplateForm } from '../shared/editor/templates'
 import { exportTemplatesYaml, importTemplatesYaml } from '../shared/editor/templatesYaml'
-import type { Payload, SettingField } from '../shared/protocol/schema'
-import { fixturePayload } from './fixtures'
+import type { Payload, SettingField, TemplateDefinition } from '../shared/protocol/schema'
+import { fixtureJson, fixturePayload } from './fixtures'
 
 const payload = (): Payload => fixturePayload()
+
+const issuesOf = (form: TemplateForm) => validateTemplate(form, new Set()).map(issue => `${issue.path}: ${issue.message}`)
 
 function field(p: Payload, test: (item: SettingField) => boolean): SettingField {
   const found = p.settings!.fields.find(test)
@@ -169,68 +172,223 @@ describe('message changes per scope', () => {
   })
 })
 
-describe('typed ladder steps', () => {
-  it('parses the three forms and writes the template\'s type as just the duration', () => {
-    expect(parseStep('7d')).toEqual({ type: null, duration: '7d' })
-    expect(parseStep('kick')).toEqual({ type: 'kick', duration: '' })
-    expect(parseStep('mute 1h')).toEqual({ type: 'mute', duration: '1h' })
-    expect(parseStep('BAN permanent')).toEqual({ type: 'ban', duration: 'permanent' })
-    expect(formatStep({ type: null, duration: '7d' }, 'ban')).toBe('7d')
-    expect(formatStep({ type: 'kick', duration: '' }, 'mute')).toBe('kick')
-    expect(formatStep({ type: 'ban', duration: 'permanent' }, 'mute')).toBe('ban permanent')
-    expect(formatStep({ type: null, duration: '' }, 'kick')).toBe('permanent')
+describe('template steps (D37)', () => {
+  it('reads step texts as the plugin does, errors included', () => {
+    expect(parseStepText('none')).toEqual({ type: null, duration: { mode: 'open', length: '' } })
+    expect(parseStepText('kick')).toEqual({ type: 'kick', duration: { mode: 'open', length: '' } })
+    expect(parseStepText('warn')).toEqual({ type: 'warn', duration: { mode: 'open', length: '' } })
+    expect(parseStepText('warn 30d')).toEqual({ type: 'warn', duration: { mode: 'fixed', length: '30d' } })
+    expect(parseStepText('MUTE 1h')).toEqual({ type: 'mute', duration: { mode: 'fixed', length: '1h' } })
+    expect(parseStepText('ban perm')).toEqual({ type: 'ban', duration: { mode: 'permanent', length: '' } })
+    const errors = ['7d', 'permanent', 'slap', 'ban', 'mute', 'kick 1d', 'none 1d', 'ban soon', 'ban 1d extra', '']
+      .map(text => parseStepText(text).error)
+    expect(errors).toEqual([
+      '"7d" names no type: a step is none, kick, warn, or a type and a duration (ban 7d, mute 1h, ban permanent)',
+      '"permanent" names no type: a step is none, kick, warn, or a type and a duration (ban 7d, mute 1h, ban permanent)',
+      '"slap" is not a type (none, ban, mute, warn or kick)',
+      '"ban" needs a duration or \'permanent\' after the type',
+      '"mute" needs a duration or \'permanent\' after the type',
+      'a kick has no duration',
+      'a step without a punishment has no duration',
+      '"soon" is not a duration or \'permanent\'',
+      '"ban 1d extra" is not a step (none, kick, warn, or a type and a duration: ban 7d, mute 1h, ban permanent)',
+      '"" is not a step (none, kick, warn, or a type and a duration: ban 7d, mute 1h, ban permanent)'
+    ])
   })
 
-  it('round-trips every fixture template and compares steps by meaning', () => {
-    for (const item of payload().templates!.items) {
-      expect(formToDefinition(definitionToForm(item.name, item.definition))).toEqual(item.definition)
+  it('writes steps and durations in the plugin\'s canonical form', () => {
+    expect(formatStep({ type: null, duration: { mode: 'open', length: '' } })).toBe('none')
+    expect(formatStep({ type: 'kick', duration: { mode: 'open', length: '' } })).toBe('kick')
+    expect(formatStep({ type: 'warn', duration: { mode: 'open', length: '30d' } })).toBe('warn')
+    expect(formatStep({ type: 'mute', duration: { mode: 'fixed', length: '90m' } })).toBe('mute 1h30m')
+    expect(formatStep({ type: 'ban', duration: { mode: 'fixed', length: '1mo' } })).toBe('ban 30d')
+    expect(formatStep({ type: 'ban', duration: { mode: 'permanent', length: '7d' } })).toBe('ban permanent')
+  })
+
+  it('round-trips every fixture template byte for byte', () => {
+    // The raw fixture: parsing with the schema may order keys differently.
+    const raw = fixtureJson('payload-v1.json') as { templates: { items: Array<{ name: string, definition: TemplateDefinition }> } }
+    for (const item of raw.templates.items) {
+      expect(JSON.stringify(formToDefinition(definitionToForm(item.name, item.definition)))).toBe(JSON.stringify(item.definition))
     }
-    const a = { type: 'mute' as const, reason: 'x', ladder: ['mute 1h', 'kick'] }
-    expect(sameDefinition(a, { ...a, ladder: ['1h', 'kick'] })).toBe(true)
-    expect(sameDefinition(a, { ...a, ladder: ['1h', 'ban 1d'] })).toBe(false)
-    expect(sameDefinition({ type: 'kick', reason: 'x', ladder: ['permanent'] }, { type: 'kick', reason: 'x', ladder: ['kick'] })).toBe(true)
   })
 
-  it('keeps step actions and messages with their step when reordering', () => {
+  it('round-trips a preset of each type and their duration states', () => {
+    const presets: TemplateDefinition[] = [
+      { 'type': 'ban', 'ip': true, 'scope': 'category:lifesteal', 'reason': 'Out of hearts', 'duration': '3d', 'permission-required': true, 'groups': { a: 1, b: 2 } },
+      { type: 'ban', reason: 'Command decides' },
+      { type: 'mute', shadow: true, reason: 'Spam', duration: 'permanent', actions: ['say {victim} muted'], message: '<red>Muted' },
+      { type: 'warn', reason: 'Language', duration: '30d' },
+      { type: 'warn', reason: 'Language' },
+      { type: 'kick', reason: 'Change your name', message: '<red>Change it' }
+    ]
+    for (const definition of presets) {
+      const form = definitionToForm('x', definition)
+      expect(form.kind).toBe('preset')
+      expect(JSON.stringify(formToDefinition(form))).toBe(JSON.stringify(definition))
+    }
+    const open = definitionToForm('x', presets[1]!)
+    expect(open.kind === 'preset' && open.duration.mode).toBe('open')
+  })
+
+  it('round-trips a ladder with a none step and a step map', () => {
+    const definition: TemplateDefinition = {
+      'type': 'ladder',
+      'shadow': true,
+      'reason': 'Toxic',
+      'steps': ['warn', 'warn 30d', 'kick', 'mute 1h',
+        { step: 'none', actions: ['say {victim} is on a final warning'] },
+        { step: 'ban 7d', reason: 'Toxic (again)', message: '<red>Last chance', actions: ['say bye'] },
+        'ban permanent'],
+      'expiry': '30d',
+      'address-shared': true,
+      'permission-required': true,
+      'actions': ['say {victim} was punished'],
+      'groups': { chat: 1 },
+      'message': '<red>Be nice'
+    }
+    const form = definitionToForm('toxicity', definition)
+    expect(form.kind).toBe('ladder')
+    if (form.kind !== 'ladder') {
+      return
+    }
+    expect(form.steps.map(step => step.type)).toEqual(['warn', 'warn', 'kick', 'mute', null, 'ban', 'ban'])
+    expect(form.steps[5]).toMatchObject({ reason: 'Toxic (again)', message: '<red>Last chance', actions: ['say bye'] })
+    expect(JSON.stringify(formToDefinition(form))).toBe(JSON.stringify(definition))
+    expect(form.steps.map(stepLabel)).toEqual(['Warn', 'Warn 30 days', 'Kick', 'Mute 1 hour', 'No punishment', 'Ban 7 days', 'Ban permanent'])
+  })
+
+  it('compares definitions by meaning, as the plugin writes them back', () => {
+    const a: TemplateDefinition = { type: 'ladder', reason: 'x', steps: ['mute 90m', 'BAN forever'], expiry: '1mo', actions: ['/say hi '] }
+    const b: TemplateDefinition = { type: 'ladder', reason: 'x ', steps: ['mute 1h30m', 'ban permanent'], expiry: '30d', actions: ['say hi'] }
+    expect(sameDefinition(a, b)).toBe(true)
+    expect(sameDefinition(a, { ...b, steps: ['mute 1h30m', 'ban 7d'] })).toBe(false)
+    expect(sameDefinition({ type: 'ban', reason: 'x', groups: { b: 1, a: 2 } }, { type: 'ban', reason: 'x', groups: { a: 2, b: 1 } })).toBe(true)
+    expect(sameDefinition({ type: 'ban', reason: 'x' }, { type: 'ban', reason: 'x', duration: 'permanent' })).toBe(false)
+    expect(sameDefinition({ type: 'ban', reason: 'x' }, { type: 'mute', reason: 'x' })).toBe(false)
+  })
+
+  it('keeps a step\'s reason, message and actions with it when reordering', () => {
     const p = payload()
     const draft = initialDraft(p)
-    const form = draft.templates.find(item => item.steps.length > 1)!
+    const form = draft.templates.find(item => item.kind === 'ladder' && item.steps.length > 2)
+    if (!form || form.kind !== 'ladder') {
+      throw new Error('the payload fixture has no ladder with three steps')
+    }
     form.steps[0]!.message = '<red>first'
+    form.steps[0]!.reason = 'First time'
     form.steps[0]!.actions = ['say first']
     form.steps.reverse()
-    const definition = formToDefinition(form)
-    const last = String(form.steps.length)
-    expect(definition['step-messages']?.[last]).toBe('<red>first')
-    expect(definition['step-actions']?.[last]).toEqual(['say first'])
+    const steps = formToDefinition(form).steps!
+    expect(steps.at(-1)).toEqual({ step: formatStep(form.steps.at(-1)!), reason: 'First time', message: '<red>first', actions: ['say first'] })
+    const [change] = buildChangeSet(p, draft).templates!
+    expect(change).toMatchObject({ op: 'update', name: form.name })
   })
 
-  it('validates kicks without duration, durations, shadow without a mute step', () => {
-    const form = emptyTemplate('mixed', 'ban')
-    form.reason = 'x'
-    form.steps = [
-      { ...emptyStep('kick', 'ban'), duration: '1d' },
-      { ...emptyStep('mute', 'ban'), duration: 'soon' },
-      emptyStep(null, 'ban')
+  it('validates both shapes with the plugin\'s rules and paths', () => {
+    const ladder = emptyLadder('mixed')
+    ladder.reason = 'x'
+    ladder.steps = [
+      { ...emptyStep('kick'), duration: { mode: 'fixed', length: '1d' } },
+      { ...emptyStep('mute'), duration: { mode: 'fixed', length: 'soon' } },
+      { ...emptyStep('ban'), duration: { mode: 'open', length: '' } },
+      { ...emptyStep(null), message: '<red>no' },
+      { ...emptyStep('warn'), reason: 'r'.repeat(1025) },
+      { ...emptyStep('ban'), duration: { mode: 'fixed', length: '500ms' } }
     ]
-    form.shadow = true
-    const p = payload()
-    const draft = initialDraft(p)
-    draft.templates.push({ ...form, origin: null })
-    const messages = validateDraft(p, draft).map(issue => `${issue.path}: ${issue.message}`)
-    expect(messages).toEqual(expect.arrayContaining([
-      expect.stringContaining('ladder[0]: a kick has no duration'),
-      expect.stringContaining('ladder[1]')
+    ladder.shadow = true
+    ladder.expiry = 'later'
+    expect(issuesOf(ladder)).toEqual(expect.arrayContaining([
+      'steps[0].step: a kick has no duration',
+      expect.stringMatching(/^steps\[1\]\.step: Not a duration/),
+      'steps[2].step: a ban or mute step needs a duration or permanent',
+      'steps[3].message: a step without a punishment has no message',
+      'steps[3].actions: a step without a punishment needs an action',
+      'steps[4].reason: must be at most 1024 characters',
+      'steps[5].step: Must be at least one second.',
+      expect.stringMatching(/^expiry: /)
     ]))
-    expect(messages.some(message => message.includes('shadow'))).toBe(false)
-    form.steps[1]!.type = 'ban'
-    expect(validateDraft(p, draft).some(issue => issue.path.endsWith('shadow'))).toBe(true)
+    expect(issuesOf(ladder).some(issue => issue.startsWith('shadow'))).toBe(false)
+    ladder.steps[1]!.type = 'ban'
+    expect(issuesOf(ladder)).toContain('shadow: needs a mute step')
+    ladder.steps = []
+    expect(issuesOf(ladder)).toContain('steps: must have 1-64 steps')
+
+    const kick = emptyPreset('k', 'kick')
+    kick.reason = 'x'
+    kick.duration = { mode: 'permanent', length: '' }
+    kick.shadow = true
+    expect(issuesOf(kick)).toEqual(['duration: a kick has no duration', 'shadow: only a mute is a shadow mute'])
+    const misplaced = definitionToForm('m', { type: 'ban', reason: 'x', steps: ['ban 1d'], expiry: '1d' })
+    expect(issuesOf(misplaced)).toEqual(['steps: only a ladder has steps (type: ladder)', 'expiry: only a ladder has an expiry'])
+    expect(formToDefinition(misplaced)).toEqual({ type: 'ban', reason: 'x', steps: ['ban 1d'], expiry: '1d' })
+    expect(issuesOf(definitionToForm('d', { type: 'ladder', reason: 'x', steps: ['kick'], duration: '1d' })))
+      .toEqual(['duration: a ladder\'s steps have the durations'])
   })
 
-  it('labels steps and summarises a mixed ladder', () => {
-    const form = emptyTemplate('toxicity', 'mute')
-    form.steps = [emptyStep('kick', 'mute'), { ...emptyStep(null, 'mute'), duration: '1h' }, { ...emptyStep('ban', 'mute'), duration: 'permanent' }]
-    expect(form.steps.map(step => stepLabel(step, 'mute'))).toEqual(['Kick', 'Mute 1 hour', 'Ban permanent'])
-    expect(summarizeTemplate(form, [form])).toBe('1st: kick, 2nd: mute 1 hour, then ban permanent')
+  it('reads, writes and checks display like the plugin (S61)', () => {
+    const mute = definitionToForm('spam', { type: 'mute', reason: 'Spam', message: '<red>Quiet', display: 'Dialog' })
+    expect(mute.display).toBe('dialog')
+    expect(issuesOf(mute)).toEqual([])
+    // Written after the message, where TemplateFiles.tree puts it; chat is left out.
+    expect(Object.keys(formToDefinition(mute))).toEqual(['type', 'reason', 'message', 'display'])
+    expect(formToDefinition(definitionToForm('x', { type: 'mute', reason: 'x', display: 'chat' }))).toEqual({ type: 'mute', reason: 'x' })
+    expect(readTemplate('x', { type: 'mute', reason: 'x', display: 'popup' }).errors)
+      .toEqual([{ path: 'display', message: '"popup" is not a display (chat or dialog)' }])
+
+    expect(issuesOf(definitionToForm('w', { type: 'warn', reason: 'x', display: 'dialog' }))).toEqual([])
+    expect(issuesOf(definitionToForm('b', { type: 'ban', reason: 'x', display: 'dialog' })))
+      .toEqual(['display: only a mute or a warning is shown as a dialog'])
+    expect(issuesOf(definitionToForm('k', { type: 'kick', reason: 'x', display: 'dialog' })))
+      .toEqual(['display: only a mute or a warning is shown as a dialog'])
+    expect(issuesOf(definitionToForm('h', { type: 'mute', shadow: true, reason: 'x', display: 'dialog' })))
+      .toEqual(['display: a shadow mute shows the player nothing'])
+    const ladder = definitionToForm('l', { type: 'ladder', reason: 'x', steps: ['kick', 'warn', 'ban 1d'], display: 'dialog' })
+    expect(issuesOf(ladder)).toEqual([])
+    ladder.steps.splice(1, 1)
+    expect(issuesOf(ladder)).toEqual(['display: needs a mute or warn step'])
+
+    // A kind that can't show one falls back to chat.
+    expect(changeKind(mute, 'ban').display).toBe('chat')
+    expect(changeKind(mute, 'warn').display).toBe('dialog')
+    expect(changeKind(mute, 'ladder').display).toBe('dialog')
+  })
+
+  it('keeps template durations to whole seconds, as the plugin does', () => {
+    const preset = definitionToForm('m', { type: 'mute', reason: 'x', duration: '1500ms' })
+    expect(issuesOf(preset)).toEqual(['duration: Must be whole seconds (a template is written as 90s, not 1500ms).'])
+    expect(issuesOf(definitionToForm('m', { type: 'mute', reason: 'x', duration: '500ms' }))).toEqual(['duration: Must be at least one second.'])
+    expect(issuesOf(definitionToForm('m', { type: 'mute', reason: 'x', duration: '90s' }))).toEqual([])
+    expect(issuesOf(definitionToForm('l', { type: 'ladder', reason: 'x', steps: ['mute 90500ms'] })))
+      .toEqual(['steps[0].step: Must be whole seconds (a template is written as 90s, not 1500ms).'])
+    expect(issuesOf(definitionToForm('l', { type: 'ladder', reason: 'x', steps: ['kick'], expiry: '1500ms' })))
+      .toEqual(['expiry: Must be whole seconds (a template is written as 90s, not 1500ms).'])
+  })
+
+  it('changes the kind, keeping what the new kind has', () => {
+    const mute = definitionToForm('spam', { type: 'mute', shadow: true, reason: 'Spam', duration: '1h', groups: { chat: 1 } })
+    const ban = changeKind(mute, 'ban')
+    expect(formToDefinition(ban)).toEqual({ type: 'ban', reason: 'Spam', duration: '1h', groups: { chat: 1 } })
+    expect(formToDefinition(changeKind(ban, 'kick'))).toEqual({ type: 'kick', reason: 'Spam', groups: { chat: 1 } })
+    const ladder = changeKind(mute, 'ladder')
+    expect(formToDefinition(ladder)).toEqual({ type: 'ladder', shadow: true, reason: 'Spam', steps: ['mute 1h'], groups: { chat: 1 } })
+    expect(formToDefinition(changeKind(emptyPreset('b', 'ban'), 'ladder')).steps).toEqual(['ban permanent'])
+    const back = changeKind(definitionToForm('t', { type: 'ladder', reason: 'x', steps: ['warn', 'mute 1d', 'ban 7d'] }), 'mute')
+    expect(formToDefinition(back)).toEqual({ type: 'mute', reason: 'x', duration: '1d' })
+  })
+
+  it('summarises presets and ladders, and says how to use them', () => {
+    const toxicity = definitionToForm('toxicity', { type: 'ladder', reason: 'x', steps: ['kick', 'mute 1h', { step: 'none', actions: ['say hi'] }, 'ban permanent'], expiry: '30d', groups: { chat: 1 } })
+    const spam = definitionToForm('spam', { type: 'mute', shadow: true, reason: 'x', duration: '1h', groups: { chat: 2 } })
+    expect(summarizeTemplate(toxicity, [toxicity, spam])).toBe(
+      '1st: kick, 2nd: mute 1 hour, 3rd: no punishment, then ban permanent; uses older than 30 days don\'t count; counts with: spam (weight 2)')
+    expect(summarizeTemplate(spam, [toxicity, spam])).toBe('Shadow mute for 1 hour; counts with: toxicity (weight 1)')
+    expect(summarizeTemplate(emptyPreset('a', 'ban'), [])).toBe('Ban; the command decides how long')
+    expect(summarizeTemplate(definitionToForm('a', { type: 'ban', ip: true, reason: 'x', duration: 'permanent' }), [])).toBe('Permanent ban, on the address')
+    expect(summarizeTemplate(emptyPreset('k', 'kick'), [])).toBe('Kick')
+    expect(summarizeTemplate(definitionToForm('w', { type: 'warn', reason: 'x', duration: '30d' }), [])).toBe('Warning for 30 days')
+    expect(usageHint(spam)).toBe('/mute <player> -t spam')
+    expect(usageHint(toxicity)).toBe('/punish <player> toxicity')
   })
 })
 
@@ -241,8 +399,8 @@ describe('template changes', () => {
     const draft = initialDraft(p)
     draft.templates.find(form => form.name === item.name)!.name = `${item.name}-renamed`
     expect(buildChangeSet(p, draft).templates).toEqual([
-      { op: 'create', name: `${item.name}-renamed`, definition: formToDefinition(definitionToForm(item.name, item.definition)) },
-      { op: 'delete', name: item.name, expectedVersion: item.version }
+      { op: 'create', scope: 'global', name: `${item.name}-renamed`, definition: item.definition },
+      { op: 'delete', scope: 'global', name: item.name, expectedVersion: item.version }
     ])
     const changes = listChanges(p, draft)
     expect(changes[0]).toMatchObject({ kind: 'rename', title: `${item.name} → ${item.name}-renamed` })
@@ -255,12 +413,29 @@ describe('template changes', () => {
     const item = p.templates!.items[0]!
     const draft = initialDraft(p)
     draft.templates = draft.templates.filter(form => form.name !== item.name)
-    expect(buildChangeSet(p, draft).templates).toEqual([{ op: 'delete', name: item.name, expectedVersion: item.version }])
-    revertChange(p, draft, { section: 'templates', name: item.name })
+    expect(buildChangeSet(p, draft).templates).toEqual([{ op: 'delete', scope: 'global', name: item.name, expectedVersion: item.version }])
+    revertChange(p, draft, { section: 'templates', scope: 'global', name: item.name })
     for (const form of draft.templates) {
-      form.ladderExpiry = form.ladderExpiry === '' ? 'none' : form.ladderExpiry
+      if (form.kind === 'ladder') {
+        form.expiry = form.expiry === '' ? 'none' : form.expiry
+      } else if (form.duration.mode !== 'fixed') {
+        form.duration.length = '12h'
+      }
+      form.actions = form.actions.map(action => `/${action}`)
     }
     expect(buildChangeSet(p, draft).templates).toBeUndefined()
+  })
+
+  it('names the changed keys as the plugin\'s result does', () => {
+    const p = payload()
+    const draft = initialDraft(p)
+    const form = draft.templates.find(item => item.kind === 'ladder')!
+    form.reason = 'Changed'
+    if (form.kind === 'ladder') {
+      form.steps.pop()
+      form.expiry = '2y'
+    }
+    expect(listChanges(p, draft).find(item => item.kind === 'update')?.note).toBe('changed: reason, steps, expiry')
   })
 
   it('keeps unknown definition keys', () => {
@@ -272,17 +447,20 @@ describe('template changes', () => {
     expect(change).toMatchObject({ op: 'update', definition: { 'future-key': 'kept', 'reason': 'Changed' } })
   })
 
-  it('summarizes ladders and group mates', () => {
-    const hacking = emptyTemplate('hacking')
-    hacking.steps = ['7d', '30d', 'permanent'].map(duration => ({ ...emptyStep(null, 'ban'), duration }))
-    hacking.ladderExpiry = '1y'
-    hacking.groups = [{ name: 'cheating', weight: 2 }]
-    const xray = emptyTemplate('xray')
-    xray.groups = [{ name: 'cheating', weight: 1 }]
-    expect(summarizeTemplate(hacking, [hacking, xray])).toBe(
-      '1st: 7 days, 2nd: 30 days, then permanent; earlier punishments older than 1 year don\'t count; counts with: xray (weight 1)')
-    const kick = emptyTemplate('name', 'kick')
-    expect(summarizeTemplate(kick, [kick])).toBe('kick every time')
+  it('creates presets and ladders with their own shape', () => {
+    const p = payload()
+    const draft = initialDraft(p)
+    const preset = { ...emptyTemplate('new-mute', 'mute'), reason: 'Spam', origin: null, variant: 'global' }
+    const ladder = { ...emptyTemplate('new-ladder', 'ladder'), reason: 'Escalation', origin: null, variant: 'global' }
+    draft.templates.push(preset, ladder)
+    expect(validateDraft(p, draft)).toEqual([])
+    expect(buildChangeSet(p, draft).templates).toEqual([
+      { op: 'create', scope: 'global', name: 'new-ladder', definition: { type: 'ladder', reason: 'Escalation', steps: ['warn', 'mute 1d', 'ban 1d'] } },
+      { op: 'create', scope: 'global', name: 'new-mute', definition: { type: 'mute', reason: 'Spam' } }
+    ])
+    const taken = { ...emptyTemplate(p.templates!.items[0]!.name, 'ladder'), reason: 'x', origin: null, variant: 'global' }
+    draft.templates.push(taken)
+    expect(validateDraft(p, draft).some(issue => issue.path.endsWith('.name') && issue.message.includes('unique'))).toBe(true)
   })
 })
 
@@ -292,43 +470,65 @@ describe('templates.yml', () => {
     const draft = initialDraft(p)
     const imported = importTemplatesYaml(exportTemplatesYaml(draft.templates))
     expect(imported.errors).toEqual([])
-    expect(imported.templates.map(formToDefinition)).toEqual(
-      [...draft.templates].sort((a, b) => a.name.localeCompare(b.name)).map(formToDefinition))
+    const keyed = (forms: Array<TemplateForm & { variant: string }>) => Object.fromEntries(
+      forms.map(form => [`${form.variant} ${form.name}`, formToDefinition(form)]))
+    expect(keyed(imported.templates)).toEqual(keyed(draft.templates))
+    expect(imported.templates.some(form => form.variant !== 'global')).toBe(true)
   })
 
-  it('reads old single-type files and the plugin export format, and reports errors', () => {
+  it('reads the plugin\'s file format and refuses the old keys and bad templates', () => {
     const imported = importTemplatesYaml(`templates:
   hacking:
+    type: ban
+    reason: Unfair advantage (hacked client)
+    duration: 30d
+    groups:
+      cheating: 2
+  advertising:
+    type: Mute
+    reason: Advertising
+  misconduct:
+    type: ladder
+    reason: Repeated misconduct
+    steps:
+      - warn
+      - kick
+      - mute 1d
+      - {step: none, actions: ["say {victim} is on probation"]}
+      - {step: ban permanent, message: "<red>Permanently banned.</red>"}
+    expiry: 90d
+  old:
     type: ban
     reason: Cheating
     ladder: [7d, 30d, permanent]
     ladder-expiry: none
-    address-shared: false
-    actions: []
-    groups:
-      cheating: 2
-  name:
-    type: kick
-    reason: Change your name
-    ladder: [permanent]
-  toxic:
-    type: mute
-    reason: Toxic
-    ladder: [kick, mute 1h, ban 7d]
-    message: "<red>Be nice"
-    step-messages:
-      3: "<red>Banned"
   broken:
     type: slap
     reason: x
-    ladder: [1d]
+  bad-step:
+    type: ladder
+    reason: x
+    steps: [7d, {step: none}]
+  kick-with-time:
+    type: kick
+    reason: x
+    duration: 1d
 `)
-    expect(imported.templates.map(form => formToDefinition(form))).toEqual([
-      { type: 'ban', reason: 'Cheating', ladder: ['7d', '30d', 'permanent'], groups: { cheating: 2 } },
-      { type: 'kick', reason: 'Change your name', ladder: ['permanent'] },
-      { 'type': 'mute', 'reason': 'Toxic', 'ladder': ['kick', 'mute 1h', 'ban 7d'], 'message': '<red>Be nice', 'step-messages': { 3: '<red>Banned' } }
+    expect(imported.templates.map(form => [form.name, formToDefinition(form)])).toEqual([
+      ['hacking', { type: 'ban', reason: 'Unfair advantage (hacked client)', duration: '30d', groups: { cheating: 2 } }],
+      ['advertising', { type: 'mute', reason: 'Advertising' }],
+      ['misconduct', { type: 'ladder', reason: 'Repeated misconduct', steps: ['warn', 'kick', 'mute 1d',
+        { step: 'none', actions: ['say {victim} is on probation'] },
+        { step: 'ban permanent', message: '<red>Permanently banned.</red>' }], expiry: '90d' }]
     ])
-    expect(imported.errors[0]).toContain('templates.broken.type')
+    expect(imported.errors).toEqual([
+      'templates.old.ladder: is no longer read: use \'type: ladder\' and \'steps\' (each step names its type: warn, kick, mute 1h, ban 7d, none)',
+      'templates.old.ladder-expiry: is no longer read: use \'expiry\'',
+      'templates.broken.type: "slap" is not a type (ban, mute, warn, kick or ladder)',
+      'templates.bad-step.steps[0]: "7d" names no type: a step is none, kick, warn, or a type and a duration (ban 7d, mute 1h, ban permanent)',
+      'templates.bad-step.steps[1].actions: a step without a punishment needs an action',
+      'templates.kick-with-time.duration: a kick has no duration'
+    ])
     expect(importTemplatesYaml('nope: [').errors[0]).toContain('Not valid YAML')
   })
 })

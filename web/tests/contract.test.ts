@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { buildChangeSet, initialDraft } from '../shared/editor/draft'
-import { definitionToForm } from '../shared/editor/templates'
+import { simulateResult } from '../shared/editor/outcome'
+import { definitionToForm, formToDefinition } from '../shared/editor/templates'
 import { decodeBase64 } from '../shared/protocol/base64'
 import { aadFor } from '../shared/protocol/constants'
 import { readPayload } from '../shared/protocol/format'
 import { changeSetSchema, payloadSchema, resultSchema } from '../shared/protocol/schema'
+import type { TemplateDefinition } from '../shared/protocol/schema'
 import { openBytes, openJson, parseKey, SealError, sealBytes, sealJson } from '../shared/protocol/seal'
-import { cryptoFixture, draftFromChanges, fixtureBytes, fixtureChanges, fixtureJson, fixturePayload } from './fixtures'
+import { cryptoFixture, draftFromChanges, fixtureBytes, fixtureChanges, fixtureJson, fixturePayload, fixtureResult } from './fixtures'
 
 describe('payload fixture', () => {
   it('parses with the payload schema', () => {
@@ -86,6 +88,28 @@ describe('change set fixture', () => {
     expect(changeSetSchema.safeParse({ format: 1, sequence: 1, settings: [scoped] }).success).toBe(false)
     const twice = { scope: 'global', expectedVersion: 1, set: { b: 1 }, reset: [] }
     expect(changeSetSchema.safeParse({ format: 1, sequence: 1, settings: [twice, twice] }).success).toBe(false)
+  })
+
+  it('writes every definition of the fixtures byte for byte as the plugin does', () => {
+    const raw = [
+      ...(fixtureJson('payload-v1.json') as { templates: { items: Array<{ name: string, definition: TemplateDefinition }> } }).templates.items,
+      ...(fixtureJson('changes-v1.json') as { templates: Array<{ name: string, definition?: TemplateDefinition }> }).templates
+    ]
+    for (const item of raw) {
+      if (item.definition) {
+        expect(JSON.stringify(formToDefinition(definitionToForm(item.name, item.definition)))).toBe(JSON.stringify(item.definition))
+      }
+    }
+  })
+
+  it('names the changed keys of a template update as the result fixture does', () => {
+    const payload = fixturePayload()
+    const changes = fixtureChanges()
+    const draft = draftFromChanges(payload, changes)
+    const simulated = simulateResult(payload, draft, changes)
+    for (const line of fixtureResult().changes.filter(change => change.section === 'templates' && change.action === 'updated')) {
+      expect(simulated.changes.find(change => change.target === line.target)).toMatchObject({ action: 'updated', detail: line.detail })
+    }
   })
 
   it('keeps definitions round-tripping through the form model', () => {

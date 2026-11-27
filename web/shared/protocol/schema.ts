@@ -141,30 +141,59 @@ export const messageScopeSchema = z.object({
 })
 export type MessageScope = z.infer<typeof messageScopeSchema>
 
-export const templateTypeSchema = z.enum(['ban', 'mute', 'warn', 'kick'])
-export type TemplateType = z.infer<typeof templateTypeSchema>
+/** The four punishment types: of a preset, and of a ladder step. */
+export const punishmentTypeSchema = z.enum(['ban', 'mute', 'warn', 'kick'])
+export type PunishmentType = z.infer<typeof punishmentTypeSchema>
 
-// Loose: a key this site doesn't know is kept (and sent back on update) instead of being
-// dropped. The plugin rejects unknown keys itself.
+/** A template's `type` (protocol 5.4, decision D37): a preset of one punishment type, or a ladder. */
+export const templateKindSchema = z.enum(['ban', 'mute', 'warn', 'kick', 'ladder'])
+export type TemplateKind = z.infer<typeof templateKindSchema>
+
+/** How the mute notice and the warning reach an online player (S61). */
+export const templateDisplaySchema = z.enum(['chat', 'dialog'])
+export type TemplateDisplay = z.infer<typeof templateDisplaySchema>
+
+/** A ladder step: its text (`warn`, `mute 1h`, `none`) or a map with that text as `step`. */
+export const templateStepSchema = z.union([
+  z.string(),
+  z.looseObject({
+    step: z.string(),
+    reason: z.string().optional(),
+    message: z.string().optional(),
+    actions: z.array(z.string()).optional()
+  })
+])
+export type TemplateStepDefinition = z.infer<typeof templateStepSchema>
+
+// Keys in templates.yml order. Loose: a key this site doesn't know is kept (and sent back on update) instead of being
+// dropped. Which keys belong to which shape is checked by the editor's validation, as the
+// plugin does (it also refuses unknown keys).
 export const templateDefinitionSchema = z.looseObject({
-  'type': templateTypeSchema,
-  'reason': z.string(),
-  'ladder': z.array(z.string()),
+  'type': templateKindSchema,
   'ip': z.boolean().optional(),
   'shadow': z.boolean().optional(),
   'scope': z.string().optional(),
-  'ladder-expiry': z.string().optional(),
+  'reason': z.string(),
+  'duration': z.string().optional(),
+  'steps': z.array(templateStepSchema).optional(),
+  'expiry': z.string().optional(),
   'address-shared': z.boolean().optional(),
   'permission-required': z.boolean().optional(),
   'actions': z.array(z.string()).optional(),
-  'step-actions': z.record(z.string(), z.array(z.string())).optional(),
   'groups': z.record(z.string(), z.number().int()).optional(),
   'message': z.string().optional(),
-  'step-messages': z.record(z.string(), z.string()).optional()
+  // A text, read as the plugin reads it (any case); this site writes chat or dialog.
+  'display': z.string().optional()
 })
 export type TemplateDefinition = z.infer<typeof templateDefinitionSchema>
 
+/**
+ * A template's definition: `scope` is `global` for the global definition, or the server or
+ * category of a variant (S62) — where the definition is in force, not the definition's own
+ * `scope` key (where its punishments apply).
+ */
 export const templateItemSchema = z.object({
+  scope: z.string().regex(SCOPE_PATTERN),
   name: z.string().min(1),
   version: z.number().int().nonnegative(),
   definition: templateDefinitionSchema
@@ -259,14 +288,15 @@ export const messagesBlockSchema = z.object({
 export type MessagesBlock = z.infer<typeof messagesBlockSchema>
 
 export const templateChangeSchema = z.discriminatedUnion('op', [
-  z.object({ op: z.literal('create'), name: z.string(), definition: templateDefinitionSchema }),
+  z.object({ op: z.literal('create'), scope: z.string(), name: z.string(), definition: templateDefinitionSchema }),
   z.object({
     op: z.literal('update'),
+    scope: z.string(),
     name: z.string(),
     expectedVersion: z.number().int().nonnegative(),
     definition: templateDefinitionSchema
   }),
-  z.object({ op: z.literal('delete'), name: z.string(), expectedVersion: z.number().int().nonnegative() })
+  z.object({ op: z.literal('delete'), scope: z.string(), name: z.string(), expectedVersion: z.number().int().nonnegative() })
 ])
 export type TemplateChange = z.infer<typeof templateChangeSchema>
 

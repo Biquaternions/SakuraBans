@@ -1,6 +1,7 @@
 package net.serlith.sakurabans.core;
 
 import java.lang.reflect.Proxy;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Matcher;
@@ -14,10 +15,14 @@ public final class RecordingLogger {
             if (this.arguments.length == 0) {
                 return "";
             }
+            // debug(String, Object...) passes its arguments as one array.
+            final Object[] values = this.arguments.length == 2
+                    && this.arguments[1] instanceof Object[] array
+                    ? array : Arrays.copyOfRange(this.arguments, 1, this.arguments.length);
             String text = String.valueOf(this.arguments[0]);
-            for (int i = 1; i < this.arguments.length; i++) {
+            for (final Object value : values) {
                 text = text.replaceFirst("\\{}", Matcher.quoteReplacement(
-                        String.valueOf(this.arguments[i])));
+                        String.valueOf(value)));
             }
             return text;
         }

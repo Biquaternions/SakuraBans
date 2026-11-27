@@ -17,6 +17,7 @@ import net.serlith.sakurabans.core.storage.dbo.VictimKind;
 import net.serlith.sakurabans.core.storage.dbo.records.SbPunishmentsRecord;
 import net.serlith.sakurabans.core.util.AddressHashes;
 import net.serlith.sakurabans.core.util.InetAddresses;
+import net.serlith.sakurabans.core.util.ReleaseChannel;
 import net.serlith.sakurabans.core.util.Uuids;
 import org.assertj.core.api.Assertions;
 import org.jooq.DSLContext;
@@ -27,7 +28,7 @@ import org.junit.jupiter.api.Test;
 /** The storage service already prepared the schema once when each test starts. */
 class SchemaManagerTest extends DatabaseTest {
 
-    private final SchemaManager manager = new SchemaManager(this.log.logger());
+    private final SchemaManager manager = new SchemaManager(this.log.logger(), ReleaseChannel.DEV);
 
     @Test
     void createsEveryTableIndexAndTheGlobalScope() {
@@ -74,6 +75,35 @@ class SchemaManagerTest extends DatabaseTest {
                 .hasMessageContaining("schema version 2");
         final Optional<Integer> version = this.read(this.manager::version);
         Assertions.assertThat(version).as("left as it was").contains(2);
+    }
+
+    @Test
+    void buildsBeforeTheBetasRefuseDatabasesOfOlderVersions() {
+        this.read(dsl -> dsl.update(SakuraTables.META).set(SakuraTables.META.V, "0")
+                .where(SakuraTables.META.K.eq(SchemaManager.VERSION_KEY))
+                .execute());
+
+        Assertions.assertThatThrownBy(() -> this.read(dsl -> {
+            this.manager.prepare(dsl, this.schema().orElse(null));
+            return null;
+        })).hasCauseInstanceOf(StorageException.class)
+                .hasMessageContaining("schema version 0").hasMessageContaining("dev builds");
+        final Optional<Integer> version = this.read(this.manager::version);
+        Assertions.assertThat(version).as("left as it was").contains(0);
+    }
+
+    @Test
+    void betasAndLaterUpdateDatabasesOfOlderVersions() {
+        this.read(dsl -> dsl.update(SakuraTables.META).set(SakuraTables.META.V, "0")
+                .where(SakuraTables.META.K.eq(SchemaManager.VERSION_KEY))
+                .execute());
+        final SchemaManager beta = new SchemaManager(this.log.logger(), ReleaseChannel.BETA);
+
+        // It reaches the updater, which has no updates yet.
+        Assertions.assertThatThrownBy(() -> this.read(dsl -> {
+            beta.prepare(dsl, this.schema().orElse(null));
+            return null;
+        })).hasMessageContaining("No update from database schema version 0");
     }
 
     @Test

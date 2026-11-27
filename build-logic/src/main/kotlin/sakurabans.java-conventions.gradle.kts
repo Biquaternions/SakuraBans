@@ -8,6 +8,8 @@ val libs = versionCatalogs.named("libs")
 
 fun lib(alias: String) = libs.findLibrary(alias).get()
 
+version = ReleaseVersion.of(project).full
+
 java {
     toolchain.languageVersion = JavaLanguageVersion.of(25)
 }

@@ -1,5 +1,6 @@
 package net.serlith.sakurabans.core.permission;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import net.serlith.sakurabans.api.model.Actor;
 import net.serlith.sakurabans.api.model.CategoryScope;
@@ -12,6 +13,7 @@ import net.serlith.sakurabans.api.model.ServerScope;
 import net.serlith.sakurabans.core.configuration.ConfigService;
 import net.serlith.sakurabans.core.model.ApiValues;
 import net.serlith.sakurabans.core.storage.repository.PunishmentRepository;
+import org.jspecify.annotations.Nullable;
 
 public final class AuthorizationService {
 
@@ -29,28 +31,49 @@ public final class AuthorizationService {
         this.config = config;
     }
 
+    /**
+     * Whether the actor may do this. A player actor (or a custom operator with a UUID) who is
+     * online is checked with their live permissions; one who isn't, with the offline
+     * permissions (LuckPerms), and is denied without them (S64, D38). The console and a custom
+     * operator without a UUID pass every permission check.
+     */
     public CompletableFuture<Decision> check(final Actor actor, final Action action) {
         return switch (action) {
-            case Action.Punish punish -> CompletableFuture.completedFuture(
-                    this.punish(actor, punish));
+            case Action.Punish punish -> this.punish(actor, punish);
+            case Action.ApplyLadder ladder -> this.ladder(actor, ladder);
             case Action.ChangePunishment change -> this.change(actor, change);
-            case Action.Manage manage -> CompletableFuture.completedFuture(
-                    this.all(actor, switch (manage.area()) {
-                        case TEMPLATES -> Permissions.ADMIN_TEMPLATES;
-                        case SETTINGS -> Permissions.ADMIN_SETTINGS;
-                        case MESSAGES -> Permissions.ADMIN_MESSAGES;
-                        case PLAYER_DATA -> Permissions.ADMIN_GDPR;
-                        case ROLLBACK -> Permissions.ADMIN_STAFFROLLBACK;
-                    }));
+            case Action.Manage manage -> this.all(actor, switch (manage.area()) {
+                case TEMPLATES -> Permissions.ADMIN_TEMPLATES;
+                case SETTINGS -> Permissions.ADMIN_SETTINGS;
+                case MESSAGES -> Permissions.ADMIN_MESSAGES;
+                case PLAYER_DATA -> Permissions.ADMIN_GDPR;
+                case ROLLBACK -> Permissions.ADMIN_STAFFROLLBACK;
+            });
         };
     }
 
-    private Decision punish(final Actor actor, final Action.Punish punish) {
-        if (!this.config.settings().scopes().requirePermissions()) {
-            return this.all(actor, Permissions.punish(punish.type()));
+    private CompletableFuture<Decision> punish(final Actor actor, final Action.Punish punish) {
+        final CompletableFuture<Decision> decision = punish.requiredTemplate() == null
+                ? this.all(actor, Permissions.punish(punish.type()))
+                : this.all(actor, Permissions.punish(punish.type()),
+                        Permissions.template(punish.requiredTemplate()));
+        return decision.thenCompose(first -> this.scoped(actor, first, punish.scope()));
+    }
+
+    private CompletableFuture<Decision> ladder(final Actor actor,
+            final Action.ApplyLadder ladder) {
+        final CompletableFuture<Decision> decision = ladder.permissionRequired()
+                ? this.all(actor, Permissions.PUNISH, Permissions.template(ladder.ladder()))
+                : this.all(actor, Permissions.PUNISH);
+        return decision.thenCompose(first -> this.scoped(actor, first, ladder.scope()));
+    }
+
+    private CompletableFuture<Decision> scoped(final Actor actor, final Decision decision,
+            final @Nullable Scope scope) {
+        if (!decision.allowed() || !this.config.settings().scopes().requirePermissions()) {
+            return CompletableFuture.completedFuture(decision);
         }
-        return this.all(actor, Permissions.punish(punish.type()), punish.scope() == null
-                ? Permissions.SCOPE_DEFAULT : scopeNode(punish.scope()));
+        return this.all(actor, scope == null ? Permissions.SCOPE_DEFAULT : scopeNode(scope));
     }
 
     private CompletableFuture<Decision> change(final Actor actor,
@@ -63,7 +86,7 @@ public final class AuthorizationService {
             final Punishment punishment = found.get();
             final PunishmentType type = punishment.type();
             final boolean own = ApiValues.sameOperator(punishment.operator(), actor.operator());
-            final Decision allowed = switch (change.operation()) {
+            final CompletableFuture<Decision> allowed = switch (change.operation()) {
                 case REVOKE -> this.any(actor, own, Permissions.revoke(type),
                         Permissions.revokeOwn(type));
                 case EDIT, EVIDENCE -> this.any(actor, own, Permissions.edit(type),
@@ -71,9 +94,9 @@ public final class AuthorizationService {
                 case VOID -> this.all(actor, Permissions.voidPunishment(type));
                 case EXPUNGE -> this.all(actor, Permissions.delete(type));
             };
-            return allowed.allowed()
+            return allowed.thenCompose(decision -> decision.allowed()
                     ? this.protectedIssuer(actor, punishment)
-                    : CompletableFuture.completedFuture(allowed);
+                    : CompletableFuture.completedFuture(decision));
         });
     }
 
@@ -87,19 +110,16 @@ public final class AuthorizationService {
                 .thenApply(exempt -> exempt ? Decision.EXEMPT : Decision.ALLOWED);
     }
 
-    private Decision any(final Actor actor, final boolean own, final String full,
-            final String ownNode) {
-        final Decision decision = this.all(actor, full);
-        return decision.allowed() || !own ? decision : this.all(actor, ownNode);
+    private CompletableFuture<Decision> any(final Actor actor, final boolean own,
+            final String full, final String ownNode) {
+        return this.all(actor, full).thenCompose(decision -> decision.allowed() || !own
+                ? CompletableFuture.completedFuture(decision)
+                : this.all(actor, ownNode));
     }
 
-    private Decision all(final Actor actor, final String... nodes) {
-        for (final String node : nodes) {
-            if (!this.permissions.hasOnline(actor, node)) {
-                return Decision.NO_PERMISSION;
-            }
-        }
-        return Decision.ALLOWED;
+    private CompletableFuture<Decision> all(final Actor actor, final String... nodes) {
+        return this.permissions.hasAll(actor, List.of(nodes))
+                .thenApply(allowed -> allowed ? Decision.ALLOWED : Decision.NO_PERMISSION);
     }
 
     private static String scopeNode(final Scope scope) {

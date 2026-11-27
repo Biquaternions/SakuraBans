@@ -27,7 +27,7 @@ import net.serlith.sakurabans.api.punish.RevokeResult;
 import net.serlith.sakurabans.core.ServiceTest;
 import net.serlith.sakurabans.core.fake.FakeOnlinePlayer;
 import net.serlith.sakurabans.core.model.AdminResult;
-import net.serlith.sakurabans.core.model.TemplateDefinition;
+import net.serlith.sakurabans.core.model.TemplateBuilder;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,7 +43,7 @@ class AuthorizationServiceTest extends ServiceTest {
     private FakeOnlinePlayer mod;
 
     /** What LuckPerms knows about offline accounts. */
-    private static final class FakeLuckPerms implements OfflinePermissions {
+    private static class FakeLuckPerms implements OfflinePermissions {
 
         final Map<UUID, Set<String>> nodes = new HashMap<>();
         final Map<UUID, Integer> weights = new HashMap<>();
@@ -103,19 +103,74 @@ class AuthorizationServiceTest extends ServiceTest {
     }
 
     @Test
-    void offlinePlayersHaveNoPermissions() {
-        // Even when LuckPerms knows their permissions: a player acts only while online.
-        this.offline = this.luckPerms.grant(ADMIN, Permissions.ADMIN_TEMPLATES);
-        Assertions.assertThat(this.templates.create(TemplateDefinition.builder("spam",
-                PunishmentType.MUTE).reason("Spam").build(), ADMIN_ACTOR).join())
-                .isInstanceOf(AdminResult.Forbidden.class);
-
-        this.platform.join(ADMIN, "Admin", this.home).grant(Permissions.ADMIN_TEMPLATES);
-        Assertions.assertThat(this.templates.create(TemplateDefinition.builder("spam",
+    void offlinePlayersAreAskedOfLuckPermsForEveryAction() {
+        // S64 (D38): an actor who isn't online is checked with LuckPerms' answer.
+        this.offline = this.luckPerms.grant(ADMIN, Permissions.ADMIN_TEMPLATES,
+                Permissions.punish(PunishmentType.BAN), Permissions.PUNISH,
+                Permissions.revoke(PunishmentType.BAN));
+        Assertions.assertThat(this.templates.create(TemplateBuilder.preset("spam",
                 PunishmentType.MUTE).reason("Spam").build(), ADMIN_ACTOR).join())
                 .isInstanceOf(AdminResult.Ok.class);
         Assertions.assertThat(this.decide(ADMIN_ACTOR, new Action.Manage(
                 Action.Manage.Area.SETTINGS))).isEqualTo(Decision.NO_PERMISSION);
+        Assertions.assertThat(this.decide(ADMIN_ACTOR, new Action.Punish(PunishmentType.BAN,
+                null))).isEqualTo(Decision.ALLOWED);
+        Assertions.assertThat(this.decide(ADMIN_ACTOR, new Action.Punish(PunishmentType.MUTE,
+                null))).isEqualTo(Decision.NO_PERMISSION);
+        Assertions.assertThat(this.decide(ADMIN_ACTOR, new Action.ApplyLadder("misconduct",
+                false, null))).isEqualTo(Decision.ALLOWED);
+        Assertions.assertThat(this.decide(ADMIN_ACTOR, new Action.ApplyLadder("misconduct",
+                true, null))).as("the template node is missing")
+                .isEqualTo(Decision.NO_PERMISSION);
+
+        final Punishment ban = ((PunishResult.Success) this.ban(ADMIN_ACTOR, STEVE))
+                .punishment();
+        Assertions.assertThat(this.decide(ADMIN_ACTOR, new Action.ChangePunishment(
+                Action.ChangePunishment.Operation.REVOKE, ban.id()))).isEqualTo(Decision.ALLOWED);
+        Assertions.assertThat(this.decide(ADMIN_ACTOR, new Action.ChangePunishment(
+                Action.ChangePunishment.Operation.VOID, ban.id())))
+                .isEqualTo(Decision.NO_PERMISSION);
+    }
+
+    @Test
+    void customOperatorWithUuidIsAskedOfLuckPermsToo() {
+        final Actor plugin = Actor.of(CustomOperator.of("Panel", ADMIN), "api:panel");
+        Assertions.assertThat(this.decide(plugin, new Action.Manage(
+                Action.Manage.Area.TEMPLATES))).isEqualTo(Decision.NO_PERMISSION);
+        this.offline = this.luckPerms.grant(ADMIN, Permissions.ADMIN_TEMPLATES);
+        Assertions.assertThat(this.decide(plugin, new Action.Manage(
+                Action.Manage.Area.TEMPLATES))).isEqualTo(Decision.ALLOWED);
+    }
+
+    @Test
+    void offlinePlayersAreDeniedWithoutLuckPermsOrWithoutAnAnswer() {
+        Assertions.assertThat(this.decide(ADMIN_ACTOR, new Action.Manage(
+                Action.Manage.Area.TEMPLATES))).isEqualTo(Decision.NO_PERMISSION);
+        Assertions.assertThat(this.decide(ADMIN_ACTOR, new Action.Punish(PunishmentType.BAN,
+                null))).isEqualTo(Decision.NO_PERMISSION);
+        Assertions.assertThat(this.log.entries("warn")).as("warned once")
+                .filteredOn(entry -> entry.format().contains("without LuckPerms")).hasSize(1);
+
+        // LuckPerms installed, but it has nothing to say about this account.
+        this.offline = new FakeLuckPerms() {
+            @Override
+            public CompletableFuture<Optional<Boolean>> has(final UUID uuid, final String node) {
+                return CompletableFuture.completedFuture(Optional.empty());
+            }
+        };
+        Assertions.assertThat(this.decide(ADMIN_ACTOR, new Action.Manage(
+                Action.Manage.Area.TEMPLATES))).isEqualTo(Decision.NO_PERMISSION);
+    }
+
+    @Test
+    void anOnlinePlayerHasTheirLivePermissionsWhateverLuckPermsSays() {
+        this.offline = this.luckPerms.grant(ADMIN, Permissions.ADMIN_TEMPLATES);
+        this.platform.join(ADMIN, "Admin", this.home);
+        Assertions.assertThat(this.decide(ADMIN_ACTOR, new Action.Manage(
+                Action.Manage.Area.TEMPLATES))).isEqualTo(Decision.NO_PERMISSION);
+        this.platform.online(ADMIN).orElseThrow().grant(Permissions.ADMIN_TEMPLATES);
+        Assertions.assertThat(this.decide(ADMIN_ACTOR, new Action.Manage(
+                Action.Manage.Area.TEMPLATES))).isEqualTo(Decision.ALLOWED);
     }
 
     @Test
@@ -150,7 +205,7 @@ class AuthorizationServiceTest extends ServiceTest {
         Files.writeString(this.dir.resolve("config.yml"),
                 "scopes:\n  require-permissions: true\n");
         this.config.reload();
-        this.templates.create(TemplateDefinition.builder("elimination", PunishmentType.BAN)
+        this.templates.create(TemplateBuilder.preset("elimination", PunishmentType.BAN)
                 .reason("Out of hearts").scope(CategoryScope.of("lifesteal")).build(), CONSOLE)
                 .join();
         this.mod.grant(Permissions.punish(PunishmentType.BAN), Permissions.SCOPE_DEFAULT);

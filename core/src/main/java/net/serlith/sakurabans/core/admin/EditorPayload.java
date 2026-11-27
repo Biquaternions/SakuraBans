@@ -106,8 +106,12 @@ public record EditorPayload(Meta meta, @Nullable Settings settings, @Nullable Me
         }
     }
 
-    /** {@code definition} is the tree {@code templates.yml} writes. */
-    public record Template(String name, long version, Map<String, Object> definition) {
+    /**
+     * {@code definition} is the tree {@code templates.yml} writes; {@code scope} is
+     * {@code global} or the variant's scope (S62).
+     */
+    public record Template(String scope, String name, long version,
+            Map<String, Object> definition) {
     }
 
     public record Lookups(List<String> servers, List<String> categories, List<String> locales) {
@@ -212,6 +216,7 @@ public record EditorPayload(Meta meta, @Nullable Settings settings, @Nullable Me
             final JsonArray items = new JsonArray();
             for (final Template template : this.templates.items()) {
                 final JsonObject item = new JsonObject();
+                item.addProperty("scope", template.scope());
                 item.addProperty("name", template.name());
                 item.addProperty("version", template.version());
                 item.add("definition", EditorJson.json(template.definition()));

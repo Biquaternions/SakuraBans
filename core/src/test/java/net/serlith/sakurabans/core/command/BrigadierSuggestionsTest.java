@@ -6,8 +6,9 @@ import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import net.serlith.sakurabans.api.model.PunishmentType;
+import net.serlith.sakurabans.api.template.TemplateDuration;
 import net.serlith.sakurabans.api.template.TemplateStep;
-import net.serlith.sakurabans.core.model.TemplateDefinition;
+import net.serlith.sakurabans.core.model.TemplateBuilder;
 import net.serlith.sakurabans.core.permission.Permissions;
 import org.assertj.core.api.Assertions;
 import org.incendo.cloud.Command;
@@ -48,13 +49,13 @@ class BrigadierSuggestionsTest extends CommandTest {
                         .createNode(name, command, context -> 1));
             }
         }
-        this.templates.create(TemplateDefinition.builder("hacking", PunishmentType.BAN)
+        this.templates.create(TemplateBuilder.preset("hacking", PunishmentType.BAN)
                 .reason("Hacking")
                 .build(), CONSOLE).join();
-        this.templates.create(TemplateDefinition.builder("secret", PunishmentType.BAN)
+        this.templates.create(TemplateBuilder.preset("secret", PunishmentType.BAN)
                 .reason("Secret")
                 .permissionRequired(true).build(), CONSOLE).join();
-        this.templates.create(TemplateDefinition.builder("spam", PunishmentType.MUTE)
+        this.templates.create(TemplateBuilder.preset("spam", PunishmentType.MUTE)
                 .reason("Spam")
                 .build(), CONSOLE).join();
     }
@@ -80,26 +81,68 @@ class BrigadierSuggestionsTest extends CommandTest {
     }
 
     @Test
-    void mixedLaddersAreOfferedOnEveryPunishCommandAndSayWhatHappened() {
-        this.templates.create(TemplateDefinition.builder("toxicity", PunishmentType.BAN)
+    void laddersAreNotOfferedOnThePunishCommands() {
+        this.templates.create(TemplateBuilder.ladder("toxicity")
                 .reason("Toxic")
-                .ladder(List.of(TemplateStep.of(PunishmentType.KICK, null, List.of(), null),
-                        TemplateStep.of(Duration.ofDays(1))))
+                .steps(List.of(TemplateStep.of(PunishmentType.KICK, TemplateDuration.open()),
+                        TemplateStep.of(PunishmentType.BAN,
+                                TemplateDuration.fixed(Duration.ofDays(1)))))
                 .build(), CONSOLE).join();
         for (final String command : List.of("ban", "mute", "warn", "kick")) {
             Assertions.assertThat(this.suggest(this.console, command + " Steve -t "))
-                    .as(command).contains("toxicity");
+                    .as(command).doesNotContain("toxicity");
         }
+        Assertions.assertThat(this.suggest(this.console, "mute Steve -t "))
+                .contains("spam").doesNotContain("hacking");
         this.known(STEVE, "Steve");
 
         this.run(this.console, "ban Steve -t toxicity");
-        Assertions.assertThat(this.console.last()).contains("Kicked Steve", "Toxic")
-                .doesNotContain("Banned");
-        this.run(this.console, "warn Steve -t toxicity");
+        Assertions.assertThat(this.console.last()).doesNotContain("Banned", "Kicked");
+        // A preset that leaves the duration open takes the command's.
+        this.run(this.console, "ban Steve -t hacking -d 1h");
         Assertions.assertThat(this.console.last()).contains("Banned Steve");
-        this.run(this.console, "mute Steve -t toxicity -d 1h");
-        Assertions.assertThat(this.console.last()).as("the template decides the duration")
-                .doesNotContain("Muted");
+    }
+
+    @Test
+    void eachCommandSuggestsItsOwnPresetsAndPunishItsLadders() {
+        this.templates.create(TemplateBuilder.preset("caution", PunishmentType.WARN)
+                .reason("Caution").build(), CONSOLE).join();
+        this.templates.create(TemplateBuilder.preset("rename", PunishmentType.KICK)
+                .reason("Rename").build(), CONSOLE).join();
+        this.templates.create(TemplateBuilder.preset("flood", PunishmentType.MUTE)
+                .reason("Flood").duration(TemplateDuration.fixed(Duration.ofHours(1)))
+                .build(), CONSOLE).join();
+        this.templates.create(TemplateBuilder.ladder("misconduct").reason("Misconduct")
+                .steps(List.of(TemplateStep.of(PunishmentType.WARN, TemplateDuration.open())))
+                .build(), CONSOLE).join();
+        this.templates.create(TemplateBuilder.ladder("hidden").reason("Hidden")
+                .permissionRequired(true)
+                .steps(List.of(TemplateStep.of(PunishmentType.WARN, TemplateDuration.open())))
+                .build(), CONSOLE).join();
+
+        Assertions.assertThat(this.suggest(this.console, "ban Steve -t "))
+                .contains("hacking", "secret").doesNotContain("spam", "misconduct", "caution");
+        Assertions.assertThat(this.suggest(this.console, "mute Steve -t "))
+                .contains("spam", "flood").doesNotContain("hacking", "misconduct");
+        Assertions.assertThat(this.suggest(this.console, "tempmute Steve 1h -t "))
+                .as("only presets that leave the duration open").contains("spam")
+                .doesNotContain("flood");
+        Assertions.assertThat(this.suggest(this.console, "warn Steve -t "))
+                .contains("caution").doesNotContain("spam");
+        Assertions.assertThat(this.suggest(this.console, "kick Steve -t "))
+                .contains("rename").doesNotContain("caution");
+
+        Assertions.assertThat(this.suggest(this.console, "punish Steve "))
+                .containsExactlyInAnyOrder("hidden", "misconduct");
+        final FakeCommandActor helper = FakeCommandActor.player(UUID.randomUUID(), "Helper")
+                .grant(Permissions.PUNISH);
+        Assertions.assertThat(this.suggest(helper, "punish Steve "))
+                .containsExactly("misconduct");
+        Assertions.assertThat(this.suggest(helper, "punish Steve misconduct "))
+                .contains("--reason", "-g").doesNotContain("--silent", "--template");
+        helper.grant(Permissions.punishFlag(PunishFlags.SILENT));
+        Assertions.assertThat(this.suggest(helper, "punish Steve misconduct "))
+                .contains("--silent");
     }
 
     @Test

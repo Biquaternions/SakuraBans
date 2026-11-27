@@ -179,24 +179,49 @@ then the default. So a scoped `en_US` override also reaches a locale with no tex
 
 ### 5.4 Templates
 
-**`items[]`**: `name`, `version`, `definition`. A definition is the template as it is written
-in `templates.yml`, as JSON with the same keys:
+**`items[]`**: `scope`, `name`, `version`, `definition`. A definition is the template as it is
+written in `templates.yml`, as JSON with the same keys. Names are unique across every type.
+Items are listed by name, each template's global definition first, then its variants by scope.
 
-- `type` (required): `ban`, `mute`, `warn` or `kick`; the type of every step that doesn't
-  name its own.
+**Variants** (S62). `scope` is where the definition is **in force**: `global` for a template's
+global definition, or `server:<name>` / `category:<name>` for a **variant**, a whole definition
+(no field-by-field merge) of a template that has a global definition, of the **same `type`**,
+without `groups` (a variant counts in its global definition's groups; progress on a ladder is
+shared by name across all of a template's definitions). It is unrelated to the definition's own
+`scope` key, which is where its punishments apply. Each definition has its own `version`. A use
+gets: the scope its command names (`-g` = the global definition); else, on a backend, this
+server; on a proxy, the server the staff member is on; else (the proxy console, an API call
+without a scope) the global definition. From a server: its own variant, else its categories'
+in the order of 5.1, else the global definition; from a category: its variant, else global.
+A punishment remembers the variant it came from, and every server shows its message from that
+variant (from the global definition once the variant is deleted).
+
+- `type` (required): `ban`, `mute`, `warn` or `kick` for a **preset** (one punishment of that
+  type), or `ladder`.
 - `reason` (required).
-- `ladder` (required): array of steps. A step is a duration (`7d`), `permanent`, or a type
-  followed by a duration where the type has one (`kick`, `mute 1h`, `ban 7d`,
-  `ban permanent`). So a ladder may go from kicks to mutes to bans. Both sides write a
-  step of the template's own type without the type (`1h`, not `mute 1h`; a kick step of a
-  kick template is `permanent`), and read every form.
-- optional: `ip`, `shadow` (applies to the mute steps), `scope`, `ladder-expiry`,
-  `address-shared`, `permission-required`, `actions`, `step-actions` (object: step number as
-  text → array), `groups` (object: group → weight), `message` (MiniMessage: what the punished
-  player is shown, instead of the network's message for that type) and `step-messages`
-  (object: step number as text → MiniMessage, instead of `message` for that step).
+- optional on both: `ip`, `shadow` (a mute preset, or a ladder with a mute step), `scope`,
+  `permission-required`, `actions` (array), `groups` (object: group → weight; a preset in a
+  group counts towards its group mates' ladders), `message` (MiniMessage: what the
+  punished player is shown, instead of the network's message for that type) and `display`
+  (`chat`, the default, or `dialog`: the mute notice and the warning shown to an online
+  player as a dialog, with chat as the fallback where the platform can't show one; only on
+  a mute or warn preset that isn't a shadow mute, or a ladder with a mute or warn step).
+- presets only: `duration`, a duration (`7d`) or `permanent`; left out, the command decides.
+  A kick has none. Every duration in a definition (`duration`, a step's, `expiry`) is whole
+  seconds, at least one (`90s`, not `1500ms`).
+- ladders only: `steps` (required, 1-64), `expiry` (a duration) and `address-shared`. A step
+  is a text or an object:
+  - the text is `none` (no punishment, only actions), `kick`, `warn` (a warning with the
+    configured expiry), or a type and a duration or `permanent` (`warn 30d`, `mute 1h`,
+    `ban 7d`, `ban permanent`); every step names its type;
+  - the object is `{step, reason, message, actions}` with that text as `step` (required) and
+    the others optional: the step's reason and message win over the template's, its actions
+    run after the template's. A `none` step has at least one action and no message.
+  Both sides write a step as the plain text when it has nothing else.
 
-Optional keys at their default are left out, exactly as the YAML export leaves them out.
+Optional keys at their default are left out, exactly as the YAML export leaves them out. The
+keys of the format before D37 (`ladder`, `ladder-expiry`, `step-actions`, `step-messages`)
+are refused with an error that names the new key.
 
 ### 5.5 Lookups
 
@@ -211,9 +236,9 @@ sequence   epoch ms of the save, made by the browser; larger than in its previou
 settings   [ { scope, expectedVersion, set: {key: value}, reset: [key],
                publish: {server, keys: [key]} } ]                              optional
 messages   [ { scope, locale, expectedVersion, set: {key: text}, reset: [key] } ] optional
-templates  [ {op: "create", name, definition}
-           | {op: "update", name, expectedVersion, definition}
-           | {op: "delete", name, expectedVersion} ]                           optional
+templates  [ {op: "create", scope, name, definition}
+           | {op: "update", scope, name, expectedVersion, definition}
+           | {op: "delete", scope, name, expectedVersion} ]                    optional
 ```
 
 - Only what the user changed is sent. `set` creates or replaces an override in that scope;
@@ -224,6 +249,14 @@ templates  [ {op: "create", name, definition}
   published without the browser ever holding them. A key is never in `publish` and `set`.
 - A secret key is `set` to a string (the new value) or to `""` (an empty override).
 - An update carries the whole new definition.
+- A template change names its definition by `scope` (as in 5.4: `global`, or the variant's
+  server or category) and `name`; a pair is changed at most once. Deleting a global definition
+  deletes its variants too, whatever their versions (the result lists each). The plugin applies
+  template changes in this order, and the editor writes them in it: variant deletions, global
+  creations and updates, variant creations and updates, global deletions. A variant whose
+  global definition is missing, or of another `type`, and a global definition changing its
+  `type` while variants of the old one remain, are refused when applied (a `conflict` with the
+  reason).
 - `expectedVersion` is the version from the payload (0 for a scope, or a scope and locale,
   that has no overrides yet).
 - **`sequence`:** the plugin remembers the last sequence it applied for the session (in
@@ -238,7 +271,7 @@ templates  [ {op: "create", name, definition}
    that the settings would still load for the applying server. Any error
    refuses everything, with each error's path, which follows the change set's own structure:
    `settings[0].set.reasons.default`, `settings[0].publish.keys[2]`, `messages[1].reset[0]`,
-   `templates[1].definition.ladder[0]`.
+   `templates[1].definition.steps[0]`.
 2. It then checks permissions per section: `sakurabans.editor` opens the editor and applies;
    each section needs the same node as its in-game administration
    (`sakurabans.admin.settings`, `sakurabans.admin.messages`, `sakurabans.admin.templates`).
@@ -311,7 +344,8 @@ or unknown, 4008 silent too long.
   by         "live" | "command"
   changes    [ {section, scope, target, action, detail} ]   one per line of 7.4, in order
              section: "settings" | "messages" | "templates"
-             scope:   the scope for settings and messages, "" for templates
+             scope:   the scope for settings and messages; for templates the definition's
+                      scope of 5.4 (`global` or the variant's)
              action:  "set" | "reset" | "published" | "created" | "updated" | "deleted"
                       | "unchanged" | "conflict"
              target:  the key, "<locale>:<key>", or the template name
@@ -355,7 +389,8 @@ an apply; here the link stays the same.
     value;
   - a pending update or delete of a template that no longer exists, and a pending create of
     one that now exists, are kept and flagged for the user to resolve (recreate, discard, or
-    edit the existing one).
+    edit the existing one). Templates are matched by `scope` and `name`, so each variant
+    re-bases on its own.
   Nothing is locked after an apply. With `payloadRevision` `null` the editor keeps what it
   has, tells the user the snapshot couldn't be refreshed, and suggests `/sb editor`.
 - **Sections.** A refreshed payload may hold fewer sections than before (the creator lost a

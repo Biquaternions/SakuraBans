@@ -164,6 +164,10 @@ public final class SbPunishmentsRecord extends UpdatableRecordImpl<SbPunishments
         return this;
     }
 
+    public @Nullable Integer templateVariantScopeId() {
+        return this.get(SakuraTables.PUNISHMENTS.TEMPLATE_VARIANT_SCOPE_ID);
+    }
+
     public @Nullable Short templateStep() {
         return this.get(SakuraTables.PUNISHMENTS.TEMPLATE_STEP);
     }

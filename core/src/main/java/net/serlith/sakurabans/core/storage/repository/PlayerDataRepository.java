@@ -152,8 +152,11 @@ public final class PlayerDataRepository {
         final var players = SakuraTables.ALLOWED_PLAYERS;
         final var addresses = SakuraTables.ALLOWED_ADDRESSES;
         final var lockdowns = SakuraTables.LOCKDOWNS;
+        final var uses = SakuraTables.TEMPLATE_USES;
         final SbAuditLog log = SakuraTables.AUDIT_LOG;
         return redact(dsl, p, p.OPERATOR_KIND, p.OPERATOR_UUID, p.OPERATOR_NAME, uuid)
+                + redact(dsl, uses, uses.OPERATOR_KIND, uses.OPERATOR_UUID, uses.OPERATOR_NAME,
+                        uuid)
                 + redact(dsl, p, p.REVOKER_KIND, p.REVOKER_UUID, p.REVOKER_NAME, uuid)
                 + redact(dsl, p, p.VOIDER_KIND, p.VOIDER_UUID, p.VOIDER_NAME, uuid)
                 + redact(dsl, evidence, evidence.ADDED_BY_KIND, evidence.ADDED_BY_UUID,

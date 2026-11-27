@@ -9,13 +9,14 @@
 //   a conflict), the note says so: the user now sees the edit next to the current value.
 // - Publishing: a key is dropped once global holds the publishing server's file value.
 // - A pending update of a template that no longer exists, and a pending create of one that now
-//   exists, are kept and flagged ("template-gone", "template-exists").
+//   exists, are kept and flagged ("template-gone", "template-exists"). Templates are keyed by
+//   variant scope and name, so a variant is re-based on its own (S62).
 // - Edits of a section the new snapshot doesn't have stay in the draft but can't be sent.
 
 import { jsonEqual } from '../json'
 import type { JsonValue, Payload, Section } from '../protocol/schema'
 import { GLOBAL } from '../protocol/schema'
-import { initialDraft, messageOverride, refId, settingField, settingOverride } from './draft'
+import { initialDraft, messageOverride, refId, settingField, settingOverride, templateKey } from './draft'
 import type { EditorDraft, MessageEdit, SettingEdit, TemplateDraft } from './draft'
 import { definitionToForm, formToDefinition, sameDefinition } from './templates'
 
@@ -31,7 +32,7 @@ export type RebaseNoteKind
 export interface RebaseNote {
   kind: RebaseNoteKind
   section: Section
-  /** The scope for settings and messages, "" otherwise. */
+  /** The scope for settings and messages, the variant (`global` included) for templates, "" otherwise. */
   scope: string
   /** The key, "<locale>:<key>", the template name, or the section name. */
   target: string
@@ -173,47 +174,57 @@ function rebaseMessages(before: Payload, after: Payload, draft: EditorDraft, nex
 
 function rebaseTemplates(before: Payload, after: Payload, draft: EditorDraft, next: EditorDraft,
   notes: RebaseNote[], hints: Required<RebaseHints>) {
-  const oldItems = new Map((before.templates?.items ?? []).map(item => [item.name, item]))
-  const drafted = new Map(draft.templates.map(form => [form.name, form]))
-  const pendingNames = [...new Set([...oldItems.keys(), ...drafted.keys()])].filter((name) => {
-    const old = oldItems.get(name)
-    const form = drafted.get(name)
+  // Keyed by variant scope and name (S62): a variant re-bases like any other definition.
+  const keyed = (items: Payload['templates']) => new Map((items?.items ?? []).map(item => [templateKey(item.scope, item.name), item]))
+  const oldItems = keyed(before.templates)
+  const drafted = new Map(draft.templates.map(form => [templateKey(form.variant, form.name), form]))
+  const pendingKeys = [...new Set([...oldItems.keys(), ...drafted.keys()])].filter((key) => {
+    const old = oldItems.get(key)
+    const form = drafted.get(key)
     return !old || !form || !sameDefinition(old.definition, formToDefinition(form))
   })
   if (!after.templates) {
     next.templates = draft.templates.map(form => structuredClone(form))
-    if (pendingNames.length > 0) {
+    if (pendingKeys.length > 0) {
       notes.push({ kind: 'section-gone', section: 'templates', scope: '', target: 'templates' })
     }
     return
   }
-  const newItems = new Map(after.templates.items.map(item => [item.name, item]))
-  const moved = (name: string): boolean => {
-    const old = oldItems.get(name)
-    const now = newItems.get(name)
-    return hints.conflicts.has(`templates:${name}`) || !old || !now || old.version !== now.version
+  const newItems = keyed(after.templates)
+  const split = (key: string) => {
+    const space = key.indexOf(' ')
+    return { scope: key.slice(0, space), name: key.slice(space + 1) }
+  }
+  const moved = (key: string): boolean => {
+    const old = oldItems.get(key)
+    const now = newItems.get(key)
+    const { scope, name } = split(key)
+    return hints.conflicts.has(refId({ section: 'templates', scope, name })) || !old || !now || old.version !== now.version
       || !sameDefinition(old.definition, now.definition)
   }
-  const note = (kind: RebaseNoteKind, target: string) => notes.push({ kind, section: 'templates', scope: '', target })
+  const note = (kind: RebaseNoteKind, key: string) => {
+    const { scope, name } = split(key)
+    notes.push({ kind, section: 'templates', scope, target: name })
+  }
   const result = new Map<string, TemplateDraft>()
-  for (const item of after.templates.items) {
-    result.set(item.name, { ...definitionToForm(item.name, item.definition), origin: item.name })
+  for (const [key, item] of newItems) {
+    result.set(key, { ...definitionToForm(item.name, item.definition), origin: item.name, variant: item.scope })
   }
 
-  for (const name of [...new Set([...oldItems.keys(), ...drafted.keys(), ...newItems.keys()])].sort()) {
-    const old = oldItems.get(name)
-    const form = drafted.get(name)
-    const now = newItems.get(name)
+  for (const key of [...new Set([...oldItems.keys(), ...drafted.keys(), ...newItems.keys()])].sort()) {
+    const old = oldItems.get(key)
+    const form = drafted.get(key)
+    const now = newItems.get(key)
     if (!form && !old) {
       continue // only on the server: already in `result`
     }
     if (!form) {
       // A pending delete (or the old half of a rename).
       if (!now) {
-        note('applied', name)
+        note('applied', key)
       } else {
-        result.delete(name)
-        note(moved(name) ? 'conflict' : 'kept', name)
+        result.delete(key)
+        note(moved(key) ? 'conflict' : 'kept', key)
       }
       continue
     }
@@ -222,20 +233,21 @@ function rebaseTemplates(before: Payload, after: Payload, draft: EditorDraft, ne
       continue // untouched: follow the server (kept, changed or gone)
     }
     if (now && sameDefinition(now.definition, mine)) {
-      note('applied', name)
+      note('applied', key)
       continue
     }
     if (now) {
-      result.set(name, { ...structuredClone(form), origin: old ? form.origin : name })
-      note(old ? (moved(name) ? 'conflict' : 'kept') : 'template-exists', name)
+      result.set(key, { ...structuredClone(form), origin: old ? form.origin : form.name })
+      note(old ? (moved(key) ? 'conflict' : 'kept') : 'template-exists', key)
     } else {
-      result.set(name, structuredClone(form))
-      note(old ? 'template-gone' : 'kept', name)
+      result.set(key, structuredClone(form))
+      note(old ? 'template-gone' : 'kept', key)
     }
   }
-  // The server's order first, then templates only the draft has.
-  const order = [...after.templates.items.map(item => item.name), ...draft.templates.map(form => form.name)]
-  next.templates = [...new Set(order)].filter(name => result.has(name)).map(name => result.get(name)!)
+  // The server's order first, then definitions only the draft has.
+  const order = [...after.templates.items.map(item => templateKey(item.scope, item.name)),
+    ...draft.templates.map(form => templateKey(form.variant, form.name))]
+  next.templates = [...new Set(order)].filter(key => result.has(key)).map(key => result.get(key)!)
 }
 
 /** Re-bases `draft` (made against `before`) on `after`. */

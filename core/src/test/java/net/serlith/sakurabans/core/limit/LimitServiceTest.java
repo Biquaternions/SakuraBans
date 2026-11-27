@@ -2,20 +2,27 @@ package net.serlith.sakurabans.core.limit;
 
 import java.nio.file.Files;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import net.serlith.sakurabans.api.model.PlayerVictim;
 import net.serlith.sakurabans.api.model.Punishment;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.punish.DraftPunishment;
+import net.serlith.sakurabans.api.punish.LadderRequest;
 import net.serlith.sakurabans.api.punish.OverridePolicy;
 import net.serlith.sakurabans.api.punish.PunishOptions;
 import net.serlith.sakurabans.api.punish.PunishResult;
+import net.serlith.sakurabans.api.template.TemplateDuration;
 import net.serlith.sakurabans.api.template.TemplateStep;
 import net.serlith.sakurabans.core.ServiceTest;
 import net.serlith.sakurabans.core.configuration.ReloadResult;
 import net.serlith.sakurabans.core.fake.FakeOnlinePlayer;
-import net.serlith.sakurabans.core.model.TemplateDefinition;
+import net.serlith.sakurabans.core.model.SakuraLadderTemplate;
+import net.serlith.sakurabans.core.model.TemplateBuilder;
 import net.serlith.sakurabans.core.permission.Permissions;
+import net.serlith.sakurabans.core.punish.PunishmentFactory;
+import net.serlith.sakurabans.core.punish.PunishmentFactory.Origin;
+import net.serlith.sakurabans.core.punish.PunishmentFactory.Prepared;
 import org.assertj.core.api.Assertions;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
@@ -118,9 +125,9 @@ class LimitServiceTest extends ServiceTest {
     @Test
     void theFirstMatchingGroupApplies() {
         this.mod.grant("sakurabans.group.trainee");
-        this.templates.create(TemplateDefinition.builder("hacking", PunishmentType.BAN)
+        this.templates.create(TemplateBuilder.preset("hacking", PunishmentType.BAN)
                 .reason("Hacking")
-                .ladder(List.of(TemplateStep.of(Duration.ofDays(30)))).build(), CONSOLE).join();
+                .duration(TemplateDuration.fixed(Duration.ofDays(30))).build(), CONSOLE).join();
 
         Assertions.assertThat(reason(this.ban(Duration.ofHours(1))))
                 .isEqualTo(PunishResult.Failure.Reason.TEMPLATE_REQUIRED);
@@ -138,5 +145,57 @@ class LimitServiceTest extends ServiceTest {
                 .build(), PunishOptions.defaults()).join();
         Assertions.assertThat(punishment(limited).expiresAt())
                 .hasValue(this.now.get().plus(Duration.ofDays(1)));
+    }
+
+    @Test
+    void ladderStepIsKnownByItsMarkerNotByItsUse() {
+        // S64: Prepared.Ready says where it comes from; the limits read that.
+        this.mod.grant("sakurabans.group.helper");
+        this.templates.create(TemplateBuilder.preset("hacking", PunishmentType.BAN)
+                .reason("Hacking")
+                .duration(TemplateDuration.fixed(Duration.ofDays(30))).build(), CONSOLE).join();
+        this.templates.create(TemplateBuilder.ladder("cheating").reason("Cheating")
+                .steps(List.of(TemplateStep.of(PunishmentType.BAN,
+                        TemplateDuration.fixed(Duration.ofDays(30)))))
+                .build(), CONSOLE).join();
+        final PunishmentFactory factory = new PunishmentFactory(this.scopes, this.config,
+                this.players, this.platform, this.clock, this.templates);
+
+        final Prepared.Ready plain = (Prepared.Ready) factory.prepare(DraftPunishment.builder(
+                PunishmentType.BAN, PlayerVictim.of(STEVE), MODERATOR).build(),
+                PunishOptions.defaults()).join();
+        Assertions.assertThat(plain.origin()).isEqualTo(Origin.PLAIN);
+        final Prepared.Ready preset = (Prepared.Ready) factory.prepare(DraftPunishment.builder(
+                PunishmentType.BAN, PlayerVictim.of(STEVE), MODERATOR).template("hacking")
+                .build(), PunishOptions.defaults()).join();
+        Assertions.assertThat(preset.origin()).isEqualTo(Origin.PRESET);
+        final Prepared.Ready step = (Prepared.Ready) factory.prepare(LadderRequest.builder(
+                "cheating", PlayerVictim.of(STEVE), MODERATOR).build(),
+                (SakuraLadderTemplate) this.templates.find("cheating").orElseThrow().template(), 0,
+                PunishOptions.defaults()).join();
+        Assertions.assertThat(step.origin()).isEqualTo(Origin.LADDER_STEP);
+        Assertions.assertThat(step.template()).isEqualTo(this.templates.find("cheating")
+                .orElseThrow().template());
+
+        final Instant capped = this.now.get().plus(Duration.ofDays(1));
+        final Instant full = this.now.get().plus(Duration.ofDays(30));
+        Assertions.assertThat(expiry(this.limits.apply(preset, PunishOptions.defaults())))
+                .isEqualTo(capped);
+        Assertions.assertThat(expiry(this.limits.apply(step, PunishOptions.defaults())))
+                .isEqualTo(full);
+        // The preset's use (no step) marked as a ladder step: the marker decides.
+        Assertions.assertThat(expiry(this.limits.apply(new Prepared.Ready(preset.punishment(),
+                Origin.LADDER_STEP, preset.use(), preset.template()), PunishOptions.defaults())))
+                .isEqualTo(full);
+        Assertions.assertThatThrownBy(() -> new Prepared.Ready(preset.punishment(),
+                Origin.PLAIN, preset.use(), preset.template()))
+                .isInstanceOf(IllegalArgumentException.class);
+        Assertions.assertThatThrownBy(() -> new Prepared.Ready(preset.punishment(),
+                Origin.PRESET, null, null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    private static @Nullable Instant expiry(final Prepared prepared) {
+        return ((Prepared.Ready) prepared).punishment().expiresAt();
     }
 }

@@ -52,19 +52,26 @@ public record EditorChanges(int format, long sequence, List<SettingsChange> sett
         }
     }
 
+    /**
+     * {@code scope}: the definition's scope as written, {@code global} or a variant's server
+     * or category (S62).
+     */
     public sealed interface TemplateChange {
+
+        String scope();
 
         String name();
 
-        record Create(String name, Map<String, @Nullable Object> definition)
+        record Create(String scope, String name, Map<String, @Nullable Object> definition)
                 implements TemplateChange {
         }
 
-        record Update(String name, long expectedVersion, Map<String, @Nullable Object> definition)
-                implements TemplateChange {
+        record Update(String scope, String name, long expectedVersion,
+                Map<String, @Nullable Object> definition) implements TemplateChange {
         }
 
-        record Delete(String name, long expectedVersion) implements TemplateChange {
+        record Delete(String scope, String name, long expectedVersion)
+                implements TemplateChange {
         }
     }
 
@@ -204,36 +211,39 @@ public record EditorChanges(int format, long sequence, List<SettingsChange> sett
                     continue;
                 }
                 final String op = this.string(object.get("op"), path + ".op");
+                final String scope = this.string(object.get("scope"), path + ".scope");
                 final String name = this.string(object.get("name"), path + ".name");
                 if (op == null || name == null) {
                     continue;
                 }
                 switch (op) {
                     case "create" -> {
-                        this.known(object, path, List.of("op", "name", "definition"));
+                        this.known(object, path, List.of("op", "scope", "name", "definition"));
                         final Map<String, @Nullable Object> definition =
                                 this.definition(object.get("definition"), path);
-                        if (definition != null) {
-                            changes.add(new TemplateChange.Create(name, definition));
+                        if (scope != null && definition != null) {
+                            changes.add(new TemplateChange.Create(scope, name, definition));
                         }
                     }
                     case "update" -> {
-                        this.known(object, path, List.of("op", "name", "expectedVersion",
-                                "definition"));
+                        this.known(object, path, List.of("op", "scope", "name",
+                                "expectedVersion", "definition"));
                         final Long version = this.number(object.get("expectedVersion"),
                                 path + ".expectedVersion");
                         final Map<String, @Nullable Object> definition =
                                 this.definition(object.get("definition"), path);
-                        if (version != null && definition != null) {
-                            changes.add(new TemplateChange.Update(name, version, definition));
+                        if (scope != null && version != null && definition != null) {
+                            changes.add(new TemplateChange.Update(scope, name, version,
+                                    definition));
                         }
                     }
                     case "delete" -> {
-                        this.known(object, path, List.of("op", "name", "expectedVersion"));
+                        this.known(object, path, List.of("op", "scope", "name",
+                                "expectedVersion"));
                         final Long version = this.number(object.get("expectedVersion"),
                                 path + ".expectedVersion");
-                        if (version != null) {
-                            changes.add(new TemplateChange.Delete(name, version));
+                        if (scope != null && version != null) {
+                            changes.add(new TemplateChange.Delete(scope, name, version));
                         }
                     }
                     default -> this.error(path + ".op", "must be create, update or delete");

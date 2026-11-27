@@ -19,6 +19,7 @@ import net.serlith.sakurabans.api.model.GlobalScope;
 import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Scope;
 import net.serlith.sakurabans.api.model.ServerScope;
+import net.serlith.sakurabans.api.template.TemplateInfo;
 import net.serlith.sakurabans.core.RecordingLogger;
 import net.serlith.sakurabans.core.SakuraBansCore;
 import net.serlith.sakurabans.core.admin.InstanceRegistry;
@@ -26,7 +27,7 @@ import net.serlith.sakurabans.core.configuration.ReloadResult;
 import net.serlith.sakurabans.core.fake.FakePlatform;
 import net.serlith.sakurabans.core.message.MessageService;
 import net.serlith.sakurabans.core.model.AdminResult;
-import net.serlith.sakurabans.core.model.TemplateDefinition;
+import net.serlith.sakurabans.core.model.TemplateBuilder;
 import net.serlith.sakurabans.core.storage.ContainerDatabase;
 import net.serlith.sakurabans.core.storage.repository.InstanceRepository;
 import org.assertj.core.api.Assertions;
@@ -162,17 +163,17 @@ class TwoInstancesIT {
 
     @Test
     void templatesAreCreatedUpdatedAndDeletedOnBoth() {
-        final TemplateDefinition spam = TemplateDefinition.builder("chatter", PunishmentType.MUTE)
+        final TemplateInfo spam = TemplateBuilder.preset("chatter", PunishmentType.MUTE)
                 .reason("Spamming").build();
         final long created = ok(this.alpha.templates().create(spam, CONSOLE).join()).version();
         eventually(() -> this.beta.templates().find("chatter").isPresent());
 
-        ok(this.alpha.templates().update(spam.toBuilder().reason("Flooding").build(), created,
-                CONSOLE).join());
-        eventually(() -> this.beta.templates().find("chatter").orElseThrow().reason()
+        ok(this.alpha.templates().update(TemplateBuilder.from(spam).reason("Flooding").build(),
+                created, CONSOLE).join());
+        eventually(() -> this.beta.templates().find("chatter").orElseThrow().template().reason()
                 .equals("Flooding"));
 
-        ok(this.beta.templates().delete("chatter", created + 1, CONSOLE).join());
+        ok(this.beta.templates().delete(null, "chatter", created + 1, CONSOLE).join());
         eventually(() -> this.alpha.templates().find("chatter").isEmpty());
         Assertions.assertThat(List.copyOf(this.alpha.templates().templates()))
                 .noneMatch(template -> template.name().equals("chatter"));

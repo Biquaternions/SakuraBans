@@ -121,7 +121,7 @@ export interface DurationRules {
   permanent?: boolean
   /** `never` is accepted (settings documented as "a duration, or never"). */
   never?: boolean
-  /** `none` (or empty) is accepted (ladder-expiry). */
+  /** `none` (or empty) is accepted (a ladder's expiry). */
   none?: boolean
 }
 

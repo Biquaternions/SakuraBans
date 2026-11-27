@@ -1,17 +1,20 @@
 package net.serlith.sakurabans.api.template;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import net.serlith.sakurabans.api.model.PunishmentType;
 import net.serlith.sakurabans.api.model.Scope;
 
 /**
  * A template, as currently stored. Templates live in the database and are shared by every
- * instance; {@code templates.yml} seeds them. Implemented by SakuraBans; don't implement it.
+ * instance; {@code templates.yml} seeds them. A template is either a {@link PresetTemplate} (one
+ * punishment type, used by that type's commands) or a {@link LadderTemplate} (escalating steps,
+ * applied with {@code /punish}). Names are unique across both. A template may have
+ * <em>variants</em>: whole definitions of the same kind for a server or category, in force
+ * there instead of the global definition (see {@link TemplateService#template(String, Scope)}).
+ * Implemented by SakuraBans; don't implement it.
  */
-public interface TemplateInfo {
+public sealed interface TemplateInfo permits PresetTemplate, LadderTemplate {
 
     /**
      * The template's name.
@@ -21,23 +24,13 @@ public interface TemplateInfo {
     String name();
 
     /**
-     * The type of its punishments: of every step that names none, and what lists show first.
+     * Where this definition is in force: empty for the global definition, else the server or
+     * category of this variant. Not to be confused with {@link #scope()}, where its punishments
+     * apply. A variant always has its global definition's kind and groups.
      *
-     * @return the type
+     * @return the variant's scope, or empty for the global definition
      */
-    PunishmentType type();
-
-    /**
-     * The type of the punishment at a step: the step's own, or the template's.
-     *
-     * @param step the step, counted from 0; past the end, the last step
-     * @return the type
-     */
-    default PunishmentType type(final int step) {
-        final List<TemplateStep> ladder = this.ladder();
-        return ladder.get(Math.min(Math.max(step, 0), ladder.size() - 1)).type()
-                .orElse(this.type());
-    }
+    Optional<Scope> variant();
 
     /**
      * Whether its punishments target the player's current address instead of the player, as an
@@ -51,56 +44,43 @@ public interface TemplateInfo {
      * Whether its mutes are shadow mutes: the muted player's messages are shown to themselves
      * only.
      *
-     * @return {@code true} for shadow mutes; only when a step is a mute
+     * @return {@code true} for shadow mutes; only on a mute preset or a ladder with a mute step
      */
     boolean shadow();
 
     /**
      * What a player punished from this template is shown instead of the network's message for
      * the type (the ban and kick screens, the mute notice, the warning): MiniMessage, with the
-     * placeholders of the network's message. A step's {@link TemplateStep#message()} wins.
+     * placeholders of the network's message. A ladder step's {@link TemplateStep#message()}
+     * wins.
      *
      * @return the message, or empty for the network's
      */
     Optional<String> message();
 
     /**
-     * The scope its punishments get when the punishment names none.
+     * How the mute notice and the warning reach the punished player while online: chat or a
+     * dialog. Only a mute or warn preset, or a ladder with a mute or warn step, may show a
+     * dialog; a shadow mute preset shows nothing.
+     *
+     * @return the display, {@link TemplateDisplay#CHAT} unless set
+     */
+    TemplateDisplay display();
+
+    /**
+     * The scope its punishments get when the command names none.
      *
      * @return the scope, or empty for the configured default scope
      */
     Optional<Scope> scope();
 
     /**
-     * The reason punishments from this template get when none is given.
+     * The reason punishments from this template get when none is given. A ladder step's
+     * {@link TemplateStep#reason()} wins.
      *
      * @return the reason, plain text
      */
     String reason();
-
-    /**
-     * The ladder: the first punishment uses step 0, the next one step 1, and so on; past the
-     * end, the last step repeats.
-     *
-     * @return the steps, never empty
-     */
-    List<TemplateStep> ladder();
-
-    /**
-     * How long a punishment counts towards the ladder (LiteBans' {@code expire_ladder}): older
-     * ones are left out when the step is counted.
-     *
-     * @return the window, or empty if every earlier punishment counts
-     */
-    Optional<Duration> ladderExpiry();
-
-    /**
-     * Whether progress is shared through addresses (LiteBans' {@code ip_template}): earlier
-     * punishments of the victim's alts and addresses count too.
-     *
-     * @return {@code true} if shared
-     */
-    boolean addressShared();
 
     /**
      * Whether using the template needs the permission {@code sakurabans.template.<name>}.
@@ -110,16 +90,21 @@ public interface TemplateInfo {
     boolean permissionRequired();
 
     /**
-     * Console commands run after every punishment from this template, before the step's own
-     * {@link TemplateStep#actions()}; same placeholders.
+     * Console commands run every time the template is applied, before a ladder step's own
+     * {@link TemplateStep#actions()}. They may use the placeholders {@code {victim}},
+     * {@code {uuid}}, {@code {address}}, {@code {id}}, {@code {operator}}, {@code {reason}},
+     * {@code {template}}, {@code {step}} (counted from 1, empty for a preset) and
+     * {@code {duration}}.
      *
      * @return the commands, possibly empty
      */
     List<String> actions();
 
     /**
-     * The groups the template is in, with its weight in each. Templates in a group share their
-     * progress: an earlier punishment from a group mate counts as its weight in that group.
+     * The groups the template is in, with its weight in each. Every use of a template counts
+     * towards the ladders of its group mates with its weight in that group, presets included.
+     * Groups belong to the global definition: a variant has none of its own, and progress is
+     * counted by name, whichever definition was used.
      *
      * @return group name to weight (1-100), possibly empty
      */

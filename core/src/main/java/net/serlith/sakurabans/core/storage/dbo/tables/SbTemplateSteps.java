@@ -4,6 +4,7 @@ import java.io.Serial;
 import java.time.Duration;
 import java.util.List;
 import net.serlith.sakurabans.api.model.PunishmentType;
+import net.serlith.sakurabans.core.storage.dbo.DurationMode;
 import net.serlith.sakurabans.core.storage.dbo.Keys;
 import net.serlith.sakurabans.core.storage.dbo.SbTable;
 import net.serlith.sakurabans.core.storage.dbo.SbTypes;
@@ -29,12 +30,18 @@ public final class SbTemplateSteps extends SbTable<SbTemplateStepsRecord> {
     public final TableField<SbTemplateStepsRecord, Short> POSITION = createField(
             DSL.name("position"), SQLDataType.SMALLINT.nullable(false), this, "");
 
-    /** Null: the template's type. */
+    /** Null: no punishment, only the step's actions. */
     public final TableField<SbTemplateStepsRecord, PunishmentType> TYPE = createField(
             DSL.name("type"), SbTypes.PUNISHMENT_TYPE.nullable(true), this, "");
 
     public final TableField<SbTemplateStepsRecord, String> MESSAGE = createField(
             DSL.name("message"), SQLDataType.VARCHAR(4096).nullable(true), this, "");
+
+    public final TableField<SbTemplateStepsRecord, String> REASON = createField(
+            DSL.name("reason"), SQLDataType.VARCHAR(1024).nullable(true), this, "");
+
+    public final TableField<SbTemplateStepsRecord, DurationMode> DURATION_MODE = createField(
+            DSL.name("duration_mode"), SbTypes.DURATION_MODE.nullable(false), this, "");
 
     public final TableField<SbTemplateStepsRecord, Duration> DURATION_MS = createField(
             DSL.name("duration_ms"), SbTypes.DURATION.nullable(true), this, "");

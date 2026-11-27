@@ -20,6 +20,7 @@ import net.serlith.sakurabans.core.storage.dbo.records.SbSyncMessagesRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbTemplateGroupMembersRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbTemplateGroupsRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbTemplateStepsRecord;
+import net.serlith.sakurabans.core.storage.dbo.records.SbTemplateUsesRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbTemplatesRecord;
 import net.serlith.sakurabans.core.storage.dbo.records.SbVictimsRecord;
 import org.jooq.ForeignKey;
@@ -79,9 +80,12 @@ public final class Keys {
             Internal.createUniqueKey(SakuraTables.TEMPLATES, name("templates_pk"),
                     new TableField[] {SakuraTables.TEMPLATES.ID}, true);
 
-    public static final UniqueKey<SbTemplatesRecord> TEMPLATES_NAME_UQ =
-            Internal.createUniqueKey(SakuraTables.TEMPLATES, name("templates_name_uq"),
-                    new TableField[] {SakuraTables.TEMPLATES.NAME}, true);
+    public static final UniqueKey<SbTemplatesRecord> TEMPLATES_VARIANT_NAME_UQ =
+            Internal.createUniqueKey(SakuraTables.TEMPLATES, name("templates_variant_name_uq"),
+                    new TableField[] {
+                            SakuraTables.TEMPLATES.VARIANT_SCOPE_ID,
+                            SakuraTables.TEMPLATES.NAME
+                    }, true);
 
     public static final UniqueKey<SbTemplateStepsRecord> TEMPLATE_STEPS_PK =
             Internal.createUniqueKey(SakuraTables.TEMPLATE_STEPS, name("template_steps_pk"),
@@ -127,6 +131,15 @@ public final class Keys {
                             SakuraTables.ACTIVE_PUNISHMENTS.SCOPE_ID,
                             SakuraTables.ACTIVE_PUNISHMENTS.EXCLUSIVITY_SLOT
                     }, true);
+
+    public static final UniqueKey<SbTemplateUsesRecord> TEMPLATE_USES_PK =
+            Internal.createUniqueKey(SakuraTables.TEMPLATE_USES, name("template_uses_pk"),
+                    new TableField[] {SakuraTables.TEMPLATE_USES.ID}, true);
+
+    public static final UniqueKey<SbTemplateUsesRecord> TEMPLATE_USES_PUNISHMENT_UQ =
+            Internal.createUniqueKey(SakuraTables.TEMPLATE_USES,
+                    name("template_uses_punishment_uq"),
+                    new TableField[] {SakuraTables.TEMPLATE_USES.PUNISHMENT_ID}, true);
 
     public static final UniqueKey<SbPunishmentEvidenceRecord> PUNISHMENT_EVIDENCE_PK =
             Internal.createUniqueKey(SakuraTables.PUNISHMENT_EVIDENCE,
@@ -192,6 +205,14 @@ public final class Keys {
                     PLAYERS_PK,
                     new TableField[] {SakuraTables.PLAYERS.UUID},
                     true, QOM.ForeignKeyRule.CASCADE, QOM.ForeignKeyRule.NO_ACTION);
+
+    public static final ForeignKey<SbTemplatesRecord, SbScopesRecord>
+            TEMPLATES_VARIANT_SCOPE_FK = Internal.createForeignKey(
+                    SakuraTables.TEMPLATES, name("templates_variant_scope_fk"),
+                    new TableField[] {SakuraTables.TEMPLATES.VARIANT_SCOPE_ID},
+                    SCOPES_PK,
+                    new TableField[] {SakuraTables.SCOPES.ID},
+                    true, QOM.ForeignKeyRule.NO_ACTION, QOM.ForeignKeyRule.NO_ACTION);
 
     public static final ForeignKey<SbTemplatesRecord, SbScopesRecord>
             TEMPLATES_SCOPE_FK = Internal.createForeignKey(
@@ -269,6 +290,38 @@ public final class Keys {
             PUNISHMENT_EVIDENCE_PUNISHMENT_FK = Internal.createForeignKey(
                     SakuraTables.PUNISHMENT_EVIDENCE, name("punishment_evidence_punishment_fk"),
                     new TableField[] {SakuraTables.PUNISHMENT_EVIDENCE.PUNISHMENT_ID},
+                    PUNISHMENTS_PK,
+                    new TableField[] {SakuraTables.PUNISHMENTS.ID},
+                    true, QOM.ForeignKeyRule.CASCADE, QOM.ForeignKeyRule.NO_ACTION);
+
+    public static final ForeignKey<SbPunishmentsRecord, SbScopesRecord>
+            PUNISHMENTS_TEMPLATE_VARIANT_FK = Internal.createForeignKey(
+                    SakuraTables.PUNISHMENTS, name("punishments_template_variant_fk"),
+                    new TableField[] {SakuraTables.PUNISHMENTS.TEMPLATE_VARIANT_SCOPE_ID},
+                    SCOPES_PK,
+                    new TableField[] {SakuraTables.SCOPES.ID},
+                    true, QOM.ForeignKeyRule.NO_ACTION, QOM.ForeignKeyRule.NO_ACTION);
+
+    public static final ForeignKey<SbTemplateUsesRecord, SbScopesRecord>
+            TEMPLATE_USES_VARIANT_FK = Internal.createForeignKey(
+                    SakuraTables.TEMPLATE_USES, name("template_uses_variant_fk"),
+                    new TableField[] {SakuraTables.TEMPLATE_USES.TEMPLATE_VARIANT_SCOPE_ID},
+                    SCOPES_PK,
+                    new TableField[] {SakuraTables.SCOPES.ID},
+                    true, QOM.ForeignKeyRule.NO_ACTION, QOM.ForeignKeyRule.NO_ACTION);
+
+    public static final ForeignKey<SbTemplateUsesRecord, SbVictimsRecord>
+            TEMPLATE_USES_VICTIM_FK = Internal.createForeignKey(
+                    SakuraTables.TEMPLATE_USES, name("template_uses_victim_fk"),
+                    new TableField[] {SakuraTables.TEMPLATE_USES.VICTIM_ID},
+                    VICTIMS_PK,
+                    new TableField[] {SakuraTables.VICTIMS.ID},
+                    true, QOM.ForeignKeyRule.NO_ACTION, QOM.ForeignKeyRule.NO_ACTION);
+
+    public static final ForeignKey<SbTemplateUsesRecord, SbPunishmentsRecord>
+            TEMPLATE_USES_PUNISHMENT_FK = Internal.createForeignKey(
+                    SakuraTables.TEMPLATE_USES, name("template_uses_punishment_fk"),
+                    new TableField[] {SakuraTables.TEMPLATE_USES.PUNISHMENT_ID},
                     PUNISHMENTS_PK,
                     new TableField[] {SakuraTables.PUNISHMENTS.ID},
                     true, QOM.ForeignKeyRule.CASCADE, QOM.ForeignKeyRule.NO_ACTION);
