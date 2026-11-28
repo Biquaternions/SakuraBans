@@ -6,7 +6,7 @@ import net.serlith.sakurabans.core.SakuraBansCore;
 import net.serlith.sakurabans.core.bootstrap.CoreBootstrap;
 import net.serlith.sakurabans.core.bootstrap.CoreEnvironment;
 
-public class SakuraBansFidorial implements Plugin {
+final class SakuraBansFidorial implements Plugin {
 
     private PluginContext ctx;
     private SakuraBansCore core;
@@ -18,4 +18,14 @@ public class SakuraBansFidorial implements Plugin {
                 new CoreEnvironment(ctx.dataFolder(), ctx.logger(), false, System.getenv()));
     }
 
+    @Override
+    public void onEnable() {
+        final FidorialPlatform platform = new FidorialPlatform(this.ctx);
+        this.core.start(platform);
+    }
+
+    @Override
+    public void onDisable() {
+        this.core.stop();
+    }
 }
