@@ -7,7 +7,6 @@ dependencies {
     implementation(project(":core"))
     implementation(libs.cloud.velocity)
     compileOnly(libs.velocity.api)
-    // Provided by the packetevents plugin when installed; never shaded.
     compileOnly(libs.packetevents.api) {
         isTransitive = false
     }

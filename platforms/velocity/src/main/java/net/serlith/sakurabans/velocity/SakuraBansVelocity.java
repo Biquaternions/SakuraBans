@@ -25,15 +25,12 @@ import org.incendo.cloud.velocity.VelocityCommandManager;
         id = "sakurabans",
         name = "SakuraBans",
         version = BuildConstants.VERSION,
-        authors = {"Biquaternions"},
+        authors = {"Biquaternions"}, // LIES: It was Claude :o
         dependencies = {
             @Dependency(id = "luckperms", optional = true),
             @Dependency(id = "floodgate", optional = true),
-            // Lets mutes cancel signed chat without kicking; without it, chat passes.
             @Dependency(id = SakuraBansVelocity.SIGNED_VELOCITY, optional = true),
-            // Sends template dialogs; without it, they are sent as chat.
             @Dependency(id = SakuraBansVelocity.PACKET_EVENTS, optional = true),
-            // Placeholders; without it, there are none.
             @Dependency(id = SakuraBansVelocity.MINI_PLACEHOLDERS, optional = true)
         }
 )
