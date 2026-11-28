@@ -25,7 +25,7 @@ tasks {
     processResources {
         val props = mapOf("version" to project.version)
         inputs.properties(props)
-        filesMatching("paper-plugin.yml") {
+        filesMatching("fidorial.json") {
             expand(props)
         }
     }
