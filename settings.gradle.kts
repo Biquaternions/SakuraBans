@@ -23,6 +23,24 @@ dependencyResolutionManagement {
                 includeGroup("me.clip")
             }
         }
+        maven("https://repo.euphyllia.moe/repository/maven-public/") {
+            name = "euphyllia"
+            content {
+                includeGroup("fr.fidorial")
+            }
+        }
+        maven("https://repo.opencollab.dev/maven-releases") {
+            name = "opencollab-releases"
+            content {
+                includeGroup("org.spongepowered")
+            }
+        }
+        maven("https://repo.opencollab.dev/maven-snapshots") {
+            name = "opencollab-snapshots"
+            content {
+                includeGroup("org.spongepowered")
+            }
+        }
     }
 }
 
@@ -33,4 +51,5 @@ include(
     "core",
     "platforms:paper",
     "platforms:velocity",
+    "platforms:fidorial",
 )

@@ -1,0 +1,9 @@
+{
+  "id": "sakurabans",
+  "name": "SakuraBans",
+  "version": "${version}",
+  "main": "net.serlith.sakurabans.fidorial.SakuraBansFidorial",
+  "authors": [
+    "Biquaternions"
+  ]
+}

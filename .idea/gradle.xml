@@ -23,6 +23,7 @@
             <option value="$PROJECT_DIR$/build-logic" />
             <option value="$PROJECT_DIR$/core" />
             <option value="$PROJECT_DIR$/platforms" />
+            <option value="$PROJECT_DIR$/platforms/fidorial" />
             <option value="$PROJECT_DIR$/platforms/paper" />
             <option value="$PROJECT_DIR$/platforms/velocity" />
           </set>

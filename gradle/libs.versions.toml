@@ -26,6 +26,7 @@ maxmind-db = "4.2.0"
 
 paper = "26.3.build.+"
 velocity = "4.3.1"
+fidorial = "0.1.0-SNAPSHOT"
 # Velocity only, compile-only: dialogs where the proxy has the packetevents plugin.
 packetevents = "2.14.0"
 # Soft dependencies, compile-only, never shaded: placeholders where the plugin is installed.
@@ -69,6 +70,7 @@ maxmind-db = { module = "com.maxmind.db:maxmind-db", version.ref = "maxmind-db" 
 
 paper-api = { module = "io.papermc.paper:paper-api", version.ref = "paper" }
 velocity-api = { module = "com.velocitypowered:velocity-api", version.ref = "velocity" }
+fidorial-api = { module = "fr.fidorial:fidorial-api", version.ref = "fidorial" }
 miniplaceholders-api = { module = "io.github.miniplaceholders:miniplaceholders-api", version.ref = "miniplaceholders" }
 placeholderapi = { module = "me.clip:placeholderapi", version.ref = "placeholderapi" }
 packetevents-api = { module = "com.github.retrooper:packetevents-api", version.ref = "packetevents" }

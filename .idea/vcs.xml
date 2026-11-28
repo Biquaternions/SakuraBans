@@ -3,6 +3,7 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/references/LibertyBans" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/references/LiteBans" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/references/LiteBans.wiki" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/references/LuckPerms" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/references/LuckPermsWeb" vcs="Git" />
